@@ -2,7 +2,7 @@
 
 **ID:** SPEC-001  
 **Status:** Draft  
-**Last Updated:** 2026-09-03  
+**Last Updated:** 2026-09-03 (rev 2 — post-review)  
 **Depends On:** None
 
 ## Overview
@@ -12,7 +12,8 @@ canvas you can draw on with a finger or an Apple Pencil, and a set of quality ga
 Nothing domain-specific is built here — no containers, no connections, no frames. The value of this
 spec is that the next one starts from a green, checked, deployable-shaped project instead of an empty
 directory, and that the single motivating feature of the whole rebuild — that drawing on an iPad feels
-right — is confirmed before any effort is spent on top of it.
+right — is judged by a human on real hardware before any effort is spent on top of it, with an
+automated gate left behind to catch the CSS regressions that would silently break it.
 
 ## Scope
 
@@ -21,7 +22,7 @@ right — is confirmed before any effort is spent on top of it.
 - A Vite + React + TypeScript application that builds and runs
 - A full-viewport tldraw canvas with its default tools, drawable by touch and pen
 - Unit and end-to-end test harnesses, each with at least one real test
-- Lint, typecheck and format commands, and a CI workflow that runs them
+- Lint, typecheck, format and test commands, and a CI workflow that runs them
 
 ### Out of Scope
 
@@ -44,17 +45,22 @@ right — is confirmed before any effort is spent on top of it.
 
 #### Description:
 
-A Vite + React + TypeScript project exists at the repository root, with TypeScript in `strict` mode
-and the directory layout `CLAUDE.md` → Layout names, so later specs have somewhere obvious to put
-client, shared and worker code.
+A Vite + React + TypeScript project exists at the repository root, with TypeScript in `strict` mode.
+It creates the `src/client/`, `src/shared/` and `e2e/` directories from `CLAUDE.md` → Layout.
+**`src/worker/` is deliberately NOT created here** — it belongs to SPEC-002, and this spec excludes all
+server code.
 
 #### Acceptance Criteria:
 
-- [ ] `npm install && npm run build` exits 0 from a clean checkout
+- [ ] `npm ci && npm run build` exits 0 from a clean checkout, against a committed `package-lock.json`
+      on the Node version CI pins (Node 20 unless the plan states otherwise, matching
+      `.github/workflows/ci.yml.example`)
 - [ ] `npm run dev` serves the app and it renders without console errors
 - [ ] `npm run typecheck` exits 0 and TypeScript `strict` is enabled in the committed config
-- [ ] The directories `src/client/`, `src/shared/` and `e2e/` exist and are referenced by the build or
-      test config, not merely created empty
+- [ ] `src/client/`, `src/shared/` and `e2e/` exist, and each is reachable from a committed config:
+      `tsconfig` `include` covers `src/`, a `@shared/*` path alias resolves from `src/client/`, and the
+      Playwright config's `testDir` is `e2e/`. A directory holding only `.gitkeep` satisfies this only
+      if the alias to it resolves
 - [ ] `npm run typecheck` exits **non-zero** when a deliberate type error is introduced into
       `src/client/`, proving the check is wired to the source rather than passing vacuously
 
@@ -69,8 +75,12 @@ viewport. No licence key is configured. State is in-memory only.
 
 - [ ] The canvas renders at full viewport height and width, with no page-level scrollbars
 - [ ] A shape drawn with the default draw tool appears on the canvas
-- [ ] Reloading the page yields an empty canvas — no `localStorage`, `sessionStorage` or IndexedDB key
-      belonging to this app is present after drawing
+- [ ] After drawing and reloading, the canvas contains **zero shapes**
+- [ ] No IndexedDB database and no `localStorage` key holding **document records** exists after
+      drawing — asserted by name. tldraw's own user-preferences key (theme, tool defaults) is
+      explicitly permitted: the SDK writes it regardless of `persistenceKey`, and forbidding it would
+      make this criterion false for a correct implementation
+- [ ] No `persistenceKey` is passed to the canvas
 - [ ] No licence key is present in source or environment config, and the app runs on localhost without
       one
 
@@ -78,17 +88,28 @@ viewport. No licence key is configured. State is in-memory only.
 
 #### Description:
 
-The motivating feature of the rebuild is that sketching on an iPad feels native. That is confirmed here
-rather than assumed, because if it does not hold, the foundation is wrong and everything after this
-spec is wasted.
+The motivating feature of the rebuild is that sketching on an iPad feels native. Two different things
+are needed and they are not interchangeable: a **human judgement** on real hardware, because latency,
+pressure and palm rejection cannot be observed through synthetic pointer events; and an **automated
+regression gate** on the CSS that would silently break touch drawing later.
+
+The automated criteria below are deliberately modest — most of what they assert, tldraw already
+guarantees. The one that can genuinely fail is page scroll, which requires deliberate
+`touch-action` / `overscroll-behavior` work.
 
 #### Acceptance Criteria:
 
-- [ ] An end-to-end test emulating an iPad-class viewport with touch enabled draws a freehand stroke
-      via pointer events and asserts a shape was created on the canvas
-- [ ] The same test asserts the page did not pan or scroll as a result of the drawing gesture
-- [ ] A two-finger gesture pans or zooms the canvas rather than creating a shape
-- [ ] Pointer events carrying a `pen` pointer type produce a stroke
+- [ ] **Manual, on a physical iPad with an Apple Pencil**, recorded in the PR body: strokes track the
+      pencil without perceptible lag; palm contact resting on the screen does not draw; pressure
+      varies stroke width. If any of these fail, that is a finding to escalate, not to fix in this
+      spec — it calls the foundation into question
+- [ ] An e2e test at an iPad-class viewport with touch enabled draws a stroke via pointer events and
+      asserts exactly one shape was created
+- [ ] The same test asserts `window.scrollY` and `window.scrollX` are unchanged by the drawing gesture
+- [ ] A `pen` pointerType stroke produces a shape
+- [ ] A two-finger gesture pans or zooms rather than creating a shape. Playwright has no first-class
+      multi-touch API, so this is driven through raw CDP `Input.dispatchTouchEvent`; if the plan finds
+      that unworkable, it moves to the manual criterion above rather than being dropped
 
 ### FR-004: Quality gates exist and run in CI
 
@@ -99,12 +120,15 @@ belong in CI run there on every push and pull request.
 
 #### Acceptance Criteria:
 
-- [ ] `npm test`, `npm run lint`, `npm run typecheck` and `npm run test:e2e` each exist and exit 0
+- [ ] `npm test`, `npm run lint`, `npm run typecheck`, `npm run format:check` and `npm run test:e2e`
+      each exist and exit 0
 - [ ] At least one real unit test and one real end-to-end test exist and are executed by those commands
       — a suite that passes because it is empty does not satisfy this
 - [ ] `sh scripts/spec-lint.sh` and `sh scripts/docs-lint.sh` exit 0 against the repository
-- [ ] A CI workflow runs install, lint, typecheck, unit tests, e2e tests and `spec-lint.sh` on push and
-      pull request, and is green on `main`
+- [ ] A CI workflow at `.github/workflows/ci.yml` runs install, format check, lint, typecheck, unit
+      tests and e2e tests on push and pull request, and is green on `main`
+- [ ] `ci.yml` does **not** run `spec-lint.sh` — `.github/workflows/spec-lint.yml` already owns it as
+      its own job, and duplicating it means two red X's for one failure
 - [ ] CI does **not** run `docs-lint.sh` — it is deliberately a local pre-push gate (`process.md` §5)
 
 ---
@@ -143,7 +167,7 @@ src/
 │   ├── App.tsx
 │   └── App.test.tsx
 └── shared/
-    └── .gitkeep          # populated from SPEC-003 on
+    └── .gitkeep          # first real module arrives in SPEC-002 (room.ts)
 e2e/
 └── canvas.spec.ts
 ```
@@ -154,7 +178,8 @@ e2e/
 
 - Initialise Vite + React + TypeScript at the repo root, `strict` on
 - Create the `src/client/`, `src/shared/`, `e2e/` layout and wire it into the build and test configs
-- Add `build`, `dev`, `typecheck`, `lint`, `test`, `test:e2e` scripts to `package.json`
+- Add `build`, `dev`, `typecheck`, `lint`, `format`, `format:check`, `test`, `test:e2e` scripts to
+  `package.json`; commit the lockfile
 - Record the dependencies added in `CLAUDE.md` → Tech Stack if they differ from what is listed there
 
 ### Phase 2: The canvas
@@ -165,6 +190,8 @@ e2e/
 
 ### Phase 3: Input verification and gates
 
-- Write the Playwright specs for FR-003, including the iPad-class viewport and pen pointer type
+- Write the Playwright specs for FR-003: iPad-class viewport, pen pointerType, the scroll assertion,
+  and the CDP-driven two-finger gesture
+- Do the manual iPad + Pencil pass and record the result in the PR body
 - Add the CI workflow and confirm it is green on `main`
 - Run the full local gate set, `docs-lint.sh` included

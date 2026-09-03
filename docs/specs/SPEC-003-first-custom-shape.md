@@ -2,7 +2,7 @@
 
 **ID:** SPEC-003  
 **Status:** Draft  
-**Last Updated:** 2026-09-03  
+**Last Updated:** 2026-09-03 (rev 2 — post-review)  
 **Depends On:** SPEC-002
 
 ## Overview
@@ -33,7 +33,8 @@ and tested rather than one that has been read about.
   the reason this spec exists, but none of its behaviour is built here.
 - **Connections, ports and bindings.** Nothing links two nodes. That is SPEC-005.
 - **Styling, theming, icons, colour palettes.** The shape looks plain on purpose; a design pass on a
-  shape whose model may still change is wasted.
+  shape whose model may still change is wasted. The toolbar entry FR-002 requires reuses a built-in
+  tldraw icon rather than introducing one.
 - **A properties panel.** The label is edited on the canvas; a panel arrives when there are enough
   props to warrant one.
 - **Porting the predecessor's `DiagramNode` type.** Its shape is informative but it was designed for a
@@ -56,13 +57,21 @@ separately is the failure this spec exists to prevent.
 
 - [ ] The shape's type string and prop validators are exported from a single module under
       `src/shared/`, imported by both the client and the worker
-- [ ] Neither the client nor the worker declares the shape's type string or prop names as its own
-      literal — asserted by a test or lint rule that enumerates the shape modules and fails on a second
-      declaration, not by a reviewer reading the diff
-- [ ] The shared module imports nothing that is browser-only or worker-only, so it loads in both
-      runtimes
-- [ ] A unit test asserts the client's `ShapeUtil` type and the worker schema's registered type are the
-      same value, obtained from the shared module
+- [ ] Neither the client nor the worker declares the shape's **type string** as its own literal. Scope
+      is the type string only: prop *names* are necessarily written on both sides (`getDefaultProps`
+      returns `{ w, h, label }`, `component` reads `shape.props.label`), and agreement on those is
+      already carried mechanically by `RecordProps<NodeShape>` and
+      `getDefaultProps(): NodeShape['props']`
+- [ ] That check **is proven to bite**: a fixture asserts it fails with a named message on a planted
+      duplicate type literal, and stays silent on the legitimate shared declaration. A gate is not
+      tested by running it on the thing it guards (`process.md` §3)
+- [ ] The shared module imports only from `@tldraw/tlschema` and `@tldraw/validate` — never from
+      `tldraw`, which pulls React, DOM and CSS into the Worker bundle. Asserted by an import-allowlist
+      test over `src/shared/`, not by inspection
+- [ ] **A cross-boundary test, not an identity assertion:** a record built from the *client* util's
+      `getDefaultProps()` is accepted by the *worker* schema's validator, and the same record with one
+      prop mutated to the wrong type is rejected by it. Asserting that both sides equal the shared
+      constant is `X === X` and cannot fail under any drift
 
 ### FR-002: The Node shape renders and is editable
 
@@ -89,8 +98,11 @@ hostile client cannot corrupt a room for everyone else in it.
 #### Acceptance Criteria:
 
 - [ ] A record whose props satisfy the validators is accepted and persisted
-- [ ] A record carrying a prop of the wrong type is rejected, and the rejection is asserted against the
-      validator's failure — not merely against a connection closing
+- [ ] A record carrying a prop of the wrong type is rejected, asserted **both** ways: a unit test
+      against the worker schema's validator directly, and an e2e assertion that the socket closes with
+      reason `TLSyncErrorCloseEventReason.INVALID_RECORD` rather than a bare close. Server-side
+      rejection *is* surfaced as a close in tldraw sync, so "not merely a connection closing" means
+      asserting the close **reason code**, not avoiding the close
 - [ ] A record carrying an unknown shape type is rejected
 - [ ] Rejecting a record does not remove the other, valid shapes from the room: a second client
       connected throughout still sees the room's prior contents
@@ -105,12 +117,17 @@ rather than discovered later on one that matters.
 
 #### Acceptance Criteria:
 
-- [ ] The shape ships at least one migration that adds a prop to a prior version of its record
+- [ ] The shape ships v1 as `{ w, h, label }` and a v2 migration adding `color: string`, defaulting to
+      `'black'`. The prop is named here because "a migration that adds a prop" leaves the implementer
+      inventing both the prior version and the addition, and no other FR mentions a fourth prop
 - [ ] A test loads a persisted record written at the older version and asserts it is upgraded to the
       current version with the new prop's default applied
 - [ ] A record already at the current version is left unchanged by the migration
-- [ ] A room persisted before the migration existed opens after it, with its shapes intact — asserted
-      end to end, not only in a unit test of the migration function
+- [ ] A room persisted at v1 opens after the v2 migration ships, with its shapes intact and `color`
+      defaulted — asserted end to end, not only in a unit test of the migration function. The
+      mechanism: a checked-in v1 room snapshot at `e2e/fixtures/room-v1.json`, seeded into Durable
+      Object storage through a **test-only** worker route that is registered only when the worker runs
+      in development. Without a named seeding path this criterion is undecidable
 
 ### FR-005: The custom shape syncs
 
@@ -132,12 +149,15 @@ Everything SPEC-002 proved for built-in shapes holds for this one.
 ```ts
 // src/shared/shapes/node.ts — the single declaration both runtimes consume
 
+// This string is permanent and migration-bearing — changing it later orphans
+// every persisted record. Claimed deliberately now, ahead of the SPEC-006 port.
 const NODE_SHAPE_TYPE = 'diagramNode'
 
 type NodeShapeProps = {
   w: number
   h: number
   label: string
+  color: string     // added at v2 by the migration below; default 'black'
 }
 
 // Validators are exported alongside the type, so the worker schema and the
@@ -145,8 +165,13 @@ type NodeShapeProps = {
 // hand-written copies that agree today and drift tomorrow.
 const nodeShapeProps: RecordProps<NodeShape>
 
+type NodeShape = TLBaseShape<'diagramNode', NodeShapeProps>
+
 // Migrations are part of the definition, not a worker-side afterthought.
-const nodeShapeMigrations: TLPropsMigrations
+const nodeVersions = createShapePropsMigrationIds(NODE_SHAPE_TYPE, { AddColor: 1 })
+const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationSequence({
+  sequence: [{ id: nodeVersions.AddColor, up, down }],
+})
 ```
 
 ---
@@ -154,19 +179,40 @@ const nodeShapeMigrations: TLPropsMigrations
 ## API / Interface Contract
 
 ```
-// client
-class NodeShapeUtil extends ShapeUtil<NodeShape> {
+// client — extends BaseBoxShapeUtil, which supplies box resize for free.
+// NOTE: indicator() is deprecated and no longer rendered; implementing it
+// compiles cleanly and draws NO selection indicator. Override getIndicatorPath.
+// canEdit() defaults to FALSE — double-click label editing does not work until
+// it is overridden.
+class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
   static type = NODE_SHAPE_TYPE          // from src/shared, never a local literal
   static props = nodeShapeProps
   static migrations = nodeShapeMigrations
-  getDefaultProps(): NodeShapeProps
+  getDefaultProps(): NodeShape['props']
   getGeometry(shape): Geometry2d
   component(shape): ReactNode
-  indicator(shape): ReactNode
+  getIndicatorPath(shape): TLIndicatorPath | undefined
+  override canEdit() { return true }
 }
 
-// worker
-schema = createTLSchema({ shapes: { [NODE_SHAPE_TYPE]: { props, migrations } } })
+// client registration — useSync does NOT include the default shape utils the
+// way <Tldraw> does. Both the sync call and the canvas need them, or the
+// built-ins vanish client-side: the mirror of the worker-side hazard above.
+const shapeUtils = [...customShapeUtils, ...defaultShapeUtils]
+const store = useSync({ uri, assets, shapeUtils })
+<Tldraw store={store} shapeUtils={shapeUtils} />
+
+// worker — `shapes` REPLACES the defaults rather than extending them, so the
+// built-ins must be spread back in. Omitting them makes every draw/geo/arrow
+// record an unknown type at the room boundary, silently regressing everything
+// SPEC-002 proved — and makes FR-003's "unknown type is rejected" criterion
+// pass for exactly the wrong reason.
+import { createTLSchema, defaultShapeSchemas, defaultBindingSchemas } from '@tldraw/tlschema'
+
+schema = createTLSchema({
+  shapes: { ...defaultShapeSchemas, [NODE_SHAPE_TYPE]: { props, migrations } },
+  bindings: defaultBindingSchemas,
+})
 ```
 
 ## Configuration / Environment
@@ -183,13 +229,19 @@ src/
 │       ├── node.test.ts       # migration tests (FR-004)
 │       └── index.ts           # the registry both runtimes import
 ├── client/
-│   └── shapes/
-│       ├── NodeShapeUtil.tsx
-│       └── NodeShapeUtil.test.tsx
+│   ├── Room.tsx               # EDITED: useSync + <Tldraw> both take shapeUtils
+│   ├── shapes/
+│   │   ├── NodeShapeUtil.tsx
+│   │   └── NodeShapeUtil.test.tsx
+│   └── tools/
+│       └── NodeTool.ts        # the StateNode + UI override behind the toolbar entry
 └── worker/
-    └── schema.ts              # built from src/shared/shapes
+    ├── schema.ts              # built from src/shared/shapes, defaults spread in
+    └── devSeedRoute.ts        # test-only v1 room seeding; development builds only
 e2e/
-└── custom-shape.spec.ts       # FR-005, and the persisted-room case from FR-004
+├── custom-shape.spec.ts       # FR-005, and the persisted-room case from FR-004
+└── fixtures/
+    └── room-v1.json           # a room persisted before the v2 migration
 ```
 
 ## Implementation Phases
@@ -198,16 +250,22 @@ e2e/
 
 - Write `src/shared/shapes/node.ts`: type string, props, validators, default props
 - Write the registry in `src/shared/shapes/index.ts` that both runtimes consume
-- Add the test or lint rule required by FR-001 that fails on a duplicated declaration
+- Add the type-string check required by FR-001, plus the fixture proving it bites and the
+  import-allowlist test
 
 ### Phase 2: Both consumers
 
-- Build the client `ShapeUtil` from the shared definition: geometry, component, indicator, resize
-- Build the worker schema from the same definition and register it on the Durable Object
+- Build the client `ShapeUtil` from the shared definition: geometry, component, `getIndicatorPath`,
+  `canEdit`; extend `BaseBoxShapeUtil` for resize
+- Add the `StateNode` tool and UI override behind the toolbar entry
+- Pass `shapeUtils` to **both** `useSync` and `<Tldraw>` in `Room.tsx`
+- Build the worker schema from the same definition, spreading in `defaultShapeSchemas` and
+  `defaultBindingSchemas`, and register it on the Durable Object
 - Add the toolbar entry that creates the shape
 
 ### Phase 3: Evolution and proof
 
-- Add a migration adding a prop, with the unit tests from FR-004
+- Add the v2 `color` migration with the unit tests from FR-004, the `room-v1.json` fixture and the
+  development-only seeding route
 - Write the validation tests from FR-003, asserting the validator's failure rather than a closed socket
 - Write the two-context sync spec and the persisted-room-across-migration spec

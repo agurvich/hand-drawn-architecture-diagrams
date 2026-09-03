@@ -2,7 +2,7 @@
 
 **ID:** SPEC-002  
 **Status:** Draft  
-**Last Updated:** 2026-09-03  
+**Last Updated:** 2026-09-03 (rev 2 — post-review)  
 **Depends On:** SPEC-001
 
 ## Overview
@@ -28,9 +28,12 @@ constraint that is already real rather than one that is imagined.
 
 - **Custom shapes.** The room syncs tldraw's built-ins only. The first custom shape is SPEC-003, and
   the client/worker schema duality it introduces is that spec's entire subject.
-- **Asset (image) upload to R2.** Pasting an image is not required to work in this spec. The seam is
-  noted in `architecture.md` → Sync topology; wiring it is deliberately deferred so this spec's
-  acceptance criteria stay about the sync protocol.
+- **Asset (image) upload to R2.** No R2 bucket, no upload route. But `useSync` requires an `assets`
+  store — the option is **not optional** — so this spec cannot stay silent on it and does not. The
+  decision is made in FR-002: a stub store that **fails loudly** on upload. The rejected alternative
+  is tldraw's inline base64 fallback, which would embed image bytes in the synced document and
+  therefore in the Durable Object's SQLite storage that FR-004 persists forever — a storage problem
+  disguised as a default.
 - **Authentication, authorisation, room permissions and read-only mode.** Anyone with a room URL can
   edit. Read-only is listed under Deferred / Non-goals.
 - **A deployed environment.** Everything here is verified against a local worker. Deploying is fenced
@@ -71,12 +74,19 @@ unit of sharing.
 #### Acceptance Criteria:
 
 - [ ] Opening a URL carrying a room id connects to that room and renders its current contents
-- [ ] Opening the app with no room id lands the user in a room without erroring — either a generated
-      room or a documented default, and the spec's implementation plan states which
-- [ ] While the connection is establishing, the UI shows a loading state rather than an empty canvas
-      that would invite drawing into a document about to be replaced
-- [ ] If the connection fails outright, the UI shows an error state naming the failure, and does not
-      present an editable canvas whose changes would be silently discarded
+- [ ] Opening the app with no room id **generates a fresh room id and redirects** to that room's URL.
+      The generated id is **not** written to `localStorage` or any other client storage: SPEC-001
+      forbids a second home for state, and the starter kit's habit of remembering the last room is
+      exactly that. A room is remembered by its URL — that is what makes a link the unit of sharing
+- [ ] While the connection is establishing, **no editable canvas is mounted** — asserted in an e2e
+      test against a deliberately delayed connection, by a `data-testid="room-loading"` element being
+      present and the tldraw canvas being absent. Drawing into a document that is about to be replaced
+      must be impossible, not merely discouraged
+- [ ] When the connection fails, a `data-testid="room-error"` element is present, no editable canvas is
+      mounted, and the message distinguishes the three cases the client can tell apart: an invalid
+      room id, the server being unreachable, and the socket closing after a successful connection
+- [ ] Both states are the **app's own** UI, not the SDK's default screens — a criterion satisfied by
+      passing the store straight to `<Tldraw>` would tick with no work done
 
 ### FR-003: Two clients converge
 
@@ -91,8 +101,10 @@ Changes made by one participant appear for the other, in both directions, with n
 - [ ] The same test asserts the reverse direction from the second context to the first
 - [ ] Deleting a shape in one context removes it in the other
 - [ ] Each context renders the other's collaborator cursor
-- [ ] After both contexts have made concurrent edits, their shape sets are identical — asserted by
-      comparing the two documents, not by eyeballing a screenshot
+- [ ] Concurrent edits converge: both contexts are taken offline, each draws a different shape, both
+      reconnect, and their shape sets are then identical — asserted by comparing the two documents,
+      not by eyeballing a screenshot. Staging it through the offline path rather than racing two live
+      sockets is what makes this test deterministic rather than flaky
 
 ### FR-004: State survives disconnection and restart
 
@@ -119,11 +131,23 @@ room's addressing.
 
 ```ts
 // src/shared/room.ts
-type RoomId = string          // URL-safe; the unit of sharing
 
-function roomIdFromUrl(url: URL): RoomId | null
+// A room id is 8-32 chars of [A-Za-z0-9_-]. Nothing else. The bound is stated
+// here because FR-001's "malformed id is rejected" criterion is not binary
+// without it — an implementer would otherwise invent the rule its own test
+// asserts against.
+type RoomId = string
+
+const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/
+
 function isValidRoomId(value: string): boolean
+function generateRoomId(): RoomId          // 16 chars from the same alphabet
+function roomIdFromPath(pathname: string): RoomId | null
 ```
+
+**The client URL is `/<roomId>`** — the room id is the entire path. That is the link a user sends, so
+it is stated here rather than left to two implementers to invent differently. The worker's sync route
+is namespaced under `/api/` to avoid colliding with it.
 
 `src/shared/` is the correct home for these because both the client (to build its socket URL) and the
 worker (to validate an incoming request) need the same notion of a valid room id, and two copies of
@@ -134,22 +158,31 @@ that rule drift.
 ## API / Interface Contract
 
 ```
-GET  /connect/:roomId      // WebSocket upgrade; 4xx on an invalid room id
+GET  /api/connect/:roomId    // WebSocket upgrade; 4xx on an invalid room id
+GET  /<roomId>               // the SPA; the room id is the whole path
 ```
 
 The client side is tldraw's sync hook, consumed by the existing `<App />`:
 
 ```
-store = useSync({ uri: `${WORKER_URL}/connect/${roomId}` })
+// `assets` is REQUIRED by UseSyncOptionsBase — omitting it is a type error
+// under SPEC-001's strict gate, not a stylistic choice.
+store = useSync({
+  uri: `${window.location.origin}/api/connect/${roomId}`,
+  assets: failLoudlyAssetStore,   // see Out of Scope: no R2, no base64 inlining
+})
 <Tldraw store={store} />
 ```
 
 ## Configuration / Environment
 
-- `VITE_SYNC_URL` — the worker's origin as seen by the client. Defaults to the local worker in
-  development. Must be present at build time; the app fails loudly at startup if it is missing rather
-  than silently attempting a relative connection.
-- `wrangler.toml` — worker name, the Durable Object binding, and the SQLite migration declaring it.
+**No sync-URL environment variable.** The Cloudflare Vite plugin serves the client and the worker on
+a **single origin** in development, so the client builds its socket URI from
+`window.location.origin` and needs no configuration. This is what makes FR-001's "one command, no
+further configuration" true; an env var would contradict it.
+
+- `wrangler.toml` — worker name, the Durable Object binding, and the `[[migrations]]`
+  `new_sqlite_classes` entry declaring it.
 
 ## File & Folder Structure
 
@@ -158,11 +191,12 @@ wrangler.toml
 src/
 ├── client/
 │   ├── App.tsx              # now room-aware
-│   └── Room.tsx             # connection, loading and error states
+│   ├── Room.tsx             # connection, and the app's own loading + error states
+│   └── assetStore.ts        # the fail-loudly stub satisfying useSync's `assets`
 ├── shared/
 │   └── room.ts              # room id parsing + validation, used by both sides
 └── worker/
-    ├── index.ts             # routes /connect/:roomId to the Durable Object
+    ├── index.ts             # routes /api/connect/:roomId to the Durable Object
     └── RoomDurableObject.ts # document, persistence, broadcast
 e2e/
 └── sync.spec.ts             # two browser contexts, one room
@@ -179,11 +213,15 @@ e2e/
 ### Phase 2: The client
 
 - Replace SPEC-001's bare `<Tldraw />` with a room-aware component using tldraw's sync client
-- Implement the loading and error states required by FR-002
-- Wire `VITE_SYNC_URL`, failing loudly when absent
+- Implement the app's own loading and error states required by FR-002, with the testids named there
+- Implement generate-and-redirect for a URL carrying no room id
+- Write the fail-loudly asset store and pass it to `useSync`
 
 ### Phase 3: Verification
 
 - Write the two-context Playwright spec covering FR-003
-- Write the disconnection and restart tests covering FR-004
+- Write the FR-002 loading and error specs, driving a delayed and a failing connection
+- Write the disconnection and restart tests covering FR-004. The worker restart is driven by launching
+  `wrangler dev` under Playwright's `webServer` control so the test can stop and start it; if that
+  proves unworkable the plan says so and the criterion moves to a documented manual check
 - Confirm room isolation (FR-001) with a test using two distinct room ids
