@@ -47,7 +47,8 @@ each pass a fresh-context review gate, and the always-loaded docs are kept delib
 Before pushing, run the gates:
 
 ```bash
-npm run lint && npm run typecheck && npm test && sh scripts/spec-lint.sh && sh scripts/docs-lint.sh
+npm run format:check && npm run lint && npm run typecheck && npm test \
+  && sh scripts/spec-lint.sh && sh scripts/docs-lint.sh
 ```
 
 `docs-lint.sh` is deliberately a local pre-push gate rather than a CI job — the reasoning is in

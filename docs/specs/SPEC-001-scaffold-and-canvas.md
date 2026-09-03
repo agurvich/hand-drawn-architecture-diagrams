@@ -129,6 +129,13 @@ belong in CI run there on every push and pull request.
       tests and e2e tests on push and pull request, and is green on `main`
 - [ ] `ci.yml` does **not** run `spec-lint.sh` — `.github/workflows/spec-lint.yml` already owns it as
       its own job, and duplicating it means two red X's for one failure
+- [ ] The e2e job installs browsers (`npx playwright install --with-deps`) and builds/serves the app
+      before running the suite. `.github/workflows/ci.yml.example` has **no e2e step at all**, so
+      copying it verbatim produces a CI that silently skips FR-003 — the criterion this spec exists to
+      protect
+- [ ] `.github/workflows/ci.yml.example` is **deleted** once the real `ci.yml` exists; two workflow
+      files, one of them inert and carrying a Python job this project will never run, is exactly the
+      stale state `process.md` §5 says to fix or delete
 - [ ] CI does **not** run `docs-lint.sh` — it is deliberately a local pre-push gate (`process.md` §5)
 
 ---
@@ -193,5 +200,6 @@ e2e/
 - Write the Playwright specs for FR-003: iPad-class viewport, pen pointerType, the scroll assertion,
   and the CDP-driven two-finger gesture
 - Do the manual iPad + Pencil pass and record the result in the PR body
-- Add the CI workflow and confirm it is green on `main`
+- Add `.github/workflows/ci.yml`, including the e2e job, and delete `ci.yml.example`
+- Confirm CI is green on `main`
 - Run the full local gate set, `docs-lint.sh` included

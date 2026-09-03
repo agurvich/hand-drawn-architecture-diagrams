@@ -140,32 +140,17 @@
 
 ---
 
-## Automated axe checks (SPEC-045)
+## Automated a11y checks
 
-The Vitest suite runs `axe-core` (via `vitest-axe`) against rendered routes and
-components so the machine-detectable subset of these WCAG A/AA rules can't
-silently regress. It runs under the normal `npm run test -w apps/portal` (CI
-already gates on it); `npm run test:a11y -w apps/portal` runs only the axe specs.
+Run `axe-core` (via `vitest-axe`) against rendered routes and components in the unit suite, so the
+machine-detectable subset of the WCAG A/AA rules above cannot silently regress. Co-locate a
+`*.a11y.test.tsx` beside the code, and keep the ruleset and any disabled rules in **one** shared
+helper rather than per-test — a per-test ruleset drifts and nobody notices.
 
-**Adding a check for new UI:** co-locate a `*.a11y.test.tsx` next to the code and
-call the shared helper:
+Assert the structural basics on routes too: exactly one `<h1>`, and a `<main>`.
 
-```ts
-import { expectNoA11yViolations, ROUTE_AXE_OPTIONS, COMPONENT_AXE_OPTIONS } from '../test/axe';
-
-// A whole page (landmarks/heading-order enabled):
-await expectNoA11yViolations(<MemoryRouter><MyPage /></MemoryRouter>, ROUTE_AXE_OPTIONS);
-
-// A primitive rendered outside any landmark (region rule off):
-await expectNoA11yViolations(<MyDialog open />, COMPONENT_AXE_OPTIONS);
-```
-
-The ruleset (WCAG `wcag2a`→`wcag22aa` tags) and the disabled rules live in one
-place, `apps/portal/src/test/axe.ts`. Routes also assert exactly one `<h1>` + a
-`<main>` via the DOM.
-
-**What axe does NOT cover** — it complements manual testing, it doesn't replace
-it. It can't see `color-contrast` (jsdom has no layout/computed style — verified
-visually instead, per the design tokens), real `:focus-visible` rendering, true
-focus order, screen-reader output, or whether copy/labels actually make sense.
-Keep doing manual keyboard + screen-reader passes for those.
+**What axe does NOT cover** — it complements manual testing, it does not replace it. It cannot see
+`color-contrast` (jsdom has no layout or computed style), real `:focus-visible` rendering, true focus
+order, screen-reader output, or whether labels actually make sense. Keep doing manual keyboard and
+screen-reader passes — and on this project, a manual pass on the iPad, since touch target size and
+pencil interaction are not observable in jsdom.

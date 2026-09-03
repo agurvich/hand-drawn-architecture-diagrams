@@ -58,12 +58,16 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 
 ## Common Commands
 
+**These arrive with SPEC-001 — no application code exists yet.** Until it lands, only the two lint
+scripts below are real.
+
 ```bash
 npm run dev          # vite client + local worker (no tldraw licence needed on localhost)
 npm run build        # tsc -b && vite build
 npm test             # vitest run
 npm run test:e2e     # playwright, includes two-client sync specs
 npm run lint         # oxlint
+npm run format:check # prettier --check
 npm run typecheck    # tsc --noEmit
 sh scripts/spec-lint.sh        # CI
 sh scripts/docs-lint.sh        # LOCAL pre-push gate — not in CI
@@ -85,7 +89,7 @@ that area. A line here is **never the only home of a fact**, and never a paragra
 **Grouped by AREA, not by spec.** `scripts/docs-lint.sh` holds this section to that shape: an
 `### ` area heading, `- **Label** — …` bullets at column 0, indented continuations, blank lines,
 and plain prose here in the intro. A table, blockquote, fenced block, ordered list or bare bullet
-is refused — each one was a way past the checks. Rename the area below and replace the example.
+is refused — each one was a way past the checks.
 
 ### Canvas foundation
 

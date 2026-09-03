@@ -1,69 +1,36 @@
 ---
 name: spec-driven
 description: >-
-  Spec-driven development workflow with guardrails. Use when (a) setting up / bootstrapping a repo for
-  spec-driven work, (b) authoring or refining a spec, (c) starting to build a spec, (d) completing a
-  spec, or (e) running several agent sessions against one repo at once. Provides a template repo layout (CLAUDE.md, layered docs/, spec + completion templates), a
-  POSIX spec-lint (CI) and docs-lint (a local pre-push gate, deliberately not CI), plus a CI workflow
-  + PR template. Enforces: specs are fully specified before build
+  Spec-driven development workflow with guardrails. Use when (a) authoring or refining a spec,
+  (b) starting to build a spec, (c) completing a spec, or (d) running several agent sessions against
+  one repo at once. Operates this repo's existing
+  layout (CLAUDE.md, layered docs/, spec + completion templates), its POSIX spec-lint (CI) and
+  docs-lint (a local pre-push gate, deliberately not CI). Enforces: specs are fully specified before build
   (no Open Questions), spec/plan/diff each pass a blocking fresh-context review gate, the diff review
   gates the push rather than the merge, builds run off a reviewed plan straight to completion (no
   per-phase checkpoints), every PR is watched and merged on green, main is always watched, and the
   always-loaded tier stays lean (budget + a decisions register behind every digest line).
-  Triggers on phrases like "set up
-  spec-driven", "scaffold the docs structure", "write a spec", "start SPEC-XXX", "build this spec",
+  Triggers on phrases like "write a spec", "start SPEC-XXX", "build this spec",
   "complete the spec / run the completion ritual", "run several agents at once".
 ---
 
 # Spec-Driven Development
 
 A workflow for shipping features as: **specify → plan → build in reviewable phases → land on green →
-record leanly.** This skill carries the scaffold under `template/` and the rules for operating it. The
-goal is a small always-loaded context (`CLAUDE.md`) backed by layered, on-demand docs.
+record leanly.** This skill carries the rules for operating this repo's docs. The goal is a small
+always-loaded context (`CLAUDE.md`) backed by layered, on-demand docs.
 
-`template/docs/process.md` is the **pristine** copy of the method, for scaffolding. In a repo that
-has already been scaffolded, read that repo's own **`docs/process.md`** instead, every session — it
-is the contract `CLAUDE.md` summarises, and its *Operational traps* and *Project ground rules*
-sections are filled in per project and exist nowhere else. The jobs below are the operating modes.
+**Read this repo's own `docs/process.md` every session** — it is the contract `CLAUDE.md`
+summarises, and its *Operational traps* and *Project ground rules* sections are filled in for this
+project and exist nowhere else. The jobs below are the operating modes.
 
-## 0. Scaffold a repo (bootstrap)
-
-When a repo has no spec-driven docs yet:
-
-1. Create the scaffold at the repo root: `CLAUDE.md`, `docs/`, `scripts/`, `.github/`. **Do not
-   clobber** existing files — if `CLAUDE.md`, a PR template, or a workflow already exists, merge
-   rather than overwrite, and tell the user what you merged.
-2. `chmod +x scripts/spec-lint.sh scripts/docs-lint.sh scripts/docs-lint-test.sh scripts/pr-queue/queue.sh scripts/pr-queue/pre-push scripts/pr-queue/install.sh`.
-3. Fill in the placeholders in `CLAUDE.md` (Project Overview, Layout, Tech Stack, Code Conventions,
-   Common Commands) from what the repo actually is — detect the language/build/test/lint tooling from
-   the manifest (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, …) rather than guessing.
-4. Seed `docs/architecture.md` from any existing design notes the repo already has; otherwise leave the
-   sectioned stub.
-5. Wire `spec-lint` into CI (add a step to the repo's workflow, or keep the standalone `spec-lint.yml`
-   — either is fine, but it must run on PRs). **`docs-lint` is deliberately NOT a CI job**: it is a
-   local pre-push gate, so its failures land on the person who caused them rather than on a shared
-   branch where they red unrelated work. Then **re-ratchet all three budgets in `scripts/docs-lint.sh`** — `CLAUDE_MAX_BYTES`,
-   `DIGEST_MAX_BYTES` and `DELIVERY_MAX_LINES` — to what this repo actually measures. The shipped
-   defaults are sized for a scaffold whose `CLAUDE.md` is placeholders and whose `docs/spec-delivery/`
-   is empty, and a budget far above the measurement never fires.
-6. **Set up language CI (GitHub Actions).** Ask the user *once* what the repo's CI needs — which
-   languages/runtimes, and the install / format-check / lint / typecheck / test commands (default to
-   `CLAUDE.md` → Common Commands). From `.github/workflows/ci.yml.example`, produce a real
-   `.github/workflows/ci.yml`: keep only the job(s) for this repo's languages, fill in the actual
-   commands, run on PR + push to `main`, then delete the `.example`. 🔴 Never leave placeholder commands
-   that would fail — if a check doesn't apply, drop it. This makes "land on green CI" cover the language
-   gates, not just spec-lint.
-7. Run `sh scripts/spec-lint.sh` and `sh scripts/docs-lint.sh` to confirm both pass (each no-ops or
-   passes cleanly on a fresh scaffold).
-
-Keep the always-loaded tier (`CLAUDE.md`) lean — it must not regrow into a wall of prose. `docs-lint.sh`
-now enforces that rather than asking you to remember it. In a project that ran this template the
-always-loaded file grew more than tenfold: first under a rule too weak to bind, then — once the
-full rule set arrived and named the violation correctly — for days more regardless.
+> This repo is a **derived project**. The upstream template's scaffold payload was removed when the
+> project was set up, so this skill no longer bootstraps a repo — it operates one that already
+> exists. To scaffold a *different* repo, go to the upstream template.
 
 ## 1. Author a spec
 
-Write from `template/docs/templates/spec-template.md`. A spec is *buildable* when:
+Write from `docs/templates/spec-template.md`. A spec is *buildable* when:
 
 - **Overview** states user/business intent, no implementation detail.
 - **Scope** lists In and **Out** explicitly (especially things a reader would assume are in).
