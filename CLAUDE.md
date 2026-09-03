@@ -36,7 +36,10 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 ## Tech Stack
 
 - TypeScript (strict), React 19, Vite
-- tldraw SDK 4.x — canvas, custom shapes, bindings — plus its sync client
+- tldraw SDK **5.x** — canvas, custom shapes, bindings — plus its sync client. Pinned to 5.x, not
+  4.x: on 4.x `indicator()` is still abstract and `getIndicatorPath` only runs once
+  `useLegacyIndicator()` returns false, so a shape written the modern way silently draws no selection
+  indicator. Greenfield, so take the API that is not a migration artifact
 - Cloudflare Workers + Durable Objects (SQLite storage); R2 for assets
 - Vitest + Testing Library (unit), Playwright (e2e, incl. two-client sync)
 - oxlint, prettier

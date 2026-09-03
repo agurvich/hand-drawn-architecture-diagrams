@@ -2,7 +2,7 @@
 
 **ID:** SPEC-003  
 **Status:** Draft  
-**Last Updated:** 2026-09-03 (rev 2 — post-review)  
+**Last Updated:** 2026-09-03 (rev 3 — post-implementer-review)  
 **Depends On:** SPEC-002
 
 ## Overview
@@ -63,15 +63,20 @@ separately is the failure this spec exists to prevent.
       already carried mechanically by `RecordProps<NodeShape>` and
       `getDefaultProps(): NodeShape['props']`
 - [ ] That check **is proven to bite**: a fixture asserts it fails with a named message on a planted
-      duplicate type literal, and stays silent on the legitimate shared declaration. A gate is not
+      duplicate type literal, and stays silent on the legitimate shared declaration. The fixture lives
+      under `tests/fixtures/` and the check takes a root path argument, so the real run does not fail
+      on the planted duplicate. A gate is not
       tested by running it on the thing it guards (`process.md` §3)
 - [ ] The shared module imports only from `@tldraw/tlschema` and `@tldraw/validate` — never from
       `tldraw`, which pulls React, DOM and CSS into the Worker bundle. Asserted by an import-allowlist
-      test over `src/shared/`, not by inspection
+      test over `src/shared/`, **excluding `*.test.*`**: the cross-boundary test below must import the
+      client util, so a sweep that does not exclude test files fails on the test that proves the rule
 - [ ] **A cross-boundary test, not an identity assertion:** a record built from the *client* util's
       `getDefaultProps()` is accepted by the *worker* schema's validator, and the same record with one
       prop mutated to the wrong type is rejected by it. Asserting that both sides equal the shared
-      constant is `X === X` and cannot fail under any drift
+      constant is `X === X` and cannot fail under any drift. Lives at
+      `src/shared/shapes/boundary.test.ts` — named because it is the one test that legitimately
+      imports across both runtimes
 
 ### FR-002: The Node shape renders and is editable
 
@@ -98,11 +103,16 @@ hostile client cannot corrupt a room for everyone else in it.
 #### Acceptance Criteria:
 
 - [ ] A record whose props satisfy the validators is accepted and persisted
-- [ ] A record carrying a prop of the wrong type is rejected, asserted **both** ways: a unit test
-      against the worker schema's validator directly, and an e2e assertion that the socket closes with
-      reason `TLSyncErrorCloseEventReason.INVALID_RECORD` rather than a bare close. Server-side
-      rejection *is* surfaced as a close in tldraw sync, so "not merely a connection closing" means
-      asserting the close **reason code**, not avoiding the close
+- [ ] A record carrying a prop of the wrong type is rejected by the **worker schema's validator**,
+      asserted in a unit test against the validator directly
+- [ ] The same rejection is asserted end to end as a socket close with reason
+      `TLSyncErrorCloseEventReason.INVALID_RECORD`, not a bare close. **The injection path is named,
+      for the same reason FR-004 names its seeding route:** the client store validates locally and
+      throws before anything reaches the socket, so a malformed record cannot be produced through the
+      normal editor API. The test uses a **development-only client schema override** that skips local
+      validation, registered on the same dev-only surface as FR-004's seeding route. Playwright cannot
+      read a close code, so the reason is surfaced through the app's error UI (SPEC-002 FR-002) and
+      asserted there
 - [ ] A record carrying an unknown shape type is rejected
 - [ ] Rejecting a record does not remove the other, valid shapes from the room: a second client
       connected throughout still sees the room's prior contents
@@ -167,6 +177,21 @@ const nodeShapeProps: RecordProps<NodeShape>
 
 type NodeShape = TLBaseShape<'diagramNode', NodeShapeProps>
 
+// REQUIRED, and easy to miss: BaseBoxShapeUtil<NodeShape> is constrained to
+// TLBaseBoxShape, which is Extract<TLShape, ...>. TLShape is derived from the
+// augmentable TLGlobalShapePropsMap registry, so a custom shape is not a TLShape
+// until it is registered there. Without this, the contract below fails with
+// "Type 'NodeShape' does not satisfy the constraint 'TLBaseBoxShape'".
+//
+// It lives in src/shared/ with the rest of the definition -- it is part of "one
+// definition, two consumers" (FR-001), and it imports only @tldraw/tlschema, so
+// it satisfies the import allowlist.
+declare module '@tldraw/tlschema' {
+  interface TLGlobalShapePropsMap {
+    [NODE_SHAPE_TYPE]: NodeShapeProps
+  }
+}
+
 // Migrations are part of the definition, not a worker-side afterthought.
 const nodeVersions = createShapePropsMigrationIds(NODE_SHAPE_TYPE, { AddColor: 1 })
 const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationSequence({
@@ -180,8 +205,11 @@ const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationSequence
 
 ```
 // client — extends BaseBoxShapeUtil, which supplies box resize for free.
-// NOTE: indicator() is deprecated and no longer rendered; implementing it
-// compiles cleanly and draws NO selection indicator. Override getIndicatorPath.
+// Targets tldraw 5.x (CLAUDE.md -> Tech Stack), where getIndicatorPath is the
+// abstract method and indicator() is a deprecated stub. On 4.x this does NOT
+// compile: `indicator` is abstract there, and getIndicatorPath is never called
+// unless useLegacyIndicator() is overridden to false. If the pin ever moves
+// back to 4.x, this contract moves with it.
 // canEdit() defaults to FALSE — double-click label editing does not work until
 // it is overridden.
 class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
@@ -200,7 +228,10 @@ class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
 // built-ins vanish client-side: the mirror of the worker-side hazard above.
 const shapeUtils = [...customShapeUtils, ...defaultShapeUtils]
 const store = useSync({ uri, assets, shapeUtils })
-<Tldraw store={store} shapeUtils={shapeUtils} />
+
+// FR-002's toolbar entry needs all three of these; shapeUtils alone renders the
+// shape but gives no way to create one.
+<Tldraw store={store} shapeUtils={shapeUtils} tools={[NodeTool]} overrides={uiOverrides} />
 
 // worker — `shapes` REPLACES the defaults rather than extending them, so the
 // built-ins must be spread back in. Omitting them makes every draw/geo/arrow
@@ -225,8 +256,9 @@ None beyond SPEC-002's.
 src/
 ├── shared/
 │   └── shapes/
-│       ├── node.ts            # type, props, validators, migrations
+│       ├── node.ts            # type, props, validators, migrations, augmentation
 │       ├── node.test.ts       # migration tests (FR-004)
+│       ├── boundary.test.ts   # the cross-boundary test (FR-001)
 │       └── index.ts           # the registry both runtimes import
 ├── client/
 │   ├── Room.tsx               # EDITED: useSync + <Tldraw> both take shapeUtils
@@ -237,7 +269,8 @@ src/
 │       └── NodeTool.ts        # the StateNode + UI override behind the toolbar entry
 └── worker/
     ├── schema.ts              # built from src/shared/shapes, defaults spread in
-    └── devSeedRoute.ts        # test-only v1 room seeding; development builds only
+    └── devOnlyRoutes.ts        # v1 room seeding (FR-004) + the unvalidated-client
+                                # override (FR-003); development builds only
 e2e/
 ├── custom-shape.spec.ts       # FR-005, and the persisted-room case from FR-004
 └── fixtures/
@@ -248,7 +281,8 @@ e2e/
 
 ### Phase 1: The shared definition
 
-- Write `src/shared/shapes/node.ts`: type string, props, validators, default props
+- Write `src/shared/shapes/node.ts`: type string, props, validators, default props, and the
+  `TLGlobalShapePropsMap` augmentation
 - Write the registry in `src/shared/shapes/index.ts` that both runtimes consume
 - Add the type-string check required by FR-001, plus the fixture proving it bites and the
   import-allowlist test

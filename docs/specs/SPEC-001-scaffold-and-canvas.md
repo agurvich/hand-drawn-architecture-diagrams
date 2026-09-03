@@ -2,7 +2,7 @@
 
 **ID:** SPEC-001  
 **Status:** Draft  
-**Last Updated:** 2026-09-03 (rev 2 — post-review)  
+**Last Updated:** 2026-09-03 (rev 3 — post-implementer-review)  
 **Depends On:** None
 
 ## Overview
@@ -58,9 +58,10 @@ server code.
 - [ ] `npm run dev` serves the app and it renders without console errors
 - [ ] `npm run typecheck` exits 0 and TypeScript `strict` is enabled in the committed config
 - [ ] `src/client/`, `src/shared/` and `e2e/` exist, and each is reachable from a committed config:
-      `tsconfig` `include` covers `src/`, a `@shared/*` path alias resolves from `src/client/`, and the
-      Playwright config's `testDir` is `e2e/`. A directory holding only `.gitkeep` satisfies this only
-      if the alias to it resolves
+      `tsconfig` `include` covers `src/`, the `@shared/*` `paths` mapping and its Vite `resolve.alias`
+      counterpart are both committed, and the Playwright config's `testDir` is `e2e/`. The alias is
+      **not** required to resolve an import yet — `src/shared/` holds only `.gitkeep` until SPEC-002
+      adds `room.ts`, and any `@shared/*` import against an empty directory is `TS2307`
 - [ ] `npm run typecheck` exits **non-zero** when a deliberate type error is introduced into
       `src/client/`, proving the check is wired to the source rather than passing vacuously
 
@@ -74,12 +75,17 @@ viewport. No licence key is configured. State is in-memory only.
 #### Acceptance Criteria:
 
 - [ ] The canvas renders at full viewport height and width, with no page-level scrollbars
+- [ ] The unit test that mounts the canvas runs under a committed Vitest setup file supplying the
+      jsdom gaps tldraw needs — `HTMLImageElement.prototype.decode`, an iterable `document.fonts`, and
+      a `ResizeObserver` stub. Without them the mount fails on `image.decode is not a function`; the
+      test environment is named here because "it renders" is otherwise undecidable
 - [ ] A shape drawn with the default draw tool appears on the canvas
 - [ ] After drawing and reloading, the canvas contains **zero shapes**
-- [ ] No IndexedDB database and no `localStorage` key holding **document records** exists after
-      drawing — asserted by name. tldraw's own user-preferences key (theme, tool defaults) is
-      explicitly permitted: the SDK writes it regardless of `persistenceKey`, and forbidding it would
-      make this criterion false for a correct implementation
+- [ ] After drawing, `indexedDB.databases()` is empty and the only `localStorage` key is
+      `TLDRAW_USER_DATA_v3`. That key is tldraw's own user preferences (theme, tool defaults) and is
+      explicitly permitted — the SDK writes it regardless of `persistenceKey`, so forbidding it would
+      make this criterion false for a correct implementation. Naming both sides is what makes the
+      assertion writable
 - [ ] No `persistenceKey` is passed to the canvas
 - [ ] No licence key is present in source or environment config, and the app runs on localhost without
       one
@@ -108,8 +114,10 @@ guarantees. The one that can genuinely fail is page scroll, which requires delib
 - [ ] The same test asserts `window.scrollY` and `window.scrollX` are unchanged by the drawing gesture
 - [ ] A `pen` pointerType stroke produces a shape
 - [ ] A two-finger gesture pans or zooms rather than creating a shape. Playwright has no first-class
-      multi-touch API, so this is driven through raw CDP `Input.dispatchTouchEvent`; if the plan finds
-      that unworkable, it moves to the manual criterion above rather than being dropped
+      multi-touch API, so this is driven through raw CDP `Input.dispatchTouchEvent` — which requires
+      **Chromium with an emulated iPad viewport**, not Playwright's `devices['iPad …']` descriptors,
+      as those default to WebKit where CDP does not exist. If the plan finds it unworkable, it moves
+      to the manual criterion above rather than being dropped
 
 ### FR-004: Quality gates exist and run in CI
 

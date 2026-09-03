@@ -2,7 +2,7 @@
 
 **ID:** SPEC-002  
 **Status:** Draft  
-**Last Updated:** 2026-09-03 (rev 2 — post-review)  
+**Last Updated:** 2026-09-03 (rev 3 — post-implementer-review)  
 **Depends On:** SPEC-001
 
 ## Overview
@@ -78,15 +78,28 @@ unit of sharing.
       The generated id is **not** written to `localStorage` or any other client storage: SPEC-001
       forbids a second home for state, and the starter kit's habit of remembering the last room is
       exactly that. A room is remembered by its URL — that is what makes a link the unit of sharing
-- [ ] While the connection is establishing, **no editable canvas is mounted** — asserted in an e2e
-      test against a deliberately delayed connection, by a `data-testid="room-loading"` element being
-      present and the tldraw canvas being absent. Drawing into a document that is about to be replaced
-      must be impossible, not merely discouraged
-- [ ] When the connection fails, a `data-testid="room-error"` element is present, no editable canvas is
-      mounted, and the message distinguishes the three cases the client can tell apart: an invalid
-      room id, the server being unreachable, and the socket closing after a successful connection
-- [ ] Both states are the **app's own** UI, not the SDK's default screens — a criterion satisfied by
-      passing the store straight to `<Tldraw>` would tick with no work done
+The three states below are the three `useSync` actually exposes, and no others. This matters because
+the obvious fourth — "the server went away" — is **not** an error condition: `useSync` keeps
+`status: 'synced-remote'` with `connectionStatus: 'offline'` and retries. Unmounting the canvas there
+would destroy the local edits FR-004 requires to survive and re-sync, so the two FRs would demand
+opposite behaviour on the same event.
+
+- [ ] **Connecting** (`status === 'loading'`): **no editable canvas is mounted** — asserted in an e2e
+      test against a delayed connection, by `data-testid="room-loading"` being present and the tldraw
+      canvas absent. Drawing into a document about to be replaced must be impossible, not discouraged
+- [ ] **Failed** (`status === 'error'`): `data-testid="room-error"` is present and no editable canvas
+      is mounted. This state is reached only when the server closes the socket with a sync error
+      reason — in this spec, an invalid room id. A merely unreachable server does **not** reach it;
+      `useSync` retries in `loading` indefinitely, so it is covered by the loading criterion above
+      plus the timeout below
+- [ ] **Offline after connecting** (`connectionStatus === 'offline'`): the canvas **stays mounted and
+      editable**, and a `data-testid="room-offline"` indicator appears. Asserted to still be editable
+      — this is the criterion that keeps FR-002 and FR-004 consistent
+- [ ] A connection stuck in `loading` past 10 seconds surfaces `data-testid="room-slow"` telling the
+      user it is still trying. Without it, an unreachable server is indistinguishable from a slow one
+      and the app appears hung forever
+- [ ] All four are the **app's own** UI, not the SDK's default screens — passing the store straight to
+      `<Tldraw>` would tick with no work done
 
 ### FR-003: Two clients converge
 
@@ -142,8 +155,21 @@ const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{8,32}$/
 
 function isValidRoomId(value: string): boolean
 function generateRoomId(): RoomId          // 16 chars from the same alphabet
-function roomIdFromPath(pathname: string): RoomId | null
+
+// Returning `RoomId | null` cannot express the difference between "/" and
+// "/short", and FR-002 sends those two to OPPOSITE outcomes -- redirect vs
+// error. A discriminated result is required, not a stylistic preference.
+type RoomRoute =
+  | { kind: 'none' }                    // "/"        -> generate + redirect
+  | { kind: 'invalid'; raw: string }    // "/short"   -> error state
+  | { kind: 'valid'; id: RoomId }       // "/abc123.." -> connect
+
+function roomRouteFromPath(pathname: string): RoomRoute
 ```
+
+**An invalid room id never opens a socket.** The client rejects it from `roomRouteFromPath` before
+connecting, which is what makes FR-001's "rejected rather than opening a connection" true from the
+user's side. The worker validates independently for its own sake — a client is not a trust boundary.
 
 **The client URL is `/<roomId>`** — the room id is the entire path. That is the link a user sends, so
 it is stated here rather than left to two implementers to invent differently. The worker's sync route
@@ -171,7 +197,11 @@ store = useSync({
   uri: `${window.location.origin}/api/connect/${roomId}`,
   assets: failLoudlyAssetStore,   // see Out of Scope: no R2, no base64 inlining
 })
-<Tldraw store={store} />
+// FR-002 requires branching on status; passing the store straight through is
+// the exact shape that criterion says would tick with no work done.
+if (store.status === 'loading') return <RoomLoading />
+if (store.status === 'error')   return <RoomError error={store.error} />
+<Tldraw store={store.store} />   // plus the offline indicator, canvas still mounted
 ```
 
 ## Configuration / Environment
@@ -181,8 +211,21 @@ a **single origin** in development, so the client builds its socket URI from
 `window.location.origin` and needs no configuration. This is what makes FR-001's "one command, no
 further configuration" true; an env var would contradict it.
 
-- `wrangler.toml` — worker name, the Durable Object binding, and the `[[migrations]]`
-  `new_sqlite_classes` entry declaring it.
+- `wrangler.toml` — worker name, the Durable Object binding, the `[[migrations]]`
+  `new_sqlite_classes` entry declaring it, and the `[assets]` block **without which `GET /<roomId>`
+  404s instead of serving the SPA**:
+
+```toml
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+```
+
+- `worker-configuration.d.ts` — generated by `wrangler types` at the repo root. It must be added to
+  the `tsconfig` `include`, or every worker file fails to typecheck on `Cannot find name 'Env'` and
+  `Cannot find module 'cloudflare:workers'`. One tsconfig covers both runtimes; DOM and
+  `@cloudflare/workers-types` coexist.
 
 ## File & Folder Structure
 
@@ -213,7 +256,8 @@ e2e/
 ### Phase 2: The client
 
 - Replace SPEC-001's bare `<Tldraw />` with a room-aware component using tldraw's sync client
-- Implement the app's own loading and error states required by FR-002, with the testids named there
+- Implement the app's own loading, error, offline and slow states required by FR-002, with the
+  testids named there, branching on `useSync`'s status rather than delegating to the SDK screens
 - Implement generate-and-redirect for a URL carrying no room id
 - Write the fail-loudly asset store and pass it to `useSync`
 
@@ -221,7 +265,8 @@ e2e/
 
 - Write the two-context Playwright spec covering FR-003
 - Write the FR-002 loading and error specs, driving a delayed and a failing connection
-- Write the disconnection and restart tests covering FR-004. The worker restart is driven by launching
-  `wrangler dev` under Playwright's `webServer` control so the test can stop and start it; if that
-  proves unworkable the plan says so and the criterion moves to a documented manual check
+- Write the disconnection and restart tests covering FR-004. The restart is driven by stopping and
+  restarting **the single Vite+worker dev process** under Playwright's `webServer` control — not
+  `wrangler dev` alone, which serves no client on that origin and so breaks the single-origin story
+  that makes FR-001 true. Room state survives in miniflare's `.wrangler/state`
 - Confirm room isolation (FR-001) with a test using two distinct room ids
