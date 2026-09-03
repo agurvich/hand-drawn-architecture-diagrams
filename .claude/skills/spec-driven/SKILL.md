@@ -30,13 +30,9 @@ sections are filled in per project and exist nowhere else. The jobs below are th
 
 When a repo has no spec-driven docs yet:
 
-1. Copy the contents of this skill's `template/` into the repo root: `CLAUDE.md`, `docs/`, `scripts/`,
-   `.github/`. **Do not clobber** existing files — if `CLAUDE.md`, a PR template, or a workflow already
-   exists, merge rather than overwrite, and tell the user what you merged.
-   🔴 **If the repo you are scaffolding is the template repo itself**, stop: its root is a generated
-   mirror of `template/`, `scripts/sync-from-skill.sh` regenerates it, and edits belong in `template/`
-   followed by a sync. Steps 3 and 6 below would fill in the mirror and delete `ci.yml.example`, which
-   must survive there.
+1. Create the scaffold at the repo root: `CLAUDE.md`, `docs/`, `scripts/`, `.github/`. **Do not
+   clobber** existing files — if `CLAUDE.md`, a PR template, or a workflow already exists, merge
+   rather than overwrite, and tell the user what you merged.
 2. `chmod +x scripts/spec-lint.sh scripts/docs-lint.sh scripts/docs-lint-test.sh scripts/pr-queue/queue.sh scripts/pr-queue/pre-push scripts/pr-queue/install.sh`.
 3. Fill in the placeholders in `CLAUDE.md` (Project Overview, Layout, Tech Stack, Code Conventions,
    Common Commands) from what the repo actually is — detect the language/build/test/lint tooling from

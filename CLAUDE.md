@@ -1,4 +1,4 @@
-# [Project Name] — Project Memory
+# hand-drawn-architecture-diagrams — Project Memory
 
 Loaded every session — keep it lean. Deep docs live in `docs/` and are pulled **on demand**, except
 `process.md`, which is the contract this file summarises:
@@ -15,40 +15,65 @@ Loaded every session — keep it lean. Deep docs live in `docs/` and are pulled 
 
 ## Project Overview
 
-[One paragraph: what this project is and why it exists. User/business intent, not implementation
-detail. Understandable by someone who has never seen the code.]
+A tool for sketching software architecture by hand on an iPad and sharing the drawing **live** with a
+colleague. It replaces an earlier single-player app whose "sharing" was a gzip'd URL snapshot, not
+collaboration. The idea worth carrying forward is **hierarchical nesting plus frame-based narration**:
+one persistent graph, stepped through as named snapshots that toggle what is expanded, highlighted
+and visible. Built on the tldraw SDK, with domain state in tldraw's own synced store so multiplayer
+is a property of the system rather than a later retrofit.
+
+Predecessor (read-only reference, not a dependency): `../architecture-diagrams`, and its
+`docs/canvas-rebuild-handoff.md`.
 
 ## Layout
 
-[Where things live — app/library code, infra, tests, docs. One line each.]
+- `src/client/` — React app: tldraw canvas, custom `ShapeUtil`s, tools, panels
+- `src/shared/` — shape definitions + domain logic imported by **both** client and worker; keep runtime-agnostic
+- `src/worker/` — Cloudflare Worker + Durable Object hosting one sync room each
+- `e2e/` — Playwright specs, including the multi-client sync tests
+- `docs/` — the layered docs listed at the top of this file
 
 ## Tech Stack
 
-[Short table or list of the stack: language + version, framework, key libraries, test/lint tooling.]
+- TypeScript (strict), React 19, Vite
+- tldraw SDK 4.x — canvas, custom shapes, bindings — plus its sync client
+- Cloudflare Workers + Durable Objects (SQLite storage); R2 for assets
+- Vitest + Testing Library (unit), Playwright (e2e, incl. two-client sync)
+- oxlint, prettier
+
 **Don't add dependencies without noting them here first.**
 
 ## Code Conventions
 
-[The non-negotiable rules: typing/strictness, error handling, naming, file/module structure, testing
-expectations. Keep to what an implementer must not violate.]
+- **Domain state lives in the tldraw store.** No parallel state manager — anything outside the store
+  is invisible to sync. This is the one rule the whole architecture rests on.
+- **A custom shape is declared once and consumed twice** — the definition lives in `src/shared/`, the
+  client builds a `ShapeUtil` from it and the worker builds its schema from it. Never hand-write the
+  two halves separately; they drift silently and break validation at the room boundary.
+- **Every shape-prop change ships a migration.** Rooms hold persisted records; an unmigrated prop
+  change corrupts existing rooms rather than failing loudly.
+- TypeScript `strict`; no `any` in `src/shared/`.
 
 - When writing/refactoring code in a domain that has a rulebook (see `@docs/best-practices/INDEX.md`), consult it first and load only the relevant section(s) — don't reinvent or guess the rules.
 
 ## Common Commands
 
 ```bash
-# build / run
-# test
-# lint / typecheck
-# spec-lint:  sh scripts/spec-lint.sh
-# docs-lint:  sh scripts/docs-lint.sh
-# docs-lint tests: sh scripts/docs-lint-test.sh
+npm run dev          # vite client + local worker (no tldraw licence needed on localhost)
+npm run build        # tsc -b && vite build
+npm test             # vitest run
+npm run test:e2e     # playwright, includes two-client sync specs
+npm run lint         # oxlint
+npm run typecheck    # tsc --noEmit
+sh scripts/spec-lint.sh        # CI
+sh scripts/docs-lint.sh        # LOCAL pre-push gate — not in CI
+sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ```
 
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** [the spec in progress, or "none — next work unplanned"].
+**Current work:** none — SPEC-001 through SPEC-003 are Draft; build starts when told.
 
 ---
 
@@ -62,14 +87,35 @@ that area. A line here is **never the only home of a fact**, and never a paragra
 and plain prose here in the intro. A table, blockquote, fenced block, ordered list or bare bullet
 is refused — each one was a way past the checks. Rename the area below and replace the example.
 
-### (example) Area name
+### Canvas foundation
 
-- **(example) Decision label** — the claim and its fence in one line, matching the `###` heading of
-  its full entry in `@docs/decisions.md`. Delete this once the first real decision lands.
+- **Canvas SDK: tldraw** — chosen over Excalidraw for first-class custom shapes and real self-hosted
+  sync; the freehand/iPad feel and shape recognition are not hand-rolled.
+- **Store-native domain state** — nesting, connections and frames are tldraw records, not a parallel
+  store. A shadow state manager is invisible to sync and must not be built.
+
+### Collaboration
+
+- **Multiplayer lands before the first custom shape** — sync in SPEC-002, custom shapes from SPEC-003
+  on, so the client/worker schema duality is proven on the smallest shape instead of retrofitted.
+
+### Licensing
+
+- **Hobby licence accepted for now; commercial use is unresolved** — localhost needs no key, so this
+  fences **deployment**, not development. Settle it before any production deploy spec.
+
+### Scope
+
+- **Secondary features deferred pending real use** — edge sets, node-lens grouping and the
+  actor/action/trigger model are not ported until the tool is usable enough to judge them.
 
 ## Out of Scope (don't build)
 
-[Explicit exclusions — things a reader might assume are in scope but aren't.]
+- **The workflow starter kit's execution engine.** Its ports/bindings are the part we want; running
+  user code in nodes is not a goal.
+- **Porting the old app's rendering layer.** Only the derivation logic and the JSON schema carry over;
+  React Flow and the Zustand store do not.
+- **A production deploy** until the licence question above is answered.
 
 ---
 
