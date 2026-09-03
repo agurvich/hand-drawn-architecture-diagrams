@@ -113,6 +113,14 @@ first time they bite.
   `src/shared/`; never hand-write them separately.
 - **Persisted rooms make shape props migration-bearing.** A prop added or renamed without a migration
   corrupts existing rooms rather than failing loudly. Every prop change ships a migration.
+- **`useSync` separates document status from connectivity, and losing the server is not an error.**
+  Its status union is exactly `loading | error | synced-remote`; `status: 'error'` arrives *only* from
+  a server closing the socket with a sync error reason. An unreachable server retries in `loading`
+  forever, and a mid-session drop stays `synced-remote` with `connectionStatus: 'offline'` — the
+  canvas must stay mounted and editable there, or offline edits are destroyed instead of re-synced.
+  **This is recorded because it was specified wrongly twice**, from reasoning rather than from the
+  SDK's actual state machine; the values above were measured against a live `TLSocketRoom`. A UI that
+  treats disconnection as failure is the failure.
 - **The target device is an iPad with a pencil.** Pointer-event handling, hit targets and panel layout
   are judged on touch first, not on a desktop mouse.
 

@@ -2,7 +2,7 @@
 
 **ID:** SPEC-003  
 **Status:** Draft  
-**Last Updated:** 2026-09-03 (rev 3 — post-implementer-review)  
+**Last Updated:** 2026-09-03 (rev 4 — post-fix-verification)  
 **Depends On:** SPEC-002
 
 ## Overview
@@ -64,8 +64,9 @@ separately is the failure this spec exists to prevent.
       `getDefaultProps(): NodeShape['props']`
 - [ ] That check **is proven to bite**: a fixture asserts it fails with a named message on a planted
       duplicate type literal, and stays silent on the legitimate shared declaration. The fixture lives
-      under `tests/fixtures/` and the check takes a root path argument, so the real run does not fail
-      on the planted duplicate. A gate is not
+      at `src/shared/shapes/__fixtures__/`, inside the tree SPEC-001's `tsconfig` already covers and
+      outside any test glob, and the check takes a root path argument so the real run skips it. A
+      top-level `tests/` directory would be typechecked by nothing and run by nothing. A gate is not
       tested by running it on the thing it guards (`process.md` §3)
 - [ ] The shared module imports only from `@tldraw/tlschema` and `@tldraw/validate` — never from
       `tldraw`, which pulls React, DOM and CSS into the Worker bundle. Asserted by an import-allowlist
@@ -110,7 +111,9 @@ hostile client cannot corrupt a room for everyone else in it.
       for the same reason FR-004 names its seeding route:** the client store validates locally and
       throws before anything reaches the socket, so a malformed record cannot be produced through the
       normal editor API. The test uses a **development-only client schema override** that skips local
-      validation, registered on the same dev-only surface as FR-004's seeding route. Playwright cannot
+      validation, at `src/client/devOnly.ts`, gated on the dev build. It is deliberately **not** on
+      FR-004's dev-only worker route: that is a worker HTTP surface and this is client bundle code,
+      so it cannot be registered there. Playwright cannot
       read a close code, so the reason is surfaced through the app's error UI (SPEC-002 FR-002) and
       asserted there
 - [ ] A record carrying an unknown shape type is rejected
@@ -259,9 +262,11 @@ src/
 │       ├── node.ts            # type, props, validators, migrations, augmentation
 │       ├── node.test.ts       # migration tests (FR-004)
 │       ├── boundary.test.ts   # the cross-boundary test (FR-001)
+│       ├── __fixtures__/      # the planted duplicate proving FR-001's check bites
 │       └── index.ts           # the registry both runtimes import
 ├── client/
 │   ├── Room.tsx               # EDITED: useSync + <Tldraw> both take shapeUtils
+│   ├── devOnly.ts             # unvalidated-client schema override (FR-003); dev only
 │   ├── shapes/
 │   │   ├── NodeShapeUtil.tsx
 │   │   └── NodeShapeUtil.test.tsx
@@ -269,8 +274,7 @@ src/
 │       └── NodeTool.ts        # the StateNode + UI override behind the toolbar entry
 └── worker/
     ├── schema.ts              # built from src/shared/shapes, defaults spread in
-    └── devOnlyRoutes.ts        # v1 room seeding (FR-004) + the unvalidated-client
-                                # override (FR-003); development builds only
+    └── devOnlyRoutes.ts        # v1 room seeding (FR-004); development builds only
 e2e/
 ├── custom-shape.spec.ts       # FR-005, and the persisted-room case from FR-004
 └── fixtures/

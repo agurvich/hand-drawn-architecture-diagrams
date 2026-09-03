@@ -2,7 +2,7 @@
 
 **ID:** SPEC-002  
 **Status:** Draft  
-**Last Updated:** 2026-09-03 (rev 3 — post-implementer-review)  
+**Last Updated:** 2026-09-03 (rev 4 — post-fix-verification)  
 **Depends On:** SPEC-001
 
 ## Overview
@@ -78,27 +78,38 @@ unit of sharing.
       The generated id is **not** written to `localStorage` or any other client storage: SPEC-001
       forbids a second home for state, and the starter kit's habit of remembering the last room is
       exactly that. A room is remembered by its URL — that is what makes a link the unit of sharing
-The three states below are the three `useSync` actually exposes, and no others. This matters because
-the obvious fourth — "the server went away" — is **not** an error condition: `useSync` keeps
-`status: 'synced-remote'` with `connectionStatus: 'offline'` and retries. Unmounting the canvas there
-would destroy the local edits FR-004 requires to survive and re-sync, so the two FRs would demand
-opposite behaviour on the same event.
+
+The states below are the ones `useSync` actually exposes — its status union is exactly
+`loading | error | synced-remote`, and connectivity after a successful connect is a *separate*
+`connectionStatus`. That separation is the point: "the server went away" is **not** an error
+condition. `useSync` keeps `status: 'synced-remote'` with `connectionStatus: 'offline'` and retries,
+so unmounting the canvas there would destroy the local edits FR-004 requires to survive and re-sync —
+the two FRs would demand opposite behaviour on the same event.
 
 - [ ] **Connecting** (`status === 'loading'`): **no editable canvas is mounted** — asserted in an e2e
       test against a delayed connection, by `data-testid="room-loading"` being present and the tldraw
       canvas absent. Drawing into a document about to be replaced must be impossible, not discouraged
-- [ ] **Failed** (`status === 'error'`): `data-testid="room-error"` is present and no editable canvas
-      is mounted. This state is reached only when the server closes the socket with a sync error
-      reason — in this spec, an invalid room id. A merely unreachable server does **not** reach it;
-      `useSync` retries in `loading` indefinitely, so it is covered by the loading criterion above
-      plus the timeout below
+There are **two distinct failure surfaces**, and collapsing them is what makes one of them dead code.
+A malformed room id is caught by the client before a socket opens; a sync error can only arrive from a
+server that the client did connect to. Both must exist.
+
+- [ ] **Malformed room id** (`RoomRoute.kind === 'invalid'`, client-side): `data-testid="room-error-id"`
+      is present and **no socket is opened** — which is what makes FR-001's "rejected rather than
+      opening a connection" true from the user's side
+- [ ] **Sync error** (`status === 'error'`, server-side): `data-testid="room-error-sync"` is present,
+      no editable canvas is mounted, and the message comes from `store.error`. Reached when the server
+      closes the socket with a sync error reason — a **well-formed** room id the server rejects
+      produces `NOT_FOUND` here. This is the surface SPEC-003 FR-003 routes its `INVALID_RECORD`
+      assertion through, so it must be built from `store.error` and not faked from the route
+- [ ] A merely unreachable server reaches **neither**; `useSync` retries in `loading` indefinitely, so
+      it is covered by the loading criterion above plus the timeout below
 - [ ] **Offline after connecting** (`connectionStatus === 'offline'`): the canvas **stays mounted and
       editable**, and a `data-testid="room-offline"` indicator appears. Asserted to still be editable
       — this is the criterion that keeps FR-002 and FR-004 consistent
 - [ ] A connection stuck in `loading` past 10 seconds surfaces `data-testid="room-slow"` telling the
       user it is still trying. Without it, an unreachable server is indistinguishable from a slow one
       and the app appears hung forever
-- [ ] All four are the **app's own** UI, not the SDK's default screens — passing the store straight to
+- [ ] Every state above is the **app's own** UI, not the SDK's default screens — passing the store straight to
       `<Tldraw>` would tick with no work done
 
 ### FR-003: Two clients converge
@@ -197,11 +208,22 @@ store = useSync({
   uri: `${window.location.origin}/api/connect/${roomId}`,
   assets: failLoudlyAssetStore,   // see Out of Scope: no R2, no base64 inlining
 })
-// FR-002 requires branching on status; passing the store straight through is
-// the exact shape that criterion says would tick with no work done.
-if (store.status === 'loading') return <RoomLoading />
-if (store.status === 'error')   return <RoomError error={store.error} />
-<Tldraw store={store.store} />   // plus the offline indicator, canvas still mounted
+// The route is resolved BEFORE connecting: a malformed id never opens a socket.
+const route = roomRouteFromPath(location.pathname)
+if (route.kind === 'none')    return redirectTo(generateRoomId())
+if (route.kind === 'invalid') return <RoomIdError raw={route.raw} />   // room-error-id
+
+// Only a well-formed id reaches useSync. FR-002 requires branching on status;
+// passing the store straight through is the shape that criterion calls vacuous.
+const store = useSync({ uri, assets: failLoudlyAssetStore })
+if (store.status === 'loading') return <RoomLoading />                 // room-loading
+if (store.status === 'error')   return <RoomSyncError error={store.error} />  // room-error-sync
+
+// synced-remote: canvas ALWAYS mounted and editable, offline or not.
+<>
+  <Tldraw store={store.store} />
+  {store.connectionStatus === 'offline' && <OfflineIndicator />}       // room-offline
+</>
 ```
 
 ## Configuration / Environment
@@ -212,15 +234,25 @@ a **single origin** in development, so the client builds its socket URI from
 further configuration" true; an env var would contradict it.
 
 - `wrangler.toml` — worker name, the Durable Object binding, the `[[migrations]]`
-  `new_sqlite_classes` entry declaring it, and the `[assets]` block **without which `GET /<roomId>`
-  404s instead of serving the SPA**:
+  `new_sqlite_classes` entry declaring it, and the `[assets]` block below.
+
+  **`not_found_handling` alone is not enough, and this is the trap:** it applies only when the asset
+  router handles the request. With a `main` worker present, a path that matches no asset falls
+  through to the Worker instead — so `/` serves only because `index.html` is a literal asset match,
+  while `GET /<roomId>` 404s. Since a room URL is the primary user-facing route, that is every real
+  navigation. `run_worker_first` is what scopes the Worker to the API and leaves everything else to
+  the asset router:
 
 ```toml
 [assets]
 directory = "./dist/client"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
 ```
+
+  The equivalent alternative, if the plan prefers it, is for the Worker to return
+  `env.ASSETS.fetch(request)` for any non-`/api/` path. Either is acceptable; silence is not.
 
 - `worker-configuration.d.ts` — generated by `wrangler types` at the repo root. It must be added to
   the `tsconfig` `include`, or every worker file fails to typecheck on `Cannot find name 'Env'` and
