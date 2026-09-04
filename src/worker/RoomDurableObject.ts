@@ -70,10 +70,11 @@ export class RoomDurableObject extends DurableObject<Env> {
     present: boolean
     documents: number
     shape: { label: string; parentId: string; collapsed: boolean } | null
+    shapeTypes: Record<string, number>
     bindings: Array<{ type: string; fromId: string; toId: string; terminal?: string }>
   }> {
     const raw = await this.ctx.storage.get<string>('snapshot')
-    if (!raw) return { present: false, documents: 0, shape: null, bindings: [] }
+    if (!raw) return { present: false, documents: 0, shape: null, shapeTypes: {}, bindings: [] }
     const parsed = JSON.parse(raw) as {
       documents?: Array<{ state?: Record<string, any> }>
     }
@@ -104,7 +105,18 @@ export class RoomDurableObject extends DurableObject<Env> {
         terminal: d.state!.props?.terminal as string | undefined,
       }))
 
-    return { present: true, documents: docs.length, shape, bindings }
+    // Every stored shape by type. SPEC-006 derives its merged view rather than
+    // writing it, and the only way to assert that against STORAGE -- rather than
+    // against a client that could be hiding what it wrote -- is to see that no
+    // shape type appeared that nobody drew.
+    const shapeTypes: Record<string, number> = {}
+    for (const d of docs) {
+      if (d.state?.typeName !== 'shape') continue
+      const type = String(d.state.type ?? '')
+      shapeTypes[type] = (shapeTypes[type] ?? 0) + 1
+    }
+
+    return { present: true, documents: docs.length, shape, shapeTypes, bindings }
   }
 
   /**

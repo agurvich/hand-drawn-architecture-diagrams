@@ -132,11 +132,11 @@ re-binds it, without deleting and redrawing.
 
 #### Acceptance Criteria:
 
-> **NOT BUILT — owed, and picked up by SPEC-006 FR-005 (2026-09-04).** This spec was marked Completed
-> with this FR unimplemented: `ConnectionShapeUtil.getHandles` ships, but there is no
-> `onHandleDrag`/`onHandleDragEnd` handler and `updateBinding` appears nowhere in `src/client`, so
-> dragging an endpoint does nothing. No e2e covers it. Found by SPEC-006's spec review. The criteria
-> below stand unchanged; they are built and asserted under
+> **Shipped unbuilt here; BUILT under SPEC-006 FR-005 (2026-09-04).** This spec was marked Completed
+> with this FR unimplemented: `ConnectionShapeUtil.getHandles` shipped, but there was no
+> `onHandleDrag`/`onHandleDragEnd` handler and `updateBinding` appeared nowhere in `src/client`, so
+> dragging an endpoint did nothing, and no e2e covered it. Found by SPEC-006's spec review. The
+> criteria below stand unchanged and are now asserted under
 > `docs/specs/SPEC-006-merged-connections.md` → FR-005.
 
 - [ ] Dragging the source endpoint onto node C re-binds the source to C; the connection's identity

@@ -30,11 +30,16 @@ export type GetShape = (id: string) => HierarchyShape | undefined
 export type GetChildIds = (parentId: string) => readonly string[]
 
 /** A parentId that names a page rather than a shape terminates every walk. */
-function isShapeId(id: string): boolean {
+export function isShapeId(id: string): boolean {
   return id.startsWith('shape:')
 }
 
-function isCollapsedContainer(shape: HierarchyShape): boolean {
+/**
+ * Exported so `merge.ts` reuses the one place `diagramNode` and `collapsed` are
+ * tested together. A second copy would also put a second shape-type literal in
+ * play, which `shared-imports.test.ts` exists to prevent.
+ */
+export function isCollapsedContainer(shape: HierarchyShape): boolean {
   if (shape.type !== NODE_SHAPE_TYPE) return false
   return (shape.props as { collapsed?: unknown } | undefined)?.collapsed === true
 }

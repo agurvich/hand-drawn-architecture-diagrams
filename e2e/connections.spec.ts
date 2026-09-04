@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
+  dragEndpoint,
+  shapeGeometry as connGeometry,
   openRoom,
   newParticipant,
   addNode,
@@ -10,13 +12,6 @@ import {
   shapeCount,
   roomId,
 } from './helpers'
-
-async function connGeometry(page: Page, id: string): Promise<string> {
-  return page.evaluate(
-    (cid) => JSON.stringify(window.__editor!.getShapeGeometry(cid as never).bounds.toJson()),
-    id,
-  )
-}
 
 /** FR-005's sweep: no binding may point at a shape that no longer exists. */
 async function expectNoDanglingBindings(page: Page) {
@@ -123,26 +118,36 @@ test.describe('SPEC-005 FR-003 — connections follow their endpoints', () => {
     expect(await connGeometry(page, conn)).not.toBe(before)
   })
 
-  test('a connection is hidden when an endpoint is hidden by collapse', async ({ page }) => {
-    // Cannot ride the parentId walk: the connection is parented to the PAGE, so
-    // no ancestor of it is ever collapsed. It hides by RELATIONSHIP instead.
+  test('SPEC-006 FR-001 — a connection crossing a collapse boundary is RE-DRAWN, not hidden', async ({
+    page,
+  }) => {
+    // Superseded SPEC-005 FR-003's last criterion, which hid the connection as
+    // the deliberate placeholder until merging existed. The arrangement is
+    // unchanged so the case stays covered; the expected answer is the new one.
     await openRoom(page, roomId('cx6'))
     const outside = await addNode(page, 'Outside', { x: 80, y: 80 })
     const container = await addNode(page, 'Platform', { x: 500, y: 300, w: 420, h: 260 })
     const child = await addNode(page, 'Inner', { x: 40, y: 60, w: 160, h: 90, parentId: container })
     const conn = await addConnection(page, outside, child)
 
+    const expanded = await connGeometry(page, conn)
     expect(await page.evaluate((id) => window.__editor!.isShapeHidden(id as never), conn)).toBe(
       false,
     )
+
     await setCollapsed(page, container, true)
     expect(await page.evaluate((id) => window.__editor!.isShapeHidden(id as never), conn)).toBe(
-      true,
+      false,
     )
+    // Drawn against the CONTAINER now, so the geometry moved.
+    const collapsed = await connGeometry(page, conn)
+    expect(collapsed).not.toBe(expanded)
+
     await setCollapsed(page, container, false)
     expect(await page.evaluate((id) => window.__editor!.isShapeHidden(id as never), conn)).toBe(
       false,
     )
+    expect(await connGeometry(page, conn)).toBe(expanded)
   })
 
   test('the connection stays parented to the page, not dragged into a container', async ({
@@ -278,5 +283,109 @@ test.describe('SPEC-005 FR-006 — synced and durable', () => {
     ])
 
     await p.ctx.close()
+  })
+})
+
+test.describe('SPEC-005 FR-004 / SPEC-006 FR-005 — re-aiming an endpoint', () => {
+  // SPEC-005 marked this Completed without building it: getHandles shipped, the
+  // drag handler did not, so dragging an endpoint silently did nothing and no
+  // test noticed. Every criterion below is SPEC-005 FR-004's, asserted at last.
+
+  test('dragging the source endpoint onto a third node re-binds it, keeping the connection', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('ra1'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const c = await addNode(page, 'C', { x: 400, y: 80, w: 160, h: 100 })
+    const conn = await addConnection(page, a, b)
+
+    await dragEndpoint(page, conn, 'start', { x: 480, y: 130 })
+
+    // Same shape, same two bindings -- an edit, not a delete-and-redraw.
+    expect(await connectionCount(page)).toBe(1)
+    const bindings = await allBindings(page)
+    expect(bindings).toHaveLength(2)
+    expect(bindings.every((x) => x.fromId === conn)).toBe(true)
+    expect(bindings.find((x) => x.toId === c)).toBeTruthy()
+    expect(bindings.find((x) => x.toId === a)).toBeFalsy()
+    await expectNoDanglingBindings(page)
+  })
+
+  test('the same for the target endpoint', async ({ page }) => {
+    await openRoom(page, roomId('ra2'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const c = await addNode(page, 'C', { x: 400, y: 80, w: 160, h: 100 })
+    const conn = await addConnection(page, a, b)
+
+    await dragEndpoint(page, conn, 'end', { x: 480, y: 130 })
+
+    const bindings = await allBindings(page)
+    expect(bindings.find((x) => x.toId === c)).toBeTruthy()
+    expect(bindings.find((x) => x.toId === b)).toBeFalsy()
+    expect(bindings.find((x) => x.toId === a)).toBeTruthy()
+  })
+
+  test('dropping on empty canvas leaves the binding as it was', async ({ page }) => {
+    await openRoom(page, roomId('ra3'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const conn = await addConnection(page, a, b)
+
+    await dragEndpoint(page, conn, 'start', { x: 460, y: 900 })
+
+    const bindings = await allBindings(page)
+    expect(bindings).toHaveLength(2)
+    expect(bindings.map((x) => x.toId).sort()).toEqual([a, b].sort())
+    await expectNoDanglingBindings(page)
+  })
+
+  test('dropping on the OTHER endpoint is refused — no self-connection by the back door', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('ra4'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 200, h: 140 })
+    const conn = await addConnection(page, a, b)
+
+    await dragEndpoint(page, conn, 'start', { x: 800, y: 470 })
+
+    const bindings = await allBindings(page)
+    expect(bindings.map((x) => x.toId).sort()).toEqual([a, b].sort())
+  })
+
+  test('the node under the dragged endpoint is hinted', async ({ page }) => {
+    await openRoom(page, roomId('ra5'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const c = await addNode(page, 'C', { x: 400, y: 80, w: 160, h: 100 })
+    const conn = await addConnection(page, a, b)
+
+    const { hintedMidDrag } = await dragEndpoint(page, conn, 'start', { x: 480, y: 130 })
+    expect(hintedMidDrag).toEqual([c])
+    // And cleared on drop, so the hint does not outlive the gesture.
+    expect(await page.evaluate(() => window.__editor!.getHintingShapeIds())).toEqual([])
+  })
+
+  test('dropping on a COLLAPSED container binds to the container, the shape actually on screen', async ({
+    page,
+  }) => {
+    // A node inside a collapsed container is hidden, and getShapeAtPoint skips
+    // hidden shapes, so it is not a pointer target at all. The container is what
+    // is under the finger and what the binding records.
+    await openRoom(page, roomId('ra6'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const container = await addNode(page, 'P', { x: 380, y: 60, w: 320, h: 200 })
+    await addNode(page, 'Inner', { x: 20, y: 20, w: 120, h: 80, parentId: container })
+    await setCollapsed(page, container, true)
+    const conn = await addConnection(page, a, b)
+
+    await dragEndpoint(page, conn, 'start', { x: 540, y: 160 })
+
+    const bindings = await allBindings(page)
+    expect(bindings.find((x) => x.toId === container)).toBeTruthy()
+    expect(bindings.find((x) => x.toId === a)).toBeFalsy()
   })
 })

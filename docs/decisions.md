@@ -32,6 +32,7 @@ until the first real decision lands.
 - [Multiplayer lands before the first custom shape](#multiplayer-lands-before-the-first-custom-shape)
 - [Hobby licence accepted for now; commercial use is unresolved](#hobby-licence-accepted-for-now-commercial-use-is-unresolved)
 - [Secondary features deferred pending real use](#secondary-features-deferred-pending-real-use)
+- [Derived views are computed, never materialized](#derived-views-are-computed-never-materialized)
 
 ---
 
@@ -141,3 +142,37 @@ nearly as-is, which is why they sit in the arc rather than in this list (see
 
 **The deferral is a decision, not an omission.** A feature dropped here is dropped on purpose and
 needs a spec to return, not a silent reintroduction mid-build.
+
+### Derived views are computed, never materialized
+
+**Settled 2026-09-04 (SPEC-006).** A view that is a pure function of existing records is computed on
+each client, every time. It is not written back into the store as new records.
+
+The case that forced it: collapsing a container merges the connections crossing its boundary into
+deduplicated lines. The obvious implementation creates a merged connection record on collapse and
+deletes it on expand. Under sync that is a defect rather than an inefficiency — two clients
+collapsing the same container both write, and the room keeps duplicate merged records that no expand
+deletes. There is no coordination point to add one, because the whole design has no server-side
+domain logic; the Durable Object validates records, it does not arbitrate them.
+
+Computing instead makes the question disappear. Every client derives the same answer from the same
+records, so agreement is a property of the function rather than of the protocol. Where the derivation
+must pick one of several equivalent records — which connection represents a merged group — the rule
+is a **total order on data both clients already have** (the smallest shape id), never creation order,
+insertion order or a timestamp.
+
+**Two fences fall out of this, and both are load-bearing:**
+
+- **A derived index holds ids and flags, never coordinates.** SPEC-005's result is that a connection's
+  anchors are read from the bound shapes' page transforms at geometry time, which is what makes moving
+  a *container* re-route lines bound to its descendants. An index caching anchor points puts a staler
+  second answer beside the live one. In practice the structure prevents it: the derivation lives in
+  `src/shared/`, which has no access to page transforms.
+- **The derivation is not a licence to compute domain state outside the store.** What is derived here
+  is a *view* of records; the records themselves stay in the tldraw store, per
+  [*Store-native domain state*](#store-native-domain-state). A value that cannot be recomputed from
+  records is not a derived view, it is state, and it belongs in a record.
+
+**Rejected: materialize on collapse, delete on expand.** Faster to render and trivially wrong under
+two clients. **Rejected: elect a representative by creation order.** Two clients can create
+concurrently, so "first" is not a value both agree on.

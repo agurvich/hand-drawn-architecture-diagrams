@@ -1,10 +1,6 @@
 import type { Editor, TLShape } from 'tldraw'
-import {
-  isHiddenByCollapse,
-  CONNECTION_SHAPE_TYPE,
-  CONNECTION_BINDING_TYPE,
-  type ConnectionBinding,
-} from '@shared/shapes'
+import { isHiddenByCollapse, CONNECTION_SHAPE_TYPE } from '@shared/shapes'
+import { getMergeIndex } from './mergeIndex'
 
 /**
  * Whether a shape should be hidden.
@@ -13,22 +9,23 @@ import {
  *
  * A connection cannot use that path at all: it is parented to the PAGE, so no
  * ancestor of it is ever collapsed, and SPEC-005 forbids reparenting it into a
- * container. It hides by RELATIONSHIP instead -- resolve its bindings and hide
- * when either bound node is hidden. Two different mechanisms because they are
- * two different questions, and the parent walk silently answers "no" for every
- * connection.
+ * container. It hides by RELATIONSHIP instead, and since SPEC-006 that
+ * relationship is the whole merge derivation -- a connection hides when it is
+ * internal to a collapsed container, when a binding points at a shape that is
+ * gone, or when it is a member of a merge group that some other connection
+ * represents.
+ *
+ * The merge index REPLACED an earlier branch here that resolved bindings
+ * directly. Both of that branch's answers survive inside the derivation (rules 1
+ * and 2), and keeping the old branch alongside it would leave two mechanisms
+ * answering one question.
  *
  * Lives in src/client, not src/shared: the shared allowlist permits only
- * @tldraw/tlschema and @tldraw/validate, and this needs the Editor's binding index.
+ * @tldraw/tlschema and @tldraw/validate, and this needs the Editor.
  */
 export function shouldHide(shape: TLShape, editor: Editor): boolean {
   if (shape.type === CONNECTION_SHAPE_TYPE) {
-    const bindings = editor.getBindingsFromShape<ConnectionBinding>(shape, CONNECTION_BINDING_TYPE)
-    // An unbound connection (mid-drag) is not hidden; a bound one follows its endpoints.
-    return bindings.some((b) => {
-      const node = editor.getShape(b.toId)
-      return !node || editor.isShapeHidden(node.id)
-    })
+    return getMergeIndex(editor).get(shape.id)?.hidden === true
   }
   return isHiddenByCollapse(shape, (id) => editor.getShape(id as TLShape['id']))
 }

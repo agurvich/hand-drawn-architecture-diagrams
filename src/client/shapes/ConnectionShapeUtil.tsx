@@ -4,9 +4,13 @@ import {
   Group2d,
   Edge2d,
   type TLHandle,
+  type TLHandleDragInfo,
+  type TLShape,
   type TLShapeId,
   type TLShapeUtilCanBindOpts,
 } from 'tldraw'
+import { getMergeIndex } from '../mergeIndex'
+import { nodeAtPoint } from '../nodeAtPoint'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -65,15 +69,39 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
       .find((b) => b.props.terminal === terminal)
   }
 
-  /** Page-space endpoints, resolved through the bindings when they exist. */
+  /**
+   * The shape this terminal is DRAWN against -- which since SPEC-006 is not
+   * always the shape it is bound to: an endpoint inside a collapsed container
+   * resolves to the container standing in for it.
+   *
+   * Only the ID comes from the index. Bounds are read live below, which is what
+   * keeps a container move re-routing the line.
+   */
+  nodeIdFor(shape: ConnectionShape, terminal: ConnectionTerminal): TLShapeId | null {
+    const entry = getMergeIndex(this.editor).get(shape.id)
+    if (entry) {
+      const id = terminal === 'start' ? entry.startNodeId : entry.endNodeId
+      return id === null ? null : (id as TLShapeId)
+    }
+    // Index miss -- a shape on another page, or a store read mid-change. Fall
+    // back to the raw binding, which is what this did before merging existed.
+    return this.bindingFor(shape, terminal)?.toId ?? null
+  }
+
+  /** How many connections this line stands for; 1 when it is not merged. */
+  mergeCount(shape: ConnectionShape): number {
+    return getMergeIndex(this.editor).get(shape.id)?.count ?? 1
+  }
+
+  /** Page-space endpoints, resolved through the merge index. */
   getTerminalsInPageSpace(shape: ConnectionShape): { start: Vec; end: Vec } {
     const shapePage = this.editor.getShapePageTransform(shape.id)
     const fallback = (p: { x: number; y: number }) => shapePage.applyToPoint(new Vec(p.x, p.y))
 
     const resolve = (terminal: ConnectionTerminal, other: Vec) => {
-      const binding = this.bindingFor(shape, terminal)
-      if (!binding) return null
-      const bounds = this.editor.getShapePageBounds(binding.toId)
+      const nodeId = this.nodeIdFor(shape, terminal)
+      if (!nodeId) return null
+      const bounds = this.editor.getShapePageBounds(nodeId)
       if (!bounds) return null
       return anchorOnBorder(bounds.center, bounds, other)
     }
@@ -89,9 +117,9 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   private centreOf(shape: ConnectionShape, terminal: ConnectionTerminal): Vec | null {
-    const binding = this.bindingFor(shape, terminal)
-    if (!binding) return null
-    return this.editor.getShapePageBounds(binding.toId)?.center ?? null
+    const nodeId = this.nodeIdFor(shape, terminal)
+    if (!nodeId) return null
+    return this.editor.getShapePageBounds(nodeId)?.center ?? null
   }
 
   override getGeometry(shape: ConnectionShape) {
@@ -103,6 +131,10 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   override getHandles(shape: ConnectionShape): TLHandle[] {
+    // A line standing for several connections offers NO handles: re-aiming it
+    // could only rebind one arbitrary member of the group, so the affordance is
+    // withdrawn rather than made to pick.
+    if (this.mergeCount(shape) > 1) return []
     const { start, end } = this.getTerminalsInPageSpace(shape)
     const inv = this.editor.getShapePageTransform(shape.id).clone().invert()
     const a = inv.applyToPoint(start)
@@ -118,6 +150,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const inv = this.editor.getShapePageTransform(shape.id).clone().invert()
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
+    const count = this.mergeCount(shape)
     return (
       <svg className="tl-svg-container" data-testid="diagram-connection">
         <defs>
@@ -142,6 +175,19 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
           strokeWidth={2}
           markerEnd={`url(#arrow-${shape.id.replace(/[^a-zA-Z0-9]/g, '')})`}
         />
+        {count > 1 && (
+          // The count is information about MERGING, so a line standing for one
+          // connection renders nothing at all rather than a decorative x1.
+          <text
+            className="diagram-connection__count"
+            data-testid="diagram-connection-count"
+            x={(a.x + b.x) / 2}
+            y={(a.y + b.y) / 2 - 6}
+            textAnchor="middle"
+          >
+            {`\u00d7${count}`}
+          </text>
+        )}
       </svg>
     )
   }
@@ -160,6 +206,45 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   /** Connections are positioned entirely by their bindings. */
   override onTranslateStart(shape: ConnectionShape) {
     return shape
+  }
+
+  /**
+   * Re-aiming an endpoint. The connection's shape id and its two binding records
+   * survive -- only a binding's `toId` moves, so this is an edit rather than a
+   * delete-and-redraw.
+   *
+   * Nothing is written until the drop. A refusal (empty canvas, a non-node, or
+   * the connection's other endpoint) therefore leaves the binding exactly as it
+   * was rather than needing to be undone.
+   */
+  override onHandleDrag(shape: ConnectionShape, { handle }: TLHandleDragInfo<ConnectionShape>) {
+    const target = this.dropTargetFor(shape, handle.id as ConnectionTerminal)
+    this.editor.setHintingShapes(target ? [target.id] : [])
+  }
+
+  override onHandleDragEnd(shape: ConnectionShape, { handle }: TLHandleDragInfo<ConnectionShape>) {
+    this.editor.setHintingShapes([])
+    const terminal = handle.id as ConnectionTerminal
+    const target = this.dropTargetFor(shape, terminal)
+    if (!target) return
+    const binding = this.bindingFor(shape, terminal)
+    if (!binding || binding.toId === target.id) return
+    this.editor.updateBinding({ ...binding, toId: target.id })
+  }
+
+  override onHandleDragCancel() {
+    this.editor.setHintingShapes([])
+  }
+
+  /** The node a drop would attach to, or undefined for every refusal. */
+  private dropTargetFor(shape: ConnectionShape, terminal: ConnectionTerminal): TLShape | undefined {
+    const target = nodeAtPoint(this.editor, this.editor.inputs.getCurrentPagePoint())
+    if (!target) return undefined
+    // A self-connection is refused here as well as in the tool -- otherwise it
+    // arrives by the back door, which is the whole reason this criterion exists.
+    const opposite: ConnectionTerminal = terminal === 'start' ? 'end' : 'start'
+    if (this.bindingFor(shape, opposite)?.toId === target.id) return undefined
+    return target
   }
 
   boundNodeIds(shape: ConnectionShape): TLShapeId[] {

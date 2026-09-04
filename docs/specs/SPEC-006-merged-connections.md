@@ -1,8 +1,8 @@
 # Spec: Merging connections into a collapsed container
 
 **ID:** SPEC-006  
-**Status:** Draft  
-**Last Updated:** 2026-09-04 (rev 2 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-04 (rev 3 — build)  
 **Depends On:** SPEC-004, SPEC-005
 
 ## Overview
@@ -202,9 +202,12 @@ the handler; this builds it. The criteria are SPEC-005 FR-004's, unchanged in su
 - [ ] The node under a dragged endpoint is hinted via tldraw's own mechanism —
       `editor.setHintingShapes([id])` during the drag, cleared on drop — so the hint is assertable
       through `editor.getHintingShapeIds()` rather than through pixels
-- [ ] Re-aiming an endpoint onto a node inside a **collapsed** container binds to that node and the
-      line immediately resolves onto the container, per FR-001 — the two features meet here, and the
-      binding records what was dropped on rather than what is drawn
+- [ ] Dropping an endpoint on a **collapsed container** binds to the **container itself**, and the
+      line is then drawn against it like any other. Not to the node inside it: `getShapeAtPoint`
+      skips hidden shapes unconditionally, so a hidden node is not a pointer target at all and a
+      criterion asking for one asks for something the user cannot express. The container is a
+      `diagramNode` like any other and is genuinely what was dropped on. **Rev 3 (2026-09-04)
+      replaces the original criterion**, which named the hidden node and was unbuildable
 
 ### FR-006: A merged line is not edited as though it were one connection
 
@@ -317,7 +320,7 @@ export function computeMergeIndex(
 5. **The gate: a group merges only if at least one of its members was actually resolved** — that is,
    at least one member has a terminal whose resolved id differs from its bound id. A group where
    nothing resolved is left as N separate entries, each `count: 1` and none hidden, which is exactly
-   today's behaviour. **Settled by the user, 2026-09-04.** Grouping on the resolved key alone would
+   today's behaviour. **Settled 2026-09-04.** Grouping on the resolved key alone would
    merge two hand-drawn connections between two *visible* nodes, so an expanded diagram would lose a
    line and grow a count badge — and this spec promises not to change what an expanded diagram looks
    like. The gate is on the **group**, not the member: once collapse has made a relationship coarse,

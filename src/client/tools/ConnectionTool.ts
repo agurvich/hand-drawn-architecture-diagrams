@@ -1,5 +1,6 @@
 import { StateNode, createShapeId, createBindingId, type TLShape, type TLShapeId } from 'tldraw'
-import { CONNECTION_SHAPE_TYPE, CONNECTION_BINDING_TYPE, NODE_SHAPE_TYPE } from '@shared/shapes'
+import { CONNECTION_SHAPE_TYPE, CONNECTION_BINDING_TYPE } from '@shared/shapes'
+import { nodeAtPoint } from '../nodeAtPoint'
 
 /**
  * Drag from one node to another to connect them.
@@ -21,12 +22,7 @@ class Pointing extends StateNode {
   private connectionId: TLShapeId | null = null
 
   private nodeUnderCursor(): TLShape | undefined {
-    const point = this.editor.inputs.getCurrentPagePoint()
-    const shape = this.editor.getShapeAtPoint(point, {
-      hitInside: true,
-      filter: (s) => s.type === NODE_SHAPE_TYPE,
-    })
-    return shape && !this.editor.isShapeHidden(shape.id) ? shape : undefined
+    return nodeAtPoint(this.editor, this.editor.inputs.getCurrentPagePoint())
   }
 
   override onEnter() {
