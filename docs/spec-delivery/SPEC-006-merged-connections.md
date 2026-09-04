@@ -35,7 +35,8 @@
 - **SPEC-005 FR-003's last criterion is superseded.** A connection whose endpoint is hidden by
   collapse is no longer hidden; it is re-drawn against the container. The live assertion in
   `e2e/connections.spec.ts` was rewritten in place — same arrangement, new expected answer — so the
-  case stays covered. Markers are on SPEC-005 FR-003 and its delivery doc.
+  case stays covered. Markers are on SPEC-005 FR-003 and on its delivery doc's closing paragraph,
+  which still stated the old behaviour as current.
 - **SPEC-005 FR-004 (re-aiming) was owed and is now paid.** That spec was marked Completed with the
   FR unimplemented and untested: `getHandles` shipped, no drag handler did, and dragging an endpoint
   silently did nothing. Found by SPEC-006's spec review. Six e2e now cover its criteria, labelled
@@ -56,12 +57,18 @@ typecheck 0 · oxlint 0 errors · prettier 0 · unit 76/76 · e2e 80/80 · spec-
 | Endpoint hint never set | the hint test |
 | `visibleStandInFor` returns the *nearest* collapsed ancestor | the nested-collapse test |
 | Rule 5's gate removed (group merges unconditionally) | 2 tests |
+| Re-aim silently refused for a *resolved* terminal | the resolved-handle test — **added by the diff review, which found this one surviving** |
 
 The criterion worth naming: **collapsing and expanding creates and deletes zero records.** Asserted
 by enumerating the full shape-and-binding id set at three points in time, not by comparing counts,
 and confirmed against *worker storage* through `debugStoredSnapshot`'s shape-type census — a client
 could hide what it wrote, storage cannot. Two clients then derive the same representative from the
 collapse record alone, and the second client's record set is identical to the first's.
+
+Not asserted by any test: the count badge's halo (`.diagram-connection__count`), which is styling
+only. It was shipped inert in the first draft — `var(--color-background)` is defined nowhere, tldraw's
+token is `--tl-color-background` — and caught by a reviewer reading the running page's computed
+style, not by a test. A screenshot test was judged not worth its maintenance here.
 
 Not covered: labels on a merged line beyond the count, offsetting coincident parallel lines, and
 deleting every connection a merged line stands for. Deleting a merged line deletes exactly the one

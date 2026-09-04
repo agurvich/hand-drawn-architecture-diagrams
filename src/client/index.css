@@ -174,3 +174,25 @@ body {
     sans-serif;
   color: #666;
 }
+
+/*
+ * The merged-connection count. Chrome lives here rather than as inline SVG
+ * attributes, as the node's own affordances do.
+ *
+ * The halo is drawn with tldraw's OWN background token. The name matters: a
+ * plain --color-background is defined nowhere, so paint-order and stroke-width
+ * are silently inert and the glyph is painted bare over whatever line it
+ * crosses. The fallback covers the token being renamed rather than the variable
+ * being wrong.
+ */
+.diagram-connection__count {
+  font:
+    600 14px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  fill: currentColor;
+  stroke: var(--tl-color-background, #fff);
+  stroke-width: 4px;
+  paint-order: stroke;
+  pointer-events: none;
+}

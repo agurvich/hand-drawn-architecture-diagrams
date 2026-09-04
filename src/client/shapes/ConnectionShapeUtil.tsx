@@ -179,16 +179,11 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
           // The count is information about MERGING, so a line standing for one
           // connection renders nothing at all rather than a decorative x1.
           <text
+            className="diagram-connection__count"
             data-testid="diagram-connection-count"
             x={(a.x + b.x) / 2}
             y={(a.y + b.y) / 2 - 6}
             textAnchor="middle"
-            fontSize={14}
-            fontWeight={600}
-            fill="currentColor"
-            stroke="var(--color-background)"
-            strokeWidth={4}
-            paintOrder="stroke"
           >
             {`\u00d7${count}`}
           </text>

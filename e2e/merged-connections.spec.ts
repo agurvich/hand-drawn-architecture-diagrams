@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import {
+  allBindings,
+  dragEndpoint,
   openRoom,
   newParticipant,
   addNode,
@@ -355,6 +357,10 @@ test.describe('SPEC-006 FR-004 — the merged view is derived, never materialize
     // The same line, chosen by both without one telling the other which.
     expect(seenByTwo).toEqual(seenByOne)
     expect(seenByTwo).toMatchObject({ start: container, end: y, count: 3 })
+    // On B's own DOM, not only through B's index.
+    expect(
+      await p2.page.locator('[data-testid="diagram-connection-count"]').allTextContents(),
+    ).toEqual(['×3'])
     // And B added nothing locally to render it.
     expect(await recordIds(p2.page)).toEqual(await recordIds(p1.page))
 
@@ -383,11 +389,17 @@ test.describe('SPEC-006 FR-006 — a merged line is not edited as one connection
     expect(await handleCount(merged!.id)).toBe(0)
   })
 
-  test('a single connection resolved onto a container keeps its handles', async ({ page }) => {
+  test('a single connection resolved onto a container keeps its handles AND can still be re-aimed', async ({
+    page,
+  }) => {
+    // Both halves of the criterion. Asserting the handle count alone leaves a
+    // silent refusal to re-aim a RESOLVED terminal undetectable -- a mutation
+    // that otherwise survives the whole suite.
     await openRoom(page, roomId('mh2'))
     const y = await addNode(page, 'Y', { x: 80, y: 700, w: 160, h: 100 })
     const p = await addNode(page, 'P', { x: 600, y: 120, w: 420, h: 300 })
     const x = await addNode(page, 'X', { x: 30, y: 40, w: 140, h: 70, parentId: p })
+    const c = await addNode(page, 'C', { x: 100, y: 100, w: 160, h: 100 })
     const conn = await addConnection(page, x, y)
 
     await setCollapsed(page, p, true)
@@ -397,6 +409,15 @@ test.describe('SPEC-006 FR-006 — a merged line is not edited as one connection
         conn,
       ),
     ).toBe(2)
+
+    // The start terminal is DRAWN against P but BOUND to X. Re-aiming it must
+    // move the binding, not be refused for being resolved.
+    await dragEndpoint(page, conn, 'start', { x: 180, y: 150 })
+    const bindings = await allBindings(page)
+    expect(bindings).toHaveLength(2)
+    expect(bindings.find((b) => b.toId === c)).toBeTruthy()
+    expect(bindings.find((b) => b.toId === x)).toBeFalsy()
+    expect(await visibleConnections(page)).toEqual([{ id: conn, start: c, end: y, count: 1 }])
   })
 
   test('deleting a merged line deletes exactly one connection, and the count does NOT just decrement', async ({
@@ -450,10 +471,13 @@ test.describe('SPEC-006 FR-006 — a merged line is not edited as one connection
     await setCollapsed(page, p, true)
     const [merged] = await visibleConnections(page)
     expect(merged).toMatchObject({ count: 3 })
+    // The drawn line IS the resolved member here -- assert that rather than
+    // assume it, or this deletes a hidden shape and tests nothing reachable.
+    expect(merged!.id).toBe(crossing)
 
     await page.evaluate((id) => {
       window.__editor!.deleteShapes([id as never])
-    }, crossing)
+    }, merged!.id)
 
     const after = await visibleConnections(page)
     expect(after).toHaveLength(2)
