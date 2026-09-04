@@ -9,6 +9,7 @@ to status only — no prose.
 | SPEC-002 | Sync foundation | Completed | SPEC-001 |
 | SPEC-003 | First custom shape under sync | Completed | SPEC-002 |
 | SPEC-004 | Hierarchical nesting and collapse | Completed | SPEC-003 |
+| SPEC-005 | Connections between nodes | Draft | SPEC-004 |
 
 ## Arcs (build order)
 
@@ -22,11 +23,10 @@ Group related specs and record the order to build them in. Keep this section: a 
   the client/worker schema duality is proven on a trivial shape rather than retrofitted across a
   finished shape library (`decisions.md` → *Multiplayer lands before the first custom shape*).
 
-  SPEC-001 through SPEC-004 are authored. SPEC-005 onward are **planned, not written** — the shape of
+  SPEC-001 through SPEC-005 are authored. SPEC-006 onward are **planned, not written** — the shape of
   each is not knowable until the one before it lands, and a spec authored against an unproven
   foundation is rewritten rather than built:
 
-  - SPEC-005 — Connections via port bindings (workflow-kit pattern, no execution engine)
   - SPEC-006 — Merging connections into a collapsed container (the other half of the core feature;
     it needs SPEC-004's collapse AND SPEC-005's connections, so it cannot be specified before both)
   - SPEC-007 — JSON export/import and the AI-authoring schema (must-have; ports near as-is)
