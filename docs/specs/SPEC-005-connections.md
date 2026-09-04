@@ -1,7 +1,7 @@
 # Spec: Connections between nodes
 
 **ID:** SPEC-005  
-**Status:** Draft  
+**Status:** Completed  
 **Last Updated:** 2026-09-04 (rev 2 — post-review)  
 **Depends On:** SPEC-004
 

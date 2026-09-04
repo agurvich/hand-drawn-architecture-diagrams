@@ -1,4 +1,4 @@
-import { NODE_SHAPE_TYPE, type NodeShapeProps } from './node'
+import { NODE_SHAPE_TYPE } from './node'
 
 /**
  * The hierarchy rules, as pure functions.
@@ -11,12 +11,19 @@ import { NODE_SHAPE_TYPE, type NodeShapeProps } from './node'
  * Callers inject accessors rather than passing an Editor, for the same reason.
  */
 
-/** The minimum a shape must look like for these rules to apply. */
+/**
+ * The minimum a shape must look like for these rules to apply.
+ *
+ * `props` is deliberately loose: EVERY shape on the page flows through the
+ * visibility path, not only nodes -- connections do too. Typing it as the node's
+ * props would make this module reject them, and the only field read here is
+ * `collapsed`, guarded by the type check below.
+ */
 export interface HierarchyShape {
   id: string
   type: string
   parentId: string
-  props?: Partial<NodeShapeProps>
+  props?: object
 }
 
 export type GetShape = (id: string) => HierarchyShape | undefined
@@ -28,7 +35,8 @@ function isShapeId(id: string): boolean {
 }
 
 function isCollapsedContainer(shape: HierarchyShape): boolean {
-  return shape.type === NODE_SHAPE_TYPE && shape.props?.collapsed === true
+  if (shape.type !== NODE_SHAPE_TYPE) return false
+  return (shape.props as { collapsed?: unknown } | undefined)?.collapsed === true
 }
 
 /**

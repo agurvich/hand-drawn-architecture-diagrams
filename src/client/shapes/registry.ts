@@ -1,16 +1,28 @@
-import { defaultShapeUtils, defaultTools, type TLUiOverrides, type TLComponents } from 'tldraw'
+import {
+  defaultShapeUtils,
+  defaultTools,
+  defaultBindingUtils,
+  type TLUiOverrides,
+  type TLComponents,
+} from 'tldraw'
 import { NodeShapeUtil } from './NodeShapeUtil'
+import { ConnectionShapeUtil } from './ConnectionShapeUtil'
+import { ConnectionBindingUtil } from '../bindings/ConnectionBindingUtil'
 import { NodeTool } from '../tools/NodeTool'
+import { ConnectionTool } from '../tools/ConnectionTool'
 import { Toolbar } from './Toolbar'
-import { NODE_SHAPE_TYPE } from '@shared/shapes'
+import { NODE_SHAPE_TYPE, CONNECTION_SHAPE_TYPE } from '@shared/shapes'
 
 /**
  * useSync does NOT include tldraw's default shape utils the way <Tldraw> does,
  * so this list must be passed to BOTH -- omit it from either and the built-in
  * shapes vanish on that side.
  */
-export const shapeUtils = [...defaultShapeUtils, NodeShapeUtil]
-export const tools = [...defaultTools, NodeTool]
+export const shapeUtils = [...defaultShapeUtils, NodeShapeUtil, ConnectionShapeUtil]
+export const tools = [...defaultTools, NodeTool, ConnectionTool]
+
+/** Registered on BOTH useSync and <Tldraw>, exactly as shapeUtils are. */
+export const bindingUtils = [...defaultBindingUtils, ConnectionBindingUtil]
 
 export const uiOverrides: TLUiOverrides = {
   tools(editor, toolsInMenu) {
@@ -20,6 +32,13 @@ export const uiOverrides: TLUiOverrides = {
       label: 'Node',
       kbd: 'n',
       onSelect: () => editor.setCurrentTool(NODE_SHAPE_TYPE),
+    }
+    toolsInMenu[CONNECTION_SHAPE_TYPE] = {
+      id: CONNECTION_SHAPE_TYPE,
+      icon: 'tool-arrow',
+      label: 'Connection',
+      kbd: 'c',
+      onSelect: () => editor.setCurrentTool(CONNECTION_SHAPE_TYPE),
     }
     return toolsInMenu
   },

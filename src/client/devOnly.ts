@@ -1,6 +1,12 @@
 import { createTLSchema, defaultShapeSchemas, defaultBindingSchemas } from '@tldraw/tlschema'
 import { T } from '@tldraw/validate'
-import { NODE_SHAPE_TYPE, nodeShapeMigrations, nodeShapeProps } from '@shared/shapes'
+import {
+  NODE_SHAPE_TYPE,
+  nodeShapeMigrations,
+  nodeShapeProps,
+  customShapeSchemas,
+  customBindingSchemas,
+} from '@shared/shapes'
 
 /**
  * DEV ONLY, and opt-in PER TEST.
@@ -25,8 +31,10 @@ export function unvalidatedSchemaIfRequested() {
   if (!new URLSearchParams(window.location.search).has('unvalidated')) return null
   console.warn(`${UNVALIDATED_MARKER}: client-side validation disabled for this session`)
   return createTLSchema({
+    bindings: { ...defaultBindingSchemas, ...customBindingSchemas },
     shapes: {
       ...defaultShapeSchemas,
+      ...customShapeSchemas,
       [NODE_SHAPE_TYPE]: {
         // DERIVED from the real prop names, not a hand-written list. A literal
         // list goes stale the moment a prop is added -- SPEC-004's `collapsed`
@@ -36,6 +44,5 @@ export function unvalidatedSchemaIfRequested() {
         migrations: nodeShapeMigrations,
       },
     },
-    bindings: defaultBindingSchemas,
   })
 }

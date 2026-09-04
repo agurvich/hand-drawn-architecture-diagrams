@@ -11,7 +11,8 @@ const WORKER_DIR = resolve(ROOT, 'src/worker')
 const FIXTURES = resolve(ROOT, 'src/shared/shapes/__fixtures__')
 
 const ALLOWED_SHARED_IMPORTS = ['@tldraw/tlschema', '@tldraw/validate']
-const SHAPE_TYPE_LITERAL = "'diagramNode'"
+// Extended, not duplicated: one rule covering every shape AND binding type.
+const TYPE_LITERALS = ["'diagramNode'", "'diagramConnection'", "'connectionEndpoint'"]
 
 /** Source files under `root`, excluding tests and fixtures. */
 function sourceFiles(root: string, opts: { includeTests?: boolean } = {}): string[] {
@@ -38,11 +39,13 @@ function sourceFiles(root: string, opts: { includeTests?: boolean } = {}): strin
  * planted violation. A gate is not tested by running it on the thing it guards.
  */
 function filesDeclaringShapeTypeLiteral(files: { path: string; text: string }[]): string[] {
-  return files.filter((f) => f.text.includes(SHAPE_TYPE_LITERAL)).map((f) => f.path)
+  return files
+    .filter((f) => TYPE_LITERALS.some((literal) => f.text.includes(literal)))
+    .map((f) => f.path)
 }
 
 describe('FR-001 — one definition, two consumers', () => {
-  it('only the shared definition writes the shape type string', () => {
+  it('only the shared definition writes any shape OR binding type string', () => {
     const consumers = [...sourceFiles(CLIENT_DIR), ...sourceFiles(WORKER_DIR)].map((path) => ({
       path,
       text: readFileSync(path, 'utf8'),

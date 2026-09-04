@@ -70,9 +70,10 @@ export class RoomDurableObject extends DurableObject<Env> {
     present: boolean
     documents: number
     shape: { label: string; parentId: string; collapsed: boolean } | null
+    bindings: Array<{ type: string; fromId: string; toId: string; terminal?: string }>
   }> {
     const raw = await this.ctx.storage.get<string>('snapshot')
-    if (!raw) return { present: false, documents: 0, shape: null }
+    if (!raw) return { present: false, documents: 0, shape: null, bindings: [] }
     const parsed = JSON.parse(raw) as {
       documents?: Array<{ state?: Record<string, any> }>
     }
@@ -92,7 +93,18 @@ export class RoomDurableObject extends DurableObject<Env> {
         }
       }
     }
-    return { present: true, documents: docs.length, shape }
+    // Bindings have no `label`, so the shape lookup above cannot see them at all.
+    // Reported separately, by content, so FR-006 does not degrade to a count.
+    const bindings = docs
+      .filter((d) => d.state?.typeName === 'binding')
+      .map((d) => ({
+        type: String(d.state!.type ?? ''),
+        fromId: String(d.state!.fromId ?? ''),
+        toId: String(d.state!.toId ?? ''),
+        terminal: d.state!.props?.terminal as string | undefined,
+      }))
+
+    return { present: true, documents: docs.length, shape, bindings }
   }
 
   /**

@@ -9,7 +9,7 @@ to status only — no prose.
 | SPEC-002 | Sync foundation | Completed | SPEC-001 |
 | SPEC-003 | First custom shape under sync | Completed | SPEC-002 |
 | SPEC-004 | Hierarchical nesting and collapse | Completed | SPEC-003 |
-| SPEC-005 | Connections between nodes | Draft | SPEC-004 |
+| SPEC-005 | Connections between nodes | Completed | SPEC-004 |
 
 ## Arcs (build order)
 
