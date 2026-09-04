@@ -3,7 +3,8 @@ import { Tldraw, type Editor } from 'tldraw'
 import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
-import { shapeUtils, tools, uiOverrides } from './shapes/registry'
+import { components, shapeUtils, tools, uiOverrides } from './shapes/registry'
+import { unvalidatedSchemaIfRequested } from './devOnly'
 import 'tldraw/tldraw.css'
 
 /**
@@ -29,7 +30,13 @@ export function Room({ roomId }: { roomId: RoomId }) {
   // shapeUtils goes to BOTH useSync and <Tldraw>: useSync does not include the
   // defaults the way <Tldraw> does, so omitting it here drops every built-in
   // shape from the synced store.
-  const store = useSync({ uri, assets: failLoudlyAssetStore, shapeUtils })
+  // See devOnly.ts: dev + an explicit URL flag, never in a production bundle.
+  const devSchema = useMemo(() => unvalidatedSchemaIfRequested(), [])
+  const store = useSync(
+    devSchema
+      ? { uri, assets: failLoudlyAssetStore, schema: devSchema }
+      : { uri, assets: failLoudlyAssetStore, shapeUtils },
+  )
 
   const [slow, setSlow] = useState(false)
   useEffect(() => {
@@ -79,6 +86,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
         shapeUtils={shapeUtils}
         tools={tools}
         overrides={uiOverrides}
+        components={components}
         onMount={handleMount}
       />
       {store.connectionStatus === 'offline' && (

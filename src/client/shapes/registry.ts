@@ -1,6 +1,7 @@
 import { defaultShapeUtils, defaultTools, type TLUiOverrides, type TLComponents } from 'tldraw'
 import { NodeShapeUtil } from './NodeShapeUtil'
 import { NodeTool } from '../tools/NodeTool'
+import { Toolbar } from './Toolbar'
 import { NODE_SHAPE_TYPE } from '@shared/shapes'
 
 /**
@@ -24,4 +25,8 @@ export const uiOverrides: TLUiOverrides = {
   },
 }
 
-export const components: TLComponents = {}
+export const components: TLComponents = {
+  // Required for the tool to be reachable from the toolbar: uiOverrides.tools
+  // only registers it, it does not render it.
+  Toolbar,
+}

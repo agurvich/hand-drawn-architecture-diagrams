@@ -1,9 +1,4 @@
-import {
-  NODE_SHAPE_TYPE,
-  nodeShapeProps,
-  nodeShapeMigrations,
-  type NodeShape,
-} from './node'
+import { NODE_SHAPE_TYPE, nodeShapeProps, nodeShapeMigrations, type NodeShape } from './node'
 
 export * from './node'
 

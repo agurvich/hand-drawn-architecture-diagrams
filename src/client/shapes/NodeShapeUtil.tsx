@@ -63,7 +63,11 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
         id={shape.id}
         style={{ width: shape.props.w, height: shape.props.h, pointerEvents: 'all' }}
       >
-        <div className="diagram-node" data-testid="diagram-node" style={{ borderColor: shape.props.color }}>
+        <div
+          className="diagram-node"
+          data-testid="diagram-node"
+          style={{ borderColor: shape.props.color }}
+        >
           {isEditing ? (
             <textarea
               className="diagram-node__input"

@@ -1,0 +1,8 @@
+// FIXTURE, not source. Kept as .txt so it is neither compiled nor linted.
+// It exists to prove the type-string check in shared-imports.test.ts actually
+// fires -- a gate run only against files that pass proves the files pass and
+// nothing about whether the check still works.
+const NODE_SHAPE_TYPE = 'diagramNode'
+export function makeThing() {
+  return { type: 'diagramNode' }
+}

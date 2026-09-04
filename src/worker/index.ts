@@ -27,6 +27,16 @@ export default {
     // DEV ONLY: report what durable storage actually holds for a room. Guarded
     // so it cannot exist in a production bundle.
     if (import.meta.env.DEV) {
+      if (url.pathname === '/api/dev/schema') {
+        const { roomSchema } = await import('./schema')
+        const ser = roomSchema.serialize()
+        return Response.json({
+          diagramNode: ser.sequences['com.tldraw.shape.diagramNode'] ?? null,
+          shapeSequences: Object.keys(ser.sequences).filter((k) =>
+            k.startsWith('com.tldraw.shape'),
+          ),
+        })
+      }
       const dev = url.pathname.match(/^\/api\/dev\/snapshot\/([^/]+)$/)
       if (dev) {
         const roomId = decodeURIComponent(dev[1])

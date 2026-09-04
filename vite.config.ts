@@ -9,7 +9,6 @@ export default defineConfig({
   // configuration" true, and why there is no sync-URL env var: the client builds
   // its socket URI from window.location.origin.
   plugins: [react(), cloudflare()],
-  build: { outDir: 'dist/client' },
   resolve: {
     // Twin of tsconfig.app.json's `paths`. Both are committed together; if one
     // moves without the other, imports resolve at type-check time and fail at
