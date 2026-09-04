@@ -99,6 +99,12 @@ it.
 
 #### Acceptance Criteria:
 
+> **Superseded by SPEC-006 FR-001 (2026-09-04).** The criterion below — hide the connection — was
+> the deliberate placeholder until merging existed. A connection whose endpoint is hidden by collapse
+> is now re-drawn against the collapsed container standing in for it. The mechanism described here
+> (resolve the bindings rather than walk `parentId`) is unchanged and still correct; only the answer
+> it gives changed. Full requirement: `docs/specs/SPEC-006-merged-connections.md` → FR-001.
+
 - [ ] Moving either endpoint node re-routes the connection, asserted on the rendered geometry rather
       than on the shape merely still existing
 - [ ] Resizing either endpoint node re-routes the connection
@@ -125,6 +131,13 @@ A connection is wrong more often than it is missing. Dragging an endpoint onto a
 re-binds it, without deleting and redrawing.
 
 #### Acceptance Criteria:
+
+> **NOT BUILT — owed, and picked up by SPEC-006 FR-005 (2026-09-04).** This spec was marked Completed
+> with this FR unimplemented: `ConnectionShapeUtil.getHandles` ships, but there is no
+> `onHandleDrag`/`onHandleDragEnd` handler and `updateBinding` appears nowhere in `src/client`, so
+> dragging an endpoint does nothing. No e2e covers it. Found by SPEC-006's spec review. The criteria
+> below stand unchanged; they are built and asserted under
+> `docs/specs/SPEC-006-merged-connections.md` → FR-005.
 
 - [ ] Dragging the source endpoint onto node C re-binds the source to C; the connection's identity
       (its shape id) is unchanged

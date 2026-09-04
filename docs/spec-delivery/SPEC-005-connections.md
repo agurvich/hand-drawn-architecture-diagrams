@@ -50,5 +50,11 @@ record and its `parentId`, and moving a container changes neither. Asserted dire
 test asserts the connection's props stay at their defaults however far the endpoints travel, so a
 future change that starts storing anchors fails here.
 
+**Owed: FR-004 (re-aiming an endpoint) was not built.** `getHandles` ships, but no
+`onHandleDrag`/`onHandleDragEnd` handler exists and `updateBinding` appears nowhere in `src/client`,
+so dragging an endpoint is a no-op; no e2e covers it. This spec was marked Completed with the FR
+unmet and the debt unrecorded — the same failure SPEC-003 made, which SPEC-004's review caught.
+Found by SPEC-006's spec review; built and asserted under SPEC-006 FR-005.
+
 Not covered: merging connections into a collapsed container. A connection hides with its endpoint
 today; deduplicating them into a line drawn against the container is the next spec.
