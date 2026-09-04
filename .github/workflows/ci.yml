@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # tldraw 5 declares engines.node >= 22.12.0, so Node 20 is excluded by
+          # the dependency, not by preference.
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+# spec-lint runs in its own workflow (.github/workflows/spec-lint.yml).
+# docs-lint is deliberately NOT here — it is a local pre-push gate; see
+# docs/process.md §5 for why keeping it local is the point.

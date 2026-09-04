@@ -1,0 +1,13 @@
+# Prettier owns the application source only. The docs tier and the process
+# scaffold (scripts/, .github/) are hand-maintained and formatting them would
+# churn files the doc gates measure by byte.
+node_modules
+dist
+package-lock.json
+docs/
+tests/
+scripts/
+.github/
+README.md
+CLAUDE.md
+.claude/

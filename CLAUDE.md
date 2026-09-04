@@ -35,13 +35,15 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 
 ## Tech Stack
 
-- TypeScript (strict), React 19, Vite
+- TypeScript 6 (strict), React 19, Vite 8 — Node >= 22.12 (tldraw 5's `engines`; Node 20 is excluded)
 - tldraw SDK **5.x** — canvas, custom shapes, bindings — plus its sync client. Pinned to 5.x, not
   4.x: on 4.x `indicator()` is still abstract and `getIndicatorPath` only runs once
   `useLegacyIndicator()` returns false, so a shape written the modern way silently draws no selection
   indicator. Greenfield, so take the API that is not a migration artifact
 - Cloudflare Workers + Durable Objects (SQLite storage); R2 for assets
-- Vitest + Testing Library (unit), Playwright (e2e, incl. two-client sync)
+- Vitest + Testing Library (unit, jsdom + a polyfill setup file tldraw needs to mount at all),
+  Playwright (e2e — Chromium with an emulated iPad viewport, since the touch/pen specs drive CDP and
+  `devices['iPad …']` defaults to WebKit where CDP does not exist)
 - oxlint, prettier
 
 **Don't add dependencies without noting them here first.**
@@ -60,9 +62,6 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 - When writing/refactoring code in a domain that has a rulebook (see `@docs/best-practices/INDEX.md`), consult it first and load only the relevant section(s) — don't reinvent or guess the rules.
 
 ## Common Commands
-
-**These arrive with SPEC-001 — no application code exists yet.** Until it lands, only the two lint
-scripts below are real.
 
 ```bash
 npm run dev          # vite client + local worker (no tldraw licence needed on localhost)
