@@ -1,7 +1,7 @@
 # Spec: Merging connections into a collapsed container
 
 **ID:** SPEC-006  
-**Status:** In Progress  
+**Status:** Completed  
 **Last Updated:** 2026-09-04 (rev 3 — build)  
 **Depends On:** SPEC-004, SPEC-005
 

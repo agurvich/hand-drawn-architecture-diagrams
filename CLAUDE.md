@@ -79,7 +79,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-003 are Draft; build starts when told.
+**Current work:** none — SPEC-001 through SPEC-006 are Completed; build starts when told.
 
 ---
 
@@ -104,6 +104,9 @@ is refused — each one was a way past the checks.
 
 - **Multiplayer lands before the first custom shape** — sync in SPEC-002, custom shapes from SPEC-003
   on, so the client/worker schema duality is proven on the smallest shape instead of retrofitted.
+- **Derived views are computed, never materialized** — a view that is a pure function of records is
+  recomputed per client, not written back; two clients materializing one both write, and neither
+  cleans up. Ties break on a total order over data both already have, never on creation order.
 
 ### Licensing
 
