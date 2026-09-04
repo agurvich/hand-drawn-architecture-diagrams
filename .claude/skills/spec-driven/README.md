@@ -1,20 +1,19 @@
 # spec-driven (skill)
 
-The **behavior** layer of the [spec-driven-development-template](../../../README.md): the workflow
-Claude follows to author specs, run plan-gated builds, put spec/plan/diff through a blocking
-fresh-context review gate, watch PRs/main, and run the completion ritual. The full method and rationale live in the top-level `README.md` and in
-`docs/process.md`.
+The **behavior** layer of this repo's spec-driven process: the workflow Claude follows to author
+specs, run plan-gated builds, put spec/plan/diff through a blocking fresh-context review gate, watch
+PRs/main, and run the completion ritual. The full method and rationale live in
+[`docs/process.md`](../../../docs/process.md).
 
 ## Files here
 
 - **`SKILL.md`** — the workflow Claude executes. **Claude Code auto-discovers it** at this path
   (`.claude/skills/spec-driven/SKILL.md`) — no install needed in a repo that contains it.
-- **`template/`** — the **canonical copy** of the repo scaffold (`CLAUDE.md`, `docs/`, `scripts/`,
-  `.github/`). It lives here so the skill is self-contained and can scaffold a *different, pre-existing*
-  repo. This is the **source of truth**; the repo root mirrors it (run `scripts/sync-from-skill.sh`
-  after editing here, and commit both). `scripts/check-mirror.sh` runs in CI and goes red if the two
-  drift in either direction — including the orphan a payload *deletion* leaves at the root, which the
-  sync cannot clean up. It is not a required status check yet, so red does not block a merge.
+
+> This repo is a **derived project**, not the template it came from. The template's canonical
+> `template/` payload and its mirror checks (`sync-from-skill.sh`, `check-mirror.sh`) were removed
+> when the project was scaffolded — the upstream README lists that as the expected step. The docs at
+> the repo root are now hand-maintained sources, not generated files.
 
 ## Using it
 

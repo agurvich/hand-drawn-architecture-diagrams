@@ -56,19 +56,40 @@ cd "$ROOT"
 # reason the budget is here. Lowering the bar to fit the edit is the failure mode, and
 # it is how the sibling project reached 89 KB one justified exception at a time.
 #
-# ON ADOPTION, re-ratchet ALL THREE to what this repo measures once its real docs
-# exist, rounded up a little. A budget far above the measurement never fires. The
-# defaults below are deliberately loose because THIS repo ships a scaffold: its
-# CLAUDE.md is placeholders, its Key Decisions holds one example line, and
-# docs/spec-delivery/ is empty, so ratcheting them here would fire on the next edit to
-# the template itself rather than on anything a project did wrong.
+# RE-RATCHETED 2026-09-03, on adoption, against the real docs (commit a6d04e1 seeded
+# them; this file's numbers were still the upstream scaffold's loose defaults). The
+# upstream defaults were sized for a repo whose CLAUDE.md was placeholders and whose
+# Key Decisions held one example line -- against real content two of them sat so far
+# above what they govern that they could never fire, which is a fence in name only.
+#
+# Measured at re-ratchet time: CLAUDE.md 13812 bytes, Key Decisions section 1664,
+# largest digest unit 200, no delivery docs yet.
+#
+# These are NOT pinned at the measurement, deliberately. process.md section 5: after a
+# structural cut what remains is fences rather than accretion, so a budget left at the
+# new measurement leaves the next decision that legitimately needs a line nothing to
+# spend -- and it then takes the room from another area, which is the gate causing the
+# damage it exists to prevent. Headroom by number, and why:
+#   CLAUDE_MAX_BYTES        16000 vs 13812 -- ~16%, tight, and it CAN fire. Unchanged.
+#   KEY_DECISIONS_MAX_BYTES  4000 vs 1664  -- room for roughly a dozen more decisions
+#                                             at current density. Was 12000 (7.2x the
+#                                             measurement: unfireable).
+#   DIGEST_MAX_BYTES          500 vs 200   -- a digest is meant to be ONE line, so this
+#                                             stays tight on purpose. Was 1400.
+#   DELIVERY_MAX_LINES        150 vs n/a   -- no delivery docs exist yet; re-derive it
+#                                             when the first one lands, per the rule
+#                                             below about re-deriving after a change to
+#                                             what a threshold measures.
+#
+# When one fires because a doc grew a line at a time, move detail down a tier and
+# re-ratchet -- never raise the cap to admit the edit in hand.
 CLAUDE_MAX_BYTES=16000
 
 # The whole Key Decisions section, measured as bytes. This is the guard that cannot be
 # evaded by reformatting: a per-bullet cap is escaped by splitting one decision into
 # five, and every shape that escaped the old parser still costs bytes here.
 # (scaffold default; re-ratchet on adoption)
-KEY_DECISIONS_MAX_BYTES=12000
+KEY_DECISIONS_MAX_BYTES=4000
 
 # The longest a single Key Decisions unit may be. Measured on the LOGICAL unit — a
 # bullet with its continuation lines joined, or a prose paragraph — because measuring
@@ -79,7 +100,7 @@ KEY_DECISIONS_MAX_BYTES=12000
 # BYTES, not characters: awk length() is byte-based in the one-true-awk that ships on
 # BSD and macOS, so em dashes and smart quotes count for more than one. Named for what
 # it actually measures rather than for what would be tidier.
-DIGEST_MAX_BYTES=1400
+DIGEST_MAX_BYTES=500
 
 # A delivery doc answers "what shipped and what changed"; the completion template aims
 # for well under a page. Applies to every *.md in docs/spec-delivery/, not only those

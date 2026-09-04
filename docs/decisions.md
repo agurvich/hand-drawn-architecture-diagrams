@@ -27,13 +27,116 @@ until the first real decision lands.
 
 ## Contents
 
-- [(example) Decision label](#example-decision-label)
+- [Canvas SDK: tldraw](#canvas-sdk-tldraw)
+- [Store-native domain state](#store-native-domain-state)
+- [Multiplayer lands before the first custom shape](#multiplayer-lands-before-the-first-custom-shape)
+- [Hobby licence accepted for now; commercial use is unresolved](#hobby-licence-accepted-for-now-commercial-use-is-unresolved)
+- [Secondary features deferred pending real use](#secondary-features-deferred-pending-real-use)
 
 ---
 
-### (example) Decision label
+### Canvas SDK: tldraw
 
-*(Delete this example once the first real entry lands.)* What was decided; the constraint, incident,
-or trade-off that forced it; what was explicitly considered and rejected, and why; any "do NOT build"
-fence a future reader might otherwise cross. Point to the spec or delivery doc that holds the longer
-story rather than retelling it.
+**Settled 2026-09-03.** The rebuild is built on the tldraw SDK rather than Excalidraw or another
+hand-rolled React Flow layer.
+
+The predecessor app proved which interaction mechanics matter but hand-rolled every primitive, and
+three things it lacked were the reason to rebuild: iPad-native freehand drawing, real self-hosted
+multiplayer, and sketch-to-clean-shape recognition. None is worth building from scratch.
+
+**Rejected: Excalidraw.** MIT-licensed with no watermark and it ships shape recognition, which tldraw
+does not. It was rejected on extensibility: it has no first-class custom-element API and its toolbar
+and properties panel are not overridable, so the realistic pattern is a companion overlay synced
+through `updateScene`/`customData` rather than a native extension. Our core feature — hierarchical
+containers with frame-based narration — *is* a custom element, so the thing we most need is the thing
+Excalidraw makes hardest. Its self-hosted multiplayer is also DIY (a community relay), against
+tldraw's documented, officially-maintained path.
+
+**Rejected: staying on React Flow.** It is the status quo the handoff exists to leave.
+
+**Accepted cost:** shape recognition does not exist in tldraw and would be built later as a
+simplify-and-classify pass over freedraw strokes. Treated as bounded and additive — see
+[*Secondary features deferred pending real use*](#secondary-features-deferred-pending-real-use) for how unproven features are staged. The licence
+cost is a separate entry: [*Hobby licence accepted for now*](#hobby-licence-accepted-for-now-commercial-use-is-unresolved).
+
+### Store-native domain state
+
+**Settled 2026-09-03.** Hierarchy, connections, frames and every other piece of domain state are
+tldraw records, mutated through tldraw's own `Editor`/store APIs. A parallel state manager — a Zustand
+store that renders *into* tldraw as a view — is explicitly not built.
+
+tldraw's sync works by synchronising the underlying reactive store itself. Anything held outside that
+store is invisible to sync no matter when multiplayer is added, so a shadow store does not merely
+delay collaboration, it makes it a rearchitecture of the mutation layer rather than the addition of a
+server. The predecessor's Zustand store is the shape this fence exists to prevent being recreated.
+
+**Do NOT build:** a domain store beside the tldraw store, or a mutation path that writes domain state
+anywhere records do not reach. If a piece of state seems not to fit in a record, that is a modelling
+question to escalate, not a reason to open a second store.
+
+Enforced in practice by [*Multiplayer lands before the first custom shape*](#multiplayer-lands-before-the-first-custom-shape), which puts sync in the
+repo before there is any custom shape to model wrongly.
+
+### Multiplayer lands before the first custom shape
+
+**Settled 2026-09-03.** Sync is SPEC-002 — after the bare scaffold, before any custom shape. This
+inverts the handoff's own migration plan, which listed multiplayer last, as step 5.
+
+The handoff already carried the constraint ("build store-native from the first spike") but left the
+proof of it to the end. Two facts make that ordering expensive. First, tldraw's multiplayer starter
+kit requires every custom shape to be declared on **both** sides — a server-side schema in the
+Durable Object for validation, migration and version compatibility, and a client-side `ShapeUtil` for
+rendering — and the two must agree. Second, that duality is cheapest to establish on the smallest
+possible shape and most expensive to retrofit across a finished shape library.
+
+So the order is: prove the room syncs with tldraw's built-in shapes (SPEC-002), then prove one
+trivial custom shape survives the client/worker boundary including a migration (SPEC-003), and only
+then build the shape that carries real complexity — nesting and collapse (SPEC-004).
+
+**Rejected: spike the hierarchy mechanic first, add sync later.** It is the handoff's plan and the
+faster route to a demo, but it puts the riskiest mechanic on an unproven persistence layer and
+discovers schema problems after there is a shape library to rewrite. The user raised this directly —
+the concern was storing state in the correct synchronised form — and it is the better call.
+
+### Hobby licence accepted for now; commercial use is unresolved
+
+**Settled 2026-09-03, with a live fence.** Development proceeds on tldraw's free tier. Production
+deployment is blocked until the commercial question is answered.
+
+tldraw SDK 4.0 (September 2025) made this stricter than the handoff records. Current terms: localhost
+and development need **no licence key at all**; production — HTTPS, non-localhost — requires a key,
+which is either a paid commercial licence or a **free hobby licence that is non-commercial only** and
+forces a "made with tldraw" watermark.
+
+The user accepted the watermark. **The watermark is not the binding constraint — the non-commercial
+restriction is.** The handoff's own read is that this is likely commercial use: built for work,
+shared with a colleague. If that holds, the hobby tier does not cover the intended use whatever one
+thinks of the watermark, and the commercial licence is the only compliant production path.
+
+Because development is unlicensed, this fences **deploy-time only** and does not block SPEC-001
+through SPEC-004. Recorded as a Known Constraint in `architecture.md` rather than a blocker.
+
+**Do NOT** write a production deploy spec, or deploy a room to a public host, until this entry is
+updated with the answer.
+
+### Secondary features deferred pending real use
+
+**Settled 2026-09-03.** Edge sets (lens-scoped edges), node-lens grouping, the actor/action/trigger
+model, per-frame sticky notes and the share-link/read-only mode are **not** ported on a schedule.
+They are recorded in `architecture.md` → *Deferred / Non-goals* with their seams, and revisited once
+the tool is usable.
+
+The handoff ranks them "valuable but secondary" against the core of hierarchical nesting plus
+frame-based narration. The user is explicit that this is a chance to reorganise rather than
+transcribe — including that they are less attached to edge sets than they were, and will not know
+whether the feature is necessary until they have actually used the rebuilt tool. Porting a feature
+before that judgement is possible risks carrying over a shape the new foundation makes obsolete;
+tldraw's bindings, for one, may make the actor/trigger anchoring fall out of the connection model for
+free.
+
+**Not deferred:** JSON export/import and the AI-authoring schema. The user names these a must, and
+they are the most renderer-agnostic thing the old app has — they survive the change of foundation
+nearly as-is, which is why they sit at SPEC-006 rather than in this list.
+
+**The deferral is a decision, not an omission.** A feature dropped here is dropped on purpose and
+needs a spec to return, not a silent reintroduction mid-build.

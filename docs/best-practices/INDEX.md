@@ -11,8 +11,6 @@ screen.
 |---|---|---|
 | React (18/19, function components + Hooks) | `react/react.md` | writing or refactoring any React component, hook, state, or effect |
 | Web accessibility (WCAG 2.2) | `accessibility/accessibility.md` | building or auditing any user-facing UI — markup, forms, keyboard/focus, color, ARIA |
-| AWS Lambda (Python; event-driven, Step Function / Pipe / Cognito triggers) | `lambdas/lambdas.md` | writing, refactoring, or decomposing any Lambda function or its Step Function orchestration / IAM |
-| Python (3.12; language style for Lambda source + layers) | `python/python.md` | writing or refactoring any Python — style, naming, types, exceptions, docstrings (layer over `lambdas.md` for Lambda *shape*) |
 
 ## How to use
 
