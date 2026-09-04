@@ -136,7 +136,8 @@ free.
 
 **Not deferred:** JSON export/import and the AI-authoring schema. The user names these a must, and
 they are the most renderer-agnostic thing the old app has — they survive the change of foundation
-nearly as-is, which is why they sit at SPEC-006 rather than in this list.
+nearly as-is, which is why they sit in the arc rather than in this list (see
+`docs/specs/INDEX.md` for the current build order; the number has moved once already).
 
 **The deferral is a decision, not an omission.** A feature dropped here is dropped on purpose and
 needs a spec to return, not a silent reintroduction mid-build.
