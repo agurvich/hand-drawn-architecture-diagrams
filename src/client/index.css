@@ -129,3 +129,48 @@ body {
   font: inherit;
   color: #111;
 }
+
+/* Collapse control. 44x44 is the minimum comfortable pencil/finger target
+   (SPEC-004 FR-004); it is asserted on the bounding box in e2e, so this size is
+   load-bearing rather than cosmetic. */
+.diagram-node__toggle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px 0 6px 0;
+  background: rgb(0 0 0 / 0.06);
+  color: #111;
+  font:
+    600 20px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.diagram-node__toggle:hover {
+  background: rgb(0 0 0 / 0.12);
+}
+.diagram-node__toggle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+.diagram-node--collapsed {
+  border-style: double;
+  border-width: 4px;
+}
+.diagram-node__count {
+  position: absolute;
+  right: 6px;
+  bottom: 4px;
+  font:
+    500 12px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #666;
+}

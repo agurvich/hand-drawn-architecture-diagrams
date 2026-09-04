@@ -38,6 +38,39 @@ export async function newParticipant(
   return { ctx, page }
 }
 
+/** Create a diagramNode, optionally parented to another shape. */
+export async function addNode(
+  page: Page,
+  label: string,
+  opts: { x?: number; y?: number; w?: number; h?: number; parentId?: string } = {},
+): Promise<string> {
+  return page.evaluate(
+    ({ label, x, y, w, h, parentId }) => {
+      const ed = window.__editor!
+      const before = new Set(ed.getCurrentPageShapes().map((s) => s.id))
+      ed.createShape({
+        type: 'diagramNode',
+        x: x ?? 100,
+        y: y ?? 100,
+        ...(parentId ? { parentId: parentId as never } : {}),
+        props: { w: w ?? 200, h: h ?? 120, label, color: 'black', collapsed: false },
+      })
+      const created = ed.getCurrentPageShapes().find((s) => !before.has(s.id))
+      return created!.id as string
+    },
+    { label, ...opts },
+  )
+}
+
+export async function setCollapsed(page: Page, id: string, collapsed: boolean) {
+  await page.evaluate(
+    ({ id, collapsed }) => {
+      window.__editor!.updateShape({ id: id as never, type: 'diagramNode', props: { collapsed } })
+    },
+    { id, collapsed },
+  )
+}
+
 export async function drawBox(page: Page, x: number, y: number) {
   await page.evaluate(
     ([px, py]) => {

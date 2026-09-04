@@ -1,6 +1,6 @@
 import { createTLSchema, defaultShapeSchemas, defaultBindingSchemas } from '@tldraw/tlschema'
 import { T } from '@tldraw/validate'
-import { NODE_SHAPE_TYPE, nodeShapeMigrations } from '@shared/shapes'
+import { NODE_SHAPE_TYPE, nodeShapeMigrations, nodeShapeProps } from '@shared/shapes'
 
 /**
  * DEV ONLY, and opt-in PER TEST.
@@ -28,7 +28,11 @@ export function unvalidatedSchemaIfRequested() {
     shapes: {
       ...defaultShapeSchemas,
       [NODE_SHAPE_TYPE]: {
-        props: { w: T.any, h: T.any, label: T.any, color: T.any },
+        // DERIVED from the real prop names, not a hand-written list. A literal
+        // list goes stale the moment a prop is added -- SPEC-004's `collapsed`
+        // broke exactly that, with a confusing "Unexpected property" error in a
+        // test about a different subject.
+        props: Object.fromEntries(Object.keys(nodeShapeProps).map((k) => [k, T.any])),
         migrations: nodeShapeMigrations,
       },
     },

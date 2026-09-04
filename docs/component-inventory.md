@@ -15,3 +15,5 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `NodeShapeUtil` | `src/client/shapes/NodeShapeUtil.tsx` | Client half of the Node shape; `BaseBoxShapeUtil` with `getIndicatorPath` + `canEdit` |
 | Shape/tool registry | `src/client/shapes/registry.ts` | `shapeUtils`, `tools`, `uiOverrides`, `components` — pass to BOTH `useSync` and `<Tldraw>` |
 | `roomSchema` | `src/worker/schema.ts` | Worker half: built-ins spread in alongside the custom shapes |
+| `hierarchy` | `src/shared/shapes/hierarchy.ts` | Pure rules: `collapsedAncestorOf`, `isHiddenByCollapse`, `wouldCreateCycle`, `descendantCount` — injected accessors, no Editor |
+| `stripHiddenFromSelection` | `src/client/selection.ts` | Side effect keeping hidden shapes out of `selectedShapeIds`; hiding alone does not prevent selection |

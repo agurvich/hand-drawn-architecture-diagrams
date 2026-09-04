@@ -1,8 +1,8 @@
 # Spec: Hierarchical nesting and collapse
 
 **ID:** SPEC-004  
-**Status:** Draft  
-**Last Updated:** 2026-09-04 (rev 2 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-04 (rev 3 — post-plan-review)  
 **Depends On:** SPEC-003
 
 ## Overview
@@ -65,14 +65,20 @@ store-native — and therefore synced — without inventing anything to sync.
 
 Dragging a node over another node makes it a child on drop; dragging it off returns it to the page.
 
-Three pieces, not one. **`canReceiveNewChildrenOfType` defaults to `false`**, and the drag-and-drop
-manager filters candidates through it *before* calling anything — so with the default,
-`onDragShapesOver` never fires and dragging silently does nothing. This is the same trap as
-`canEdit()` in SPEC-003. Opening that gate also buys the drop indication: the same code path calls
-`editor.setHintingShapes`, which the indicator overlay strokes automatically.
+Three pieces, not one.
 
-Returning to the page on drag-out is **not** automatic — `BaseBoxShapeUtil` has no implementation, so
-`onDragShapesOut` must reparent to the current page itself.
+**`canReceiveNewChildrenOfType` defaults to `false`** and is the gate everything hangs off:
+`getReceivableShapesForTarget` filters through it, and the drag manager only hints and only calls
+`onDragShapesIn` when something receivable remains. So this one method carries three criteria —
+accepting children, the drop hint, and refusing drops into a collapsed container.
+
+**The reparent hook is `onDragShapesIn`, not `onDragShapesOver`.** `onDragShapesOver` fires on every
+cursor move while over the target and is *not* gated by `canReceiveNewChildrenOfType`; reparenting
+there runs once per pointer frame, churning the store and spamming sync.
+
+**Returning to the page on drag-out is not automatic** — `BaseBoxShapeUtil` has no implementation —
+and it must be guarded on `info.nextDraggingOverShapeId`, or dragging straight from one container
+into another reparents to the page mid-gesture.
 
 #### Acceptance Criteria:
 
@@ -82,6 +88,8 @@ Returning to the page on drag-out is **not** automatic — `BaseBoxShapeUtil` ha
 - [ ] Dragging A out of B and releasing on empty canvas sets A's `parentId` back to the page
 - [ ] The drop target is added to `editor.getHintingShapeIds()` while a shape is dragged over it, so
       the user can tell containment is about to happen
+- [ ] A **real pointer drag** nests a node and drags it back out — not only a direct call to the
+      hooks, which proves they are correct and nothing about whether they are wired
 - [ ] A node **cannot** become its own ancestor. The drag path is already safe — the editor excludes
       the dragged shapes' descendants from candidate targets — so this is asserted against the
       **programmatic** path, and the guard runs **before** `reparentShapes`, which throws rather than
@@ -131,10 +139,12 @@ pencil first, where a small control is unusable and a keyboard shortcut does not
 - [ ] A container with at least one child shows a collapse control on the shape itself; a node with no
       children shows none, since there is nothing to fold
 - [ ] Tapping the control collapses the container, and tapping it again expands it
-- [ ] The control's hit target is at least 44x44 CSS pixels, the minimum comfortable pencil/finger
-      target, verified in an e2e assertion on its bounding box rather than by eye
-- [ ] The control is reachable by keyboard and carries an accessible name reflecting its state
-      (expanded vs collapsed)
+- [ ] The control's hit target is at least 44x44 CSS pixels **at camera zoom 1**, the minimum
+      comfortable pencil/finger target, verified in an e2e assertion on its bounding box rather than
+      by eye. The zoom is stated because `boundingBox()` measures after the canvas transform, so the
+      same control measures 22 at z=0.5
+- [ ] The control is reachable by keyboard **with an empty selection** — tldraw swallows Tab while
+      any shape is selected — and carries an accessible name reflecting its state
 - [ ] Activating the control does not also select, move or enter label-editing on the node
 
 ### FR-005: Nesting and collapse are synced and durable

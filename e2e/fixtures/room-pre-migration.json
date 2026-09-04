@@ -1,0 +1,65 @@
+{
+  "clock": 10,
+  "documentClock": 10,
+  "tombstoneHistoryStartsAtClock": 0,
+  "schema": {
+    "schemaVersion": 2,
+    "sequences": {
+      "com.tldraw.store": 4,
+      "com.tldraw.asset": 1,
+      "com.tldraw.camera": 1,
+      "com.tldraw.document": 2,
+      "com.tldraw.instance": 25,
+      "com.tldraw.instance_page_state": 5,
+      "com.tldraw.page": 1,
+      "com.tldraw.instance_presence": 6,
+      "com.tldraw.pointer": 1,
+      "com.tldraw.shape": 4,
+      "com.tldraw.shape.diagramNode": 0
+    }
+  },
+  "documents": [
+    {
+      "state": {
+        "gridSize": 10,
+        "name": "",
+        "meta": {},
+        "id": "document:document",
+        "typeName": "document"
+      },
+      "lastChangedClock": 1
+    },
+    {
+      "state": {
+        "meta": {},
+        "id": "page:seeded",
+        "name": "Page 1",
+        "index": "a1",
+        "typeName": "page"
+      },
+      "lastChangedClock": 1
+    },
+    {
+      "state": {
+        "x": 140,
+        "y": 140,
+        "rotation": 0,
+        "isLocked": false,
+        "opacity": 1,
+        "meta": {},
+        "id": "shape:seeded-legacy",
+        "type": "diagramNode",
+        "parentId": "page:seeded",
+        "index": "a1",
+        "typeName": "shape",
+        "props": {
+          "w": 220,
+          "h": 120,
+          "label": "Seeded Legacy Node"
+        }
+      },
+      "lastChangedClock": 10
+    }
+  ],
+  "tombstones": {}
+}

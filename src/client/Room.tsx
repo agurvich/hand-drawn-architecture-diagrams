@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Tldraw, type Editor } from 'tldraw'
+import { Tldraw, type Editor, type TLShape } from 'tldraw'
 import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
+import { isHiddenByCollapse } from '@shared/shapes'
+import { stripHiddenFromSelection } from './selection'
 import { components, shapeUtils, tools, uiOverrides } from './shapes/registry'
 import { unvalidatedSchemaIfRequested } from './devOnly'
 import 'tldraw/tldraw.css'
@@ -21,6 +23,17 @@ const failLoudlyAssetStore: TLAssetStore = {
     return asset.props.src ?? null
   },
 }
+
+/**
+ * MODULE-LEVEL, never an inline arrow.
+ *
+ * `getShapeVisibility` sits in the dependency list of the effect that
+ * CONSTRUCTS the editor, so a new function identity on each render tears the
+ * editor down and rebuilds it -- losing camera, selection and mounted state.
+ * Room.tsx re-renders on connection status, so that would happen in normal use.
+ */
+const getShapeVisibility = (shape: TLShape, editor: Editor) =>
+  isHiddenByCollapse(shape, (id) => editor.getShape(id as TLShape['id'])) ? 'hidden' : 'inherit'
 
 /** How long a connection may sit in `loading` before we admit it may never arrive. */
 const SLOW_CONNECTION_MS = 10_000
@@ -87,6 +100,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
         tools={tools}
         overrides={uiOverrides}
         components={components}
+        getShapeVisibility={getShapeVisibility}
         onMount={handleMount}
       />
       {store.connectionStatus === 'offline' && (
@@ -100,6 +114,8 @@ export function Room({ roomId }: { roomId: RoomId }) {
 
 function handleMount(editor: Editor) {
   window.__editor = editor
+  // Returned disposer is run by tldraw when the editor unmounts.
+  return stripHiddenFromSelection(editor)
 }
 
 function Centered({ testId, children }: { testId: string; children: React.ReactNode }) {

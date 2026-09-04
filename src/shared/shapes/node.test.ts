@@ -22,6 +22,30 @@ function migrationFns(id: string) {
   }
 }
 
+describe('AddCollapsed migration (v2 -> v3)', () => {
+  it('adds collapsed:false to a v2 record — expanded, so children never look lost', () => {
+    const v2Props = { w: 200, h: 120, label: 'Existing', color: 'red' } as Record<string, unknown>
+    migrationFns(nodeVersions.AddCollapsed).up(v2Props)
+    expect(v2Props).toEqual({ w: 200, h: 120, label: 'Existing', color: 'red', collapsed: false })
+  })
+
+  it('down() removes collapsed, so a v2 peer can read a v3 record', () => {
+    const v3Props = { ...nodeShapeDefaultProps, collapsed: true } as Record<string, unknown>
+    const { down } = migrationFns(nodeVersions.AddCollapsed)
+    if (!down) throw new Error('AddCollapsed has no down()')
+    down(v3Props)
+    expect('collapsed' in v3Props).toBe(false)
+    expect(v3Props.color).toBe(nodeShapeDefaultProps.color)
+  })
+
+  it('runs after AddColor, so a v1 record reaches v3 with both defaults', () => {
+    const v1Props = { w: 100, h: 80, label: 'Ancient' } as Record<string, unknown>
+    migrationFns(nodeVersions.AddColor).up(v1Props)
+    migrationFns(nodeVersions.AddCollapsed).up(v1Props)
+    expect(v1Props).toEqual({ w: 100, h: 80, label: 'Ancient', color: 'black', collapsed: false })
+  })
+})
+
 describe('AddColor migration (v1 -> v2)', () => {
   it('adds color with the documented default to a v1 record', () => {
     const v1Props = { w: 200, h: 120, label: 'Legacy Node' } as Record<string, unknown>
