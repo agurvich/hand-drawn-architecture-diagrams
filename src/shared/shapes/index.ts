@@ -1,6 +1,7 @@
 import { NODE_SHAPE_TYPE, nodeShapeProps, nodeShapeMigrations, type NodeShape } from './node'
 
 export * from './node'
+export * from './hierarchy'
 
 /**
  * The registry both runtimes consume. The client maps these to ShapeUtils; the

@@ -8,7 +8,7 @@ to status only — no prose.
 | SPEC-001 | Scaffold and canvas | Completed | None |
 | SPEC-002 | Sync foundation | Completed | SPEC-001 |
 | SPEC-003 | First custom shape under sync | Completed | SPEC-002 |
-| SPEC-004 | Hierarchical nesting and collapse | Draft | SPEC-003 |
+| SPEC-004 | Hierarchical nesting and collapse | Completed | SPEC-003 |
 
 ## Arcs (build order)
 

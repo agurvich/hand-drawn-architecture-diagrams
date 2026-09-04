@@ -25,7 +25,7 @@
   two sides carry different migration sequences — a connection-level failure no record-level check
   can see, because nothing is ever rejected.
 
-### Owed — recorded late (2026-09-04)
+### Owed — recorded late, and SETTLED by SPEC-004 (2026-09-04)
 
 **FR-004's last criterion was not met, and this spec was marked Completed without recording it.**
 The criterion — *"a room persisted at v1 opens after the v2 migration ships"* — needs a checked-in v1

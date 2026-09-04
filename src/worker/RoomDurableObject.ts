@@ -66,11 +66,49 @@ export class RoomDurableObject extends DurableObject<Env> {
    * ever been written. Without this probe, the persistence test passes against
    * the bug it exists to catch.
    */
-  async debugStoredSnapshot(): Promise<{ present: boolean; documents: number }> {
+  async debugStoredSnapshot(label?: string): Promise<{
+    present: boolean
+    documents: number
+    shape: { label: string; parentId: string; collapsed: boolean } | null
+  }> {
     const raw = await this.ctx.storage.get<string>('snapshot')
-    if (!raw) return { present: false, documents: 0 }
-    const parsed = JSON.parse(raw) as { documents?: unknown[] }
-    return { present: true, documents: parsed.documents?.length ?? 0 }
+    if (!raw) return { present: false, documents: 0, shape: null }
+    const parsed = JSON.parse(raw) as {
+      documents?: Array<{ state?: Record<string, any> }>
+    }
+    const docs = parsed.documents ?? []
+
+    // A document COUNT is identical whether or not parentId and collapsed were
+    // written, so a count-only probe makes "nesting survives a reload" tick
+    // vacuously. Report the fields being asserted.
+    let shape: { label: string; parentId: string; collapsed: boolean } | null = null
+    if (label) {
+      const found = docs.find((d) => d.state?.props?.label === label)
+      if (found?.state) {
+        shape = {
+          label,
+          parentId: String(found.state.parentId ?? ''),
+          collapsed: Boolean(found.state.props?.collapsed),
+        }
+      }
+    }
+    return { present: true, documents: docs.length, shape }
+  }
+
+  /**
+   * DEV ONLY. Seed a room's durable storage with a snapshot taken at an OLDER
+   * schema version, so the migration path can be exercised end to end.
+   *
+   * The cached room must be dropped as well as the storage written: `getRoom`
+   * memoises both `room` and `roomPromise`, so writing storage alone would be
+   * invisible to an already-constructed room.
+   */
+  async debugSeedSnapshot(snapshot: unknown): Promise<{ seeded: true }> {
+    await this.ctx.storage.put('snapshot', JSON.stringify(snapshot))
+    this.room = null
+    this.storage = null
+    this.roomPromise = null
+    return { seeded: true }
   }
 
   async fetch(request: Request): Promise<Response> {

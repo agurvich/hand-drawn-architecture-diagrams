@@ -28,6 +28,8 @@ export interface NodeShapeProps {
   label: string
   /** Added at v2 by the migration below. */
   color: string
+  /** Added at v3. While true, every descendant is hidden. */
+  collapsed: boolean
 }
 
 export type NodeShape = TLBaseShape<typeof NODE_SHAPE_TYPE, NodeShapeProps>
@@ -50,6 +52,7 @@ export const nodeShapeProps: RecordProps<NodeShape> = {
   h: T.nonZeroNumber,
   label: T.string,
   color: T.string,
+  collapsed: T.boolean,
 }
 
 export const nodeShapeDefaultProps: NodeShapeProps = {
@@ -57,10 +60,12 @@ export const nodeShapeDefaultProps: NodeShapeProps = {
   h: 120,
   label: '',
   color: 'black',
+  collapsed: false,
 }
 
 export const nodeVersions = createShapePropsMigrationIds(NODE_SHAPE_TYPE, {
   AddColor: 1,
+  AddCollapsed: 2,
 })
 
 export const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationSequence({
@@ -74,6 +79,17 @@ export const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationS
       },
       down(props) {
         delete (props as Partial<NodeShapeProps>).color
+      },
+    },
+    {
+      id: nodeVersions.AddCollapsed,
+      up(props) {
+        // Rooms already hold v2 records. Default to expanded: a node that
+        // silently arrived collapsed would look like its children were lost.
+        ;(props as NodeShapeProps).collapsed = false
+      },
+      down(props) {
+        delete (props as Partial<NodeShapeProps>).collapsed
       },
     },
   ],

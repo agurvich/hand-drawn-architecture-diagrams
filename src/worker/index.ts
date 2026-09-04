@@ -42,7 +42,16 @@ export default {
         const roomId = decodeURIComponent(dev[1])
         if (!isValidRoomId(roomId)) return new Response('invalid room id', { status: 400 })
         const stub = env.ROOMS.get(env.ROOMS.idFromName(roomId))
-        return Response.json(await stub.debugStoredSnapshot())
+
+        if (request.method === 'PUT') {
+          // Seed a pre-migration snapshot. SPEC-003 specified this and never
+          // built it; SPEC-004 needs it for its own migration and settles that
+          // owed criterion here.
+          return Response.json(await stub.debugSeedSnapshot(await request.json()))
+        }
+        return Response.json(
+          await stub.debugStoredSnapshot(url.searchParams.get('label') ?? undefined),
+        )
       }
     }
 
