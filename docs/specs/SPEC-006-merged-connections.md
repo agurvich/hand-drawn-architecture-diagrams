@@ -1,8 +1,8 @@
 # Spec: Merging connections into a collapsed container
 
 **ID:** SPEC-006  
-**Status:** Draft  
-**Last Updated:** 2026-09-04 (rev 2 — post-review)  
+**Status:** In Progress  
+**Last Updated:** 2026-09-04 (rev 3 — build)  
 **Depends On:** SPEC-004, SPEC-005
 
 ## Overview
@@ -317,7 +317,7 @@ export function computeMergeIndex(
 5. **The gate: a group merges only if at least one of its members was actually resolved** — that is,
    at least one member has a terminal whose resolved id differs from its bound id. A group where
    nothing resolved is left as N separate entries, each `count: 1` and none hidden, which is exactly
-   today's behaviour. **Settled by the user, 2026-09-04.** Grouping on the resolved key alone would
+   today's behaviour. **Settled 2026-09-04.** Grouping on the resolved key alone would
    merge two hand-drawn connections between two *visible* nodes, so an expanded diagram would lose a
    line and grow a count badge — and this spec promises not to change what an expanded diagram looks
    like. The gate is on the **group**, not the member: once collapse has made a relationship coarse,

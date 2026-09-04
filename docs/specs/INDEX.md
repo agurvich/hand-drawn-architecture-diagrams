@@ -10,7 +10,7 @@ to status only — no prose.
 | SPEC-003 | First custom shape under sync | Completed | SPEC-002 |
 | SPEC-004 | Hierarchical nesting and collapse | Completed | SPEC-003 |
 | SPEC-005 | Connections between nodes | Completed | SPEC-004 |
-| SPEC-006 | Merging connections into a collapsed container | Draft | SPEC-004, SPEC-005 |
+| SPEC-006 | Merging connections into a collapsed container | In Progress | SPEC-004, SPEC-005 |
 
 ## Arcs (build order)
 
