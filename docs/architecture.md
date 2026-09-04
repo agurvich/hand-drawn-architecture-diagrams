@@ -62,8 +62,9 @@ Three domain shapes sit on top of tldraw's built-ins:
 - **Container** — a node that can hold other nodes to arbitrary depth, and collapse. On collapse its
   children's connections to the outside world merge into deduplicated lines drawn against the
   container itself. This is the mechanic the handoff calls the core feature, and the riskiest one.
-- **Connection** — an edge bound to *ports* on its endpoints via tldraw's binding system, so it
-  re-routes when a node moves and can be dragged to a new endpoint. The pattern is taken from
+- **Connection** — an edge bound to its endpoints via tldraw's binding system, so it re-routes when a
+  node moves and can be dragged to a new endpoint. *Named ports are deferred:* SPEC-005 binds to the
+  **node** and derives the anchor from geometry, with an optional `port` prop reserved as the seam. The pattern is taken from
   tldraw's workflow starter kit; its execution engine is not (see `CLAUDE.md` → Out of Scope).
 - **Frame** — a named snapshot of view state (what is expanded, highlighted, visible), steppable
   forward and back to narrate one persistent graph. Not tldraw's own frame shape, which is only a
