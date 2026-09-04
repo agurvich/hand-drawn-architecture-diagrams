@@ -3,6 +3,8 @@ import { Tldraw, type Editor } from 'tldraw'
 import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
+import { components, shapeUtils, tools, uiOverrides } from './shapes/registry'
+import { unvalidatedSchemaIfRequested } from './devOnly'
 import 'tldraw/tldraw.css'
 
 /**
@@ -25,7 +27,16 @@ const SLOW_CONNECTION_MS = 10_000
 
 export function Room({ roomId }: { roomId: RoomId }) {
   const uri = useMemo(() => syncUri(window.location.origin, roomId), [roomId])
-  const store = useSync({ uri, assets: failLoudlyAssetStore })
+  // shapeUtils goes to BOTH useSync and <Tldraw>: useSync does not include the
+  // defaults the way <Tldraw> does, so omitting it here drops every built-in
+  // shape from the synced store.
+  // See devOnly.ts: dev + an explicit URL flag, never in a production bundle.
+  const devSchema = useMemo(() => unvalidatedSchemaIfRequested(), [])
+  const store = useSync(
+    devSchema
+      ? { uri, assets: failLoudlyAssetStore, schema: devSchema }
+      : { uri, assets: failLoudlyAssetStore, shapeUtils },
+  )
 
   const [slow, setSlow] = useState(false)
   useEffect(() => {
@@ -70,7 +81,14 @@ export function Room({ roomId }: { roomId: RoomId }) {
   // and re-sync, which is why disconnection is NOT an error state.
   return (
     <div className="canvas-host" data-testid="canvas-host">
-      <Tldraw store={store.store} onMount={handleMount} />
+      <Tldraw
+        store={store.store}
+        shapeUtils={shapeUtils}
+        tools={tools}
+        overrides={uiOverrides}
+        components={components}
+        onMount={handleMount}
+      />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect

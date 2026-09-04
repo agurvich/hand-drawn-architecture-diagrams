@@ -1,0 +1,17 @@
+import { createTLSchema, defaultShapeSchemas, defaultBindingSchemas } from '@tldraw/tlschema'
+import { customShapeSchemas } from '../shared/shapes'
+
+/**
+ * The worker's half of the shape declaration, built from the same shared
+ * definition the client's ShapeUtils are.
+ *
+ * `shapes` REPLACES the defaults rather than extending them. Omitting the spread
+ * below would make every built-in record -- draw, geo, arrow, note -- an unknown
+ * type at the room boundary, silently undoing everything SPEC-002 proved. It
+ * would also make "an unknown shape type is rejected" pass for exactly the wrong
+ * reason.
+ */
+export const roomSchema = createTLSchema({
+  shapes: { ...defaultShapeSchemas, ...customShapeSchemas },
+  bindings: defaultBindingSchemas,
+})
