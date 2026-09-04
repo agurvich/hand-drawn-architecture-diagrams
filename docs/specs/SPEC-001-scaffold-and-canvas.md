@@ -67,6 +67,13 @@ server code.
 
 ### FR-002: A tldraw canvas fills the viewport and persists nothing
 
+> **Partly superseded by SPEC-002 (2026-09-04).** "Reloading yields an empty canvas" was true of a
+> single-player canvas and is deliberately false now: the document lives in a room and a reload
+> restores it from the Durable Object. What survives is the half that mattered — **the client is not
+> a home for document state** (no `persistenceKey`, no IndexedDB, nothing in `localStorage` but
+> tldraw's own preferences). Sync moved that home to the server rather than removing the fence. Full
+> record: `docs/spec-delivery/SPEC-002-sync-foundation.md`.
+
 #### Description:
 
 The application renders a tldraw canvas with the SDK's default tools and UI, occupying the full

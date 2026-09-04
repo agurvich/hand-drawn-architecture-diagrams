@@ -7,6 +7,9 @@
   its Vite `resolve.alias` twin — both must move together).
 - A full-viewport tldraw 5 canvas (`src/client/App.tsx`), holding no state of its own: no
   `persistenceKey`, no `licenseKey`.
+  > **Partly superseded by SPEC-002.** The canvas moved to `Room.tsx` and the document now persists
+  > server-side in a Durable Object, so a reload restores it. The client still stores no document
+  > records — that fence held; its home moved.
 - `src/client/index.css` — the `touch-action: none` / `overscroll-behavior: none` host that stops an
   iPad drawing drag from scrolling the page. This is the substance of FR-003, not styling.
 - `src/client/test/setup.ts` — the jsdom polyfills tldraw needs to mount at all.

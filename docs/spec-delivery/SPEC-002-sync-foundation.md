@@ -31,6 +31,13 @@
 
 ## What changed from earlier specs?
 
+- **SPEC-001 FR-002's "reloading yields an empty canvas" is superseded.** The document now lives in
+  the room, so a reload restores it — asserting emptiness would assert against sync working. The
+  surviving half (the client stores no document records) is still guarded in `e2e/canvas.spec.ts`.
+  Markers added at both sites that stated the old claim. **This was caught by CI, not locally:** the
+  old test passed on my machine only because the reload beat the Durable Object's 200ms debounced
+  persist, and failed on CI where the persist landed first. The rewritten test waits out the debounce
+  so it asserts a steady state rather than a race.
 - `src/client/App.tsx` (SPEC-001) became route-aware and no longer renders the canvas directly; the
   canvas moved to `Room.tsx`. SPEC-001's `App.test.tsx` was rewritten around routing accordingly —
   the canvas now needs a live synced store, so it is covered end to end rather than mocked.
