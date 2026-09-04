@@ -46,6 +46,25 @@
 - `tsconfig.app.json` includes the generated `worker-configuration.d.ts`; without it every worker file
   fails on `Cannot find name 'Env'`.
 
+## Correction (2026-09-04)
+
+**Persistence never worked as shipped.** `initialSnapshot` and `onDataChange` are both deprecated in
+tldraw 5.4 in favour of a `storage` option with an `onChange` callback, and the deprecated callback
+**silently never fires** — so no snapshot was ever written.
+
+The failure was invisible to the test written for it. A Durable Object stays resident between
+clients, so "every client disconnects, a new one joins, the shapes are there" passes on the in-memory
+room; the data is only lost once the object is evicted. The manual worker-restart check below passed
+for the same reason — the process restarted faster than the object was evicted.
+
+Fixed by constructing an `InMemorySyncStorage` with an `onChange` callback and passing it as
+`storage`. The new e2e (`edits are actually WRITTEN to durable storage`) asserts against durable
+storage through a dev-only probe route rather than against what the room happens to be holding, and
+was confirmed to **fail** when the deprecated API is put back.
+
+The lesson worth keeping: a persistence test that reads through the same live object it just wrote to
+is not testing persistence.
+
 ## Verification
 
 All gates green: typecheck, oxlint, prettier, unit 13/13, e2e 16/16, spec-lint, docs-lint.

@@ -24,6 +24,18 @@ export default {
       return env.ROOMS.get(id).fetch(request)
     }
 
+    // DEV ONLY: report what durable storage actually holds for a room. Guarded
+    // so it cannot exist in a production bundle.
+    if (import.meta.env.DEV) {
+      const dev = url.pathname.match(/^\/api\/dev\/snapshot\/([^/]+)$/)
+      if (dev) {
+        const roomId = decodeURIComponent(dev[1])
+        if (!isValidRoomId(roomId)) return new Response('invalid room id', { status: 400 })
+        const stub = env.ROOMS.get(env.ROOMS.idFromName(roomId))
+        return Response.json(await stub.debugStoredSnapshot())
+      }
+    }
+
     if (url.pathname.startsWith('/api/')) {
       return new Response('not found', { status: 404 })
     }

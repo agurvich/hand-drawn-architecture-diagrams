@@ -168,6 +168,45 @@ test.describe('SPEC-002 FR-004 — surviving disconnection', () => {
     await b.ctx.close()
   })
 
+  test('edits are actually WRITTEN to durable storage, not just held in memory', async ({
+    browser,
+    request,
+  }) => {
+    // The distinction this test exists for: a Durable Object stays resident
+    // between clients, so "reconnect and the shapes are there" passes even when
+    // nothing has ever been persisted. tldraw 5.4 deprecated `initialSnapshot`
+    // and `onDataChange` in favour of the `storage` option, and the deprecated
+    // callback silently never fires -- which is exactly that failure. This
+    // asserts against durable storage directly.
+    const room = roomId('durb')
+    const stored = async () =>
+      (await (await request.get(`/api/dev/snapshot/${room}`)).json()) as {
+        present: boolean
+        documents: number
+      }
+
+    const p = await newParticipant(browser)
+    await openRoom(p.page, room)
+
+    // Connecting alone persists the room's initial document records, so wait for
+    // that baseline rather than asserting emptiness -- whether the probe beats
+    // the debounce is a race, and asserting on it makes the test flaky.
+    await expect.poll(async () => (await stored()).present, { timeout: 15_000 }).toBe(true)
+    const baseline = (await stored()).documents
+
+    await drawBox(p.page, 150, 150)
+    await expect.poll(() => shapeCount(p.page)).toBe(1)
+
+    // The real assertion: the new shape reaches DURABLE storage. With the
+    // deprecated onDataChange the callback never fires, `present` stays false,
+    // and this poll times out.
+    await expect
+      .poll(async () => (await stored()).documents, { timeout: 15_000 })
+      .toBeGreaterThan(baseline)
+
+    await p.ctx.close()
+  })
+
   test('room contents outlive every client disconnecting', async ({ browser }) => {
     const room = roomId('pers')
     const first = await newParticipant(browser)
