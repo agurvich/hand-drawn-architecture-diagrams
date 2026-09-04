@@ -85,17 +85,34 @@ test.describe('SPEC-001 FR-003 — touch and pen input', () => {
   })
 })
 
-test.describe('SPEC-001 FR-002 — the canvas persists nothing', () => {
-  test('reload yields an empty canvas, and no document records are stored', async ({ page }) => {
+test.describe('SPEC-001 FR-002 — the client stores no document records', () => {
+  /**
+   * SUPERSEDED IN PART BY SPEC-002.
+   *
+   * SPEC-001 FR-002 required "reloading the page yields an empty canvas". That
+   * was true of a single-player canvas and is deliberately FALSE now: SPEC-002
+   * made the document live in a room, so a reload correctly restores it from the
+   * Durable Object. Asserting emptiness here would assert against sync working.
+   *
+   * What survives from FR-002, and is still worth guarding: the CLIENT is not a
+   * home for document state. No persistenceKey, no IndexedDB, and nothing in
+   * localStorage but tldraw's own user preferences. That is the fence SPEC-001
+   * actually cared about -- it exists so there is exactly one home for the
+   * document -- and sync moved that home to the server rather than removing it.
+   */
+  test('no document records are stored client-side; the document lives in the room', async ({
+    page,
+  }) => {
     await canvasReady(page)
     await page.evaluate(() =>
       window.__editor!.createShape({ type: 'geo', x: 100, y: 100, props: { w: 120, h: 80 } }),
     )
     await expect.poll(() => shapeCount(page)).toBe(1)
-
-    await page.reload()
-    await page.waitForFunction(() => !!window.__editor)
-    expect(await shapeCount(page)).toBe(0)
+    // Outlast the Durable Object's debounced persist before reloading, so this
+    // asserts the steady state rather than a race. (A reload that beat the
+    // debounce is why an earlier version of this test passed locally and failed
+    // in CI.)
+    await page.waitForTimeout(1500)
 
     const storage = await page.evaluate(async () => ({
       local: Object.keys(localStorage),
@@ -106,6 +123,11 @@ test.describe('SPEC-001 FR-002 — the canvas persists nothing', () => {
     // criterion false for a correct implementation. Document records are the target.
     expect(storage.local).toEqual(['TLDRAW_USER_DATA_v3'])
     expect(storage.idb).toEqual([])
+
+    // And the document does survive -- from the server, not from the browser.
+    await page.reload()
+    await page.waitForFunction(() => !!window.__editor)
+    await expect.poll(() => shapeCount(page), { timeout: 20_000 }).toBe(1)
   })
 })
 

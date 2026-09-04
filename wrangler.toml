@@ -1,0 +1,22 @@
+name = "hand-drawn-architecture-diagrams"
+main = "src/worker/index.ts"
+compatibility_date = "2026-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomDurableObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDurableObject"]
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+# not_found_handling alone is NOT enough: with a `main` worker present, a path
+# matching no asset falls through to the Worker instead of the SPA fallback, so
+# GET /<roomId> would 404 -- and a room URL is the primary user-facing route.
+# run_worker_first scopes the Worker to the API and leaves the rest to assets.
+run_worker_first = ["/api/*"]
