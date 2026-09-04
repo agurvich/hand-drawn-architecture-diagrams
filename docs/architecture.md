@@ -121,6 +121,22 @@ first time they bite.
   **This is recorded because it was specified wrongly twice**, from reasoning rather than from the
   SDK's actual state machine; the values above were measured against a live `TLSocketRoom`. A UI that
   treats disconnection as failure is the failure.
+- **OPEN DEFECT, HIGH PRIORITY (2026-09-04): the app renders a fully blank page on iPad.** Desktop
+  Chromium is fine; the e2e suite passes at an emulated iPad viewport. A real iPad over the LAN dev
+  URL shows white — not the loading spinner, not the error box, so this is a **crash before first
+  paint**, not a failed connection. Nothing has been ruled out yet; no time was spent debugging.
+  This blocks the product's entire premise, so no feature spec should be treated as validated on the
+  target device until it is fixed.
+  Where to start tomorrow, most-likely first:
+  1. **Insecure context.** The dev URL is `http://<LAN-IP>`, so `window.isSecureContext` is false and
+     `crypto.randomUUID()` throws. If tldraw or a dependency calls it at import time, the module
+     never evaluates and the page is blank with no visible error. Cheapest check: serve over HTTPS
+     (a tunnel, or Vite's `server.https`) and see if it survives.
+  2. **Build/syntax target.** An older iPadOS Safari failing to parse shipped syntax fails silently
+     and blank. Check the iPadOS version against Vite's default target.
+  3. Only then, an in-page console — Safari on the iPad plus Mac Safari's Web Inspector attaches for
+     free and needs no dependency. iOS Chrome cannot be inspected at all; every iOS browser is
+     WKWebView and none expose devtools.
 - **The target device is an iPad with a pencil.** Pointer-event handling, hit targets and panel layout
   are judged on touch first, not on a desktop mouse.
 
