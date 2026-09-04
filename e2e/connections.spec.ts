@@ -123,26 +123,36 @@ test.describe('SPEC-005 FR-003 — connections follow their endpoints', () => {
     expect(await connGeometry(page, conn)).not.toBe(before)
   })
 
-  test('a connection is hidden when an endpoint is hidden by collapse', async ({ page }) => {
-    // Cannot ride the parentId walk: the connection is parented to the PAGE, so
-    // no ancestor of it is ever collapsed. It hides by RELATIONSHIP instead.
+  test('SPEC-006 FR-001 — a connection crossing a collapse boundary is RE-DRAWN, not hidden', async ({
+    page,
+  }) => {
+    // Superseded SPEC-005 FR-003's last criterion, which hid the connection as
+    // the deliberate placeholder until merging existed. The arrangement is
+    // unchanged so the case stays covered; the expected answer is the new one.
     await openRoom(page, roomId('cx6'))
     const outside = await addNode(page, 'Outside', { x: 80, y: 80 })
     const container = await addNode(page, 'Platform', { x: 500, y: 300, w: 420, h: 260 })
     const child = await addNode(page, 'Inner', { x: 40, y: 60, w: 160, h: 90, parentId: container })
     const conn = await addConnection(page, outside, child)
 
+    const expanded = await connGeometry(page, conn)
     expect(await page.evaluate((id) => window.__editor!.isShapeHidden(id as never), conn)).toBe(
       false,
     )
+
     await setCollapsed(page, container, true)
     expect(await page.evaluate((id) => window.__editor!.isShapeHidden(id as never), conn)).toBe(
-      true,
+      false,
     )
+    // Drawn against the CONTAINER now, so the geometry moved.
+    const collapsed = await connGeometry(page, conn)
+    expect(collapsed).not.toBe(expanded)
+
     await setCollapsed(page, container, false)
     expect(await page.evaluate((id) => window.__editor!.isShapeHidden(id as never), conn)).toBe(
       false,
     )
+    expect(await connGeometry(page, conn)).toBe(expanded)
   })
 
   test('the connection stays parented to the page, not dragged into a container', async ({

@@ -14,6 +14,7 @@ import {
 export * from './node'
 export * from './hierarchy'
 export * from './connection'
+export * from './merge'
 export * from '../bindings/connection'
 
 /**

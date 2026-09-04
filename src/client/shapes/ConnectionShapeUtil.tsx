@@ -7,6 +7,7 @@ import {
   type TLShapeId,
   type TLShapeUtilCanBindOpts,
 } from 'tldraw'
+import { getMergeIndex } from '../mergeIndex'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -65,15 +66,39 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
       .find((b) => b.props.terminal === terminal)
   }
 
-  /** Page-space endpoints, resolved through the bindings when they exist. */
+  /**
+   * The shape this terminal is DRAWN against -- which since SPEC-006 is not
+   * always the shape it is bound to: an endpoint inside a collapsed container
+   * resolves to the container standing in for it.
+   *
+   * Only the ID comes from the index. Bounds are read live below, which is what
+   * keeps a container move re-routing the line.
+   */
+  private nodeIdFor(shape: ConnectionShape, terminal: ConnectionTerminal): TLShapeId | null {
+    const entry = getMergeIndex(this.editor).get(shape.id)
+    if (entry) {
+      const id = terminal === 'start' ? entry.startNodeId : entry.endNodeId
+      return id === null ? null : (id as TLShapeId)
+    }
+    // Index miss -- a shape on another page, or a store read mid-change. Fall
+    // back to the raw binding, which is what this did before merging existed.
+    return this.bindingFor(shape, terminal)?.toId ?? null
+  }
+
+  /** How many connections this line stands for; 1 when it is not merged. */
+  private mergeCount(shape: ConnectionShape): number {
+    return getMergeIndex(this.editor).get(shape.id)?.count ?? 1
+  }
+
+  /** Page-space endpoints, resolved through the merge index. */
   getTerminalsInPageSpace(shape: ConnectionShape): { start: Vec; end: Vec } {
     const shapePage = this.editor.getShapePageTransform(shape.id)
     const fallback = (p: { x: number; y: number }) => shapePage.applyToPoint(new Vec(p.x, p.y))
 
     const resolve = (terminal: ConnectionTerminal, other: Vec) => {
-      const binding = this.bindingFor(shape, terminal)
-      if (!binding) return null
-      const bounds = this.editor.getShapePageBounds(binding.toId)
+      const nodeId = this.nodeIdFor(shape, terminal)
+      if (!nodeId) return null
+      const bounds = this.editor.getShapePageBounds(nodeId)
       if (!bounds) return null
       return anchorOnBorder(bounds.center, bounds, other)
     }
@@ -89,9 +114,9 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   private centreOf(shape: ConnectionShape, terminal: ConnectionTerminal): Vec | null {
-    const binding = this.bindingFor(shape, terminal)
-    if (!binding) return null
-    return this.editor.getShapePageBounds(binding.toId)?.center ?? null
+    const nodeId = this.nodeIdFor(shape, terminal)
+    if (!nodeId) return null
+    return this.editor.getShapePageBounds(nodeId)?.center ?? null
   }
 
   override getGeometry(shape: ConnectionShape) {
@@ -103,6 +128,10 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   override getHandles(shape: ConnectionShape): TLHandle[] {
+    // A line standing for several connections offers NO handles: re-aiming it
+    // could only rebind one arbitrary member of the group, so the affordance is
+    // withdrawn rather than made to pick.
+    if (this.mergeCount(shape) > 1) return []
     const { start, end } = this.getTerminalsInPageSpace(shape)
     const inv = this.editor.getShapePageTransform(shape.id).clone().invert()
     const a = inv.applyToPoint(start)
@@ -118,6 +147,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const inv = this.editor.getShapePageTransform(shape.id).clone().invert()
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
+    const count = this.mergeCount(shape)
     return (
       <svg className="tl-svg-container" data-testid="diagram-connection">
         <defs>
@@ -142,6 +172,24 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
           strokeWidth={2}
           markerEnd={`url(#arrow-${shape.id.replace(/[^a-zA-Z0-9]/g, '')})`}
         />
+        {count > 1 && (
+          // The count is information about MERGING, so a line standing for one
+          // connection renders nothing at all rather than a decorative x1.
+          <text
+            data-testid="diagram-connection-count"
+            x={(a.x + b.x) / 2}
+            y={(a.y + b.y) / 2 - 6}
+            textAnchor="middle"
+            fontSize={14}
+            fontWeight={600}
+            fill="currentColor"
+            stroke="var(--color-background)"
+            strokeWidth={4}
+            paintOrder="stroke"
+          >
+            {`\u00d7${count}`}
+          </text>
+        )}
       </svg>
     )
   }
