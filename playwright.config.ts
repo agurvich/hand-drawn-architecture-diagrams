@@ -25,8 +25,12 @@ export default defineConfig({
       },
     },
   ],
+  // `vite preview` serves the built client but NOT the worker, so sync would
+  // have no server to talk to. The dev server runs client and worker on ONE
+  // origin (the Cloudflare plugin), which is the same topology the app assumes
+  // in production and the reason there is no sync-URL env var.
   webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --host 127.0.0.1',
+    command: 'npm run dev -- --port 4173 --host 127.0.0.1',
     url: 'http://127.0.0.1:4173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

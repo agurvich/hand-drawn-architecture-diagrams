@@ -1,7 +1,7 @@
 # Spec: Scaffold and canvas
 
 **ID:** SPEC-001  
-**Status:** In Progress  
+**Status:** Completed  
 **Last Updated:** 2026-09-03 (rev 3 — post-implementer-review)  
 **Depends On:** None
 

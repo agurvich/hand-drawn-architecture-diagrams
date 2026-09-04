@@ -19,5 +19,5 @@
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "paths": { "@shared/*": ["./src/shared/*"] }
   },
-  "include": ["src"]
+  "include": ["src", "worker-configuration.d.ts"]
 }

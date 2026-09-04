@@ -13,6 +13,6 @@ export default defineConfig({
     setupFiles: ['./src/client/test/setup.ts'],
     // e2e/ is Playwright's; without this exclude, vitest tries to run those
     // files and fails on the missing Playwright test context.
-    exclude: ['e2e/**', 'node_modules/**'],
+    exclude: ['e2e/**', 'node_modules/**', '.wrangler/**'],
   },
 })

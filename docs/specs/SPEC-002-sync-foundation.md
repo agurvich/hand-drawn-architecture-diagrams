@@ -1,7 +1,7 @@
 # Spec: Sync foundation
 
 **ID:** SPEC-002  
-**Status:** Draft  
+**Status:** Completed  
 **Last Updated:** 2026-09-03 (rev 4 — post-fix-verification)  
 **Depends On:** SPEC-001
 
