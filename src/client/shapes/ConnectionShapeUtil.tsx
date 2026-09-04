@@ -4,10 +4,13 @@ import {
   Group2d,
   Edge2d,
   type TLHandle,
+  type TLHandleDragInfo,
+  type TLShape,
   type TLShapeId,
   type TLShapeUtilCanBindOpts,
 } from 'tldraw'
 import { getMergeIndex } from '../mergeIndex'
+import { nodeAtPoint } from '../nodeAtPoint'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -74,7 +77,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
    * Only the ID comes from the index. Bounds are read live below, which is what
    * keeps a container move re-routing the line.
    */
-  private nodeIdFor(shape: ConnectionShape, terminal: ConnectionTerminal): TLShapeId | null {
+  nodeIdFor(shape: ConnectionShape, terminal: ConnectionTerminal): TLShapeId | null {
     const entry = getMergeIndex(this.editor).get(shape.id)
     if (entry) {
       const id = terminal === 'start' ? entry.startNodeId : entry.endNodeId
@@ -86,7 +89,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   /** How many connections this line stands for; 1 when it is not merged. */
-  private mergeCount(shape: ConnectionShape): number {
+  mergeCount(shape: ConnectionShape): number {
     return getMergeIndex(this.editor).get(shape.id)?.count ?? 1
   }
 
@@ -208,6 +211,45 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   /** Connections are positioned entirely by their bindings. */
   override onTranslateStart(shape: ConnectionShape) {
     return shape
+  }
+
+  /**
+   * Re-aiming an endpoint. The connection's shape id and its two binding records
+   * survive -- only a binding's `toId` moves, so this is an edit rather than a
+   * delete-and-redraw.
+   *
+   * Nothing is written until the drop. A refusal (empty canvas, a non-node, or
+   * the connection's other endpoint) therefore leaves the binding exactly as it
+   * was rather than needing to be undone.
+   */
+  override onHandleDrag(shape: ConnectionShape, { handle }: TLHandleDragInfo<ConnectionShape>) {
+    const target = this.dropTargetFor(shape, handle.id as ConnectionTerminal)
+    this.editor.setHintingShapes(target ? [target.id] : [])
+  }
+
+  override onHandleDragEnd(shape: ConnectionShape, { handle }: TLHandleDragInfo<ConnectionShape>) {
+    this.editor.setHintingShapes([])
+    const terminal = handle.id as ConnectionTerminal
+    const target = this.dropTargetFor(shape, terminal)
+    if (!target) return
+    const binding = this.bindingFor(shape, terminal)
+    if (!binding || binding.toId === target.id) return
+    this.editor.updateBinding({ ...binding, toId: target.id })
+  }
+
+  override onHandleDragCancel() {
+    this.editor.setHintingShapes([])
+  }
+
+  /** The node a drop would attach to, or undefined for every refusal. */
+  private dropTargetFor(shape: ConnectionShape, terminal: ConnectionTerminal): TLShape | undefined {
+    const target = nodeAtPoint(this.editor, this.editor.inputs.getCurrentPagePoint())
+    if (!target) return undefined
+    // A self-connection is refused here as well as in the tool -- otherwise it
+    // arrives by the back door, which is the whole reason this criterion exists.
+    const opposite: ConnectionTerminal = terminal === 'start' ? 'end' : 'start'
+    if (this.bindingFor(shape, opposite)?.toId === target.id) return undefined
+    return target
   }
 
   boundNodeIds(shape: ConnectionShape): TLShapeId[] {

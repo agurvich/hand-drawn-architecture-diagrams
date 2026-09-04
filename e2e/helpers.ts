@@ -133,3 +133,83 @@ export async function drawBox(page: Page, x: number, y: number) {
     [x, y],
   )
 }
+
+/** The rendered geometry of a shape, as a comparable string. */
+export async function shapeGeometry(page: Page, id: string): Promise<string> {
+  return page.evaluate(
+    (sid) => JSON.stringify(window.__editor!.getShapeGeometry(sid as never).bounds.toJson()),
+    id,
+  )
+}
+
+/**
+ * Drag a connection endpoint onto a page point, the way a finger does.
+ *
+ * Driven through real pointer events rather than by calling the util directly:
+ * the criterion is that dragging the handle re-binds, and a test that calls
+ * onHandleDragEnd itself would pass against a shape whose handles the select
+ * tool never reaches -- which is exactly how SPEC-005 shipped this unbuilt.
+ *
+ * Returns what was hinted mid-drag, so the hint criterion is asserted on
+ * getHintingShapeIds rather than on pixels.
+ */
+export async function dragEndpoint(
+  page: Page,
+  connectionId: string,
+  terminal: 'start' | 'end',
+  to: { x: number; y: number },
+): Promise<{ hintedMidDrag: string[] }> {
+  const from = await page.evaluate(
+    ({ connectionId, terminal }) => {
+      const ed = window.__editor!
+      ed.setCurrentTool('select')
+      ed.select(connectionId as never)
+      const shape = ed.getShape(connectionId as never)!
+      const handle = ed.getShapeHandles(shape)!.find((h) => h.id === terminal)!
+      const page = ed.getShapePageTransform(shape.id).applyToPoint(handle)
+      const screen = ed.pageToScreen(page)
+      return { x: screen.x, y: screen.y }
+    },
+    { connectionId, terminal },
+  )
+  const target = await page.evaluate((p) => {
+    const screen = window.__editor!.pageToScreen(p)
+    return { x: screen.x, y: screen.y }
+  }, to)
+
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move((from.x + target.x) / 2, (from.y + target.y) / 2, { steps: 6 })
+  await page.mouse.move(target.x, target.y, { steps: 6 })
+  const hintedMidDrag = await page.evaluate(
+    () => window.__editor!.getHintingShapeIds() as unknown as string[],
+  )
+  await page.mouse.up()
+  return { hintedMidDrag }
+}
+
+/** Which connections are visible, and what each is drawn against. */
+export async function visibleConnections(
+  page: Page,
+): Promise<Array<{ id: string; start: string | null; end: string | null; count: number }>> {
+  return page.evaluate(() => {
+    const ed = window.__editor!
+    return ed
+      .getCurrentPageShapes()
+      .filter((s) => s.type === 'diagramConnection')
+      .filter((s) => !ed.isShapeHidden(s.id))
+      .map((s) => {
+        const util = ed.getShapeUtil(s) as never as {
+          nodeIdFor(shape: unknown, terminal: string): string | null
+          mergeCount(shape: unknown): number
+        }
+        return {
+          id: s.id as string,
+          start: util.nodeIdFor(s, 'start'),
+          end: util.nodeIdFor(s, 'end'),
+          count: util.mergeCount(s),
+        }
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : 1))
+  })
+}
