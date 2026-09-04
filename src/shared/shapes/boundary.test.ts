@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { createTLSchema, defaultShapeSchemas, defaultBindingSchemas } from '@tldraw/tlschema'
 import { NodeShapeUtil } from '../../client/shapes/NodeShapeUtil'
-import { customShapeSchemas, NODE_SHAPE_TYPE, nodeShapeDefaultProps } from './index'
+import {
+  customShapeSchemas,
+  customBindingSchemas,
+  NODE_SHAPE_TYPE,
+  CONNECTION_BINDING_TYPE,
+  nodeShapeDefaultProps,
+} from './index'
+import { ConnectionBindingUtil } from '../../client/bindings/ConnectionBindingUtil'
 
 /**
  * The ONE test that legitimately imports across both runtimes. `shared-imports.test.ts`
@@ -12,7 +19,7 @@ import { customShapeSchemas, NODE_SHAPE_TYPE, nodeShapeDefaultProps } from './in
  */
 const workerSchema = createTLSchema({
   shapes: { ...defaultShapeSchemas, ...customShapeSchemas },
-  bindings: defaultBindingSchemas,
+  bindings: { ...defaultBindingSchemas, ...customBindingSchemas },
 })
 
 describe('client / worker shape boundary', () => {
@@ -61,6 +68,32 @@ describe('client / worker shape boundary', () => {
     expect(() =>
       workerSchema.validateRecord(null as never, shape as never, 'createRecord', null),
     ).toThrow(/props\.w/)
+  })
+
+  it('the worker schema still knows tldraw own arrow binding — bindings REPLACE the defaults', () => {
+    // The same replace-not-extend trap SPEC-003 hit with shapes. Without the
+    // spread, every built-in binding becomes unknown at the room boundary.
+    expect(workerSchema.serialize().sequences['com.tldraw.binding.arrow']).toBeDefined()
+    expect(
+      workerSchema.serialize().sequences[`com.tldraw.binding.${CONNECTION_BINDING_TYPE}`],
+    ).toBeDefined()
+  })
+
+  it('client and worker carry the SAME migration sequence version for the BINDING', () => {
+    // Props validators can agree while the two sides carry different binding
+    // sequences -- a connection-level failure no record check would see.
+    const clientSchema = createTLSchema({
+      shapes: { ...defaultShapeSchemas, ...customShapeSchemas },
+      bindings: {
+        ...defaultBindingSchemas,
+        [CONNECTION_BINDING_TYPE]: {
+          props: ConnectionBindingUtil.props,
+          migrations: ConnectionBindingUtil.migrations,
+        },
+      },
+    })
+    const key = `com.tldraw.binding.${CONNECTION_BINDING_TYPE}`
+    expect(clientSchema.serialize().sequences[key]).toBe(workerSchema.serialize().sequences[key])
   })
 
   it('client and worker carry the SAME migration sequence version for the shape', () => {

@@ -5,7 +5,7 @@ import {
   useIsToolSelected,
   useTools,
 } from 'tldraw'
-import { NODE_SHAPE_TYPE } from '@shared/shapes'
+import { NODE_SHAPE_TYPE, CONNECTION_SHAPE_TYPE } from '@shared/shapes'
 
 /**
  * `uiOverrides.tools` registers a tool but does NOT put it in the toolbar --
@@ -15,10 +15,13 @@ import { NODE_SHAPE_TYPE } from '@shared/shapes'
 export function Toolbar() {
   const tools = useTools()
   const nodeTool = tools[NODE_SHAPE_TYPE]
-  const isSelected = useIsToolSelected(nodeTool)
+  const connectionTool = tools[CONNECTION_SHAPE_TYPE]
+  const nodeSelected = useIsToolSelected(nodeTool)
+  const connectionSelected = useIsToolSelected(connectionTool)
   return (
     <DefaultToolbar>
-      {nodeTool && <TldrawUiMenuItem {...nodeTool} isSelected={isSelected} />}
+      {nodeTool && <TldrawUiMenuItem {...nodeTool} isSelected={nodeSelected} />}
+      {connectionTool && <TldrawUiMenuItem {...connectionTool} isSelected={connectionSelected} />}
       <DefaultToolbarContent />
     </DefaultToolbar>
   )

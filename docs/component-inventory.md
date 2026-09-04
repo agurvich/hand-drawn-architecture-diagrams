@@ -17,3 +17,7 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `roomSchema` | `src/worker/schema.ts` | Worker half: built-ins spread in alongside the custom shapes |
 | `hierarchy` | `src/shared/shapes/hierarchy.ts` | Pure rules: `collapsedAncestorOf`, `isHiddenByCollapse`, `wouldCreateCycle`, `descendantCount` — injected accessors, no Editor |
 | `stripHiddenFromSelection` | `src/client/selection.ts` | Side effect keeping hidden shapes out of `selectedShapeIds`; hiding alone does not prevent selection |
+| Connection shape + binding | `src/shared/shapes/connection.ts`, `src/shared/bindings/connection.ts` | The `diagramConnection` shape and `connectionEndpoint` binding; one declaration, both runtimes |
+| `ConnectionShapeUtil` | `src/client/shapes/ConnectionShapeUtil.tsx` | Derives anchors from bound nodes' page transforms at geometry time; never stores them |
+| `ConnectionBindingUtil` | `src/client/bindings/ConnectionBindingUtil.ts` | Reparents the connection to the page, and deletes it when an endpoint goes |
+| `shouldHide` | `src/client/visibility.ts` | Nodes hide by ancestry, connections hide by relationship — one entry point for `getShapeVisibility` |

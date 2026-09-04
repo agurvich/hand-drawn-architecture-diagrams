@@ -3,9 +3,9 @@ import { Tldraw, type Editor, type TLShape } from 'tldraw'
 import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
-import { isHiddenByCollapse } from '@shared/shapes'
 import { stripHiddenFromSelection } from './selection'
-import { components, shapeUtils, tools, uiOverrides } from './shapes/registry'
+import { bindingUtils, components, shapeUtils, tools, uiOverrides } from './shapes/registry'
+import { shouldHide } from './visibility'
 import { unvalidatedSchemaIfRequested } from './devOnly'
 import 'tldraw/tldraw.css'
 
@@ -33,22 +33,25 @@ const failLoudlyAssetStore: TLAssetStore = {
  * Room.tsx re-renders on connection status, so that would happen in normal use.
  */
 const getShapeVisibility = (shape: TLShape, editor: Editor) =>
-  isHiddenByCollapse(shape, (id) => editor.getShape(id as TLShape['id'])) ? 'hidden' : 'inherit'
+  shouldHide(shape, editor) ? 'hidden' : 'inherit'
 
 /** How long a connection may sit in `loading` before we admit it may never arrive. */
 const SLOW_CONNECTION_MS = 10_000
 
 export function Room({ roomId }: { roomId: RoomId }) {
   const uri = useMemo(() => syncUri(window.location.origin, roomId), [roomId])
-  // shapeUtils goes to BOTH useSync and <Tldraw>: useSync does not include the
-  // defaults the way <Tldraw> does, so omitting it here drops every built-in
-  // shape from the synced store.
+  // shapeUtils AND bindingUtils go to BOTH useSync and <Tldraw>: useSync does
+  // not include the defaults the way <Tldraw> does, so omitting either here
+  // drops it from the SYNCED STORE's schema. Passing bindingUtils only to
+  // <Tldraw> registers the util on the editor while leaving the store unable to
+  // validate the record -- "Expected one of arrow, got connectionEndpoint", from
+  // a store that looks correctly configured from the editor's side.
   // See devOnly.ts: dev + an explicit URL flag, never in a production bundle.
   const devSchema = useMemo(() => unvalidatedSchemaIfRequested(), [])
   const store = useSync(
     devSchema
       ? { uri, assets: failLoudlyAssetStore, schema: devSchema }
-      : { uri, assets: failLoudlyAssetStore, shapeUtils },
+      : { uri, assets: failLoudlyAssetStore, shapeUtils, bindingUtils },
   )
 
   const [slow, setSlow] = useState(false)
@@ -97,6 +100,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
       <Tldraw
         store={store.store}
         shapeUtils={shapeUtils}
+        bindingUtils={bindingUtils}
         tools={tools}
         overrides={uiOverrides}
         components={components}

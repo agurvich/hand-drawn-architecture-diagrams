@@ -1,7 +1,20 @@
 import { NODE_SHAPE_TYPE, nodeShapeProps, nodeShapeMigrations, type NodeShape } from './node'
+import {
+  CONNECTION_SHAPE_TYPE,
+  connectionShapeProps,
+  connectionShapeMigrations,
+  type ConnectionShape,
+} from './connection'
+import {
+  CONNECTION_BINDING_TYPE,
+  connectionBindingProps,
+  connectionBindingMigrations,
+} from '../bindings/connection'
 
 export * from './node'
 export * from './hierarchy'
+export * from './connection'
+export * from '../bindings/connection'
 
 /**
  * The registry both runtimes consume. The client maps these to ShapeUtils; the
@@ -9,6 +22,22 @@ export * from './hierarchy'
  */
 export const customShapeSchemas = {
   [NODE_SHAPE_TYPE]: { props: nodeShapeProps, migrations: nodeShapeMigrations },
+  [CONNECTION_SHAPE_TYPE]: {
+    props: connectionShapeProps,
+    migrations: connectionShapeMigrations,
+  },
 } as const
 
-export type CustomShape = NodeShape
+/**
+ * Bindings register exactly as shapes do, and the worker spreads these alongside
+ * `defaultBindingSchemas` -- `bindings` REPLACES the defaults, the same
+ * replace-not-extend trap SPEC-003 hit with shapes.
+ */
+export const customBindingSchemas = {
+  [CONNECTION_BINDING_TYPE]: {
+    props: connectionBindingProps,
+    migrations: connectionBindingMigrations,
+  },
+} as const
+
+export type CustomShape = NodeShape | ConnectionShape
