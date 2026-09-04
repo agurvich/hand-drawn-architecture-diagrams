@@ -104,8 +104,11 @@ box, and the box is closed. It hides.
 
 - [ ] With X and Y both inside collapsed P, a connection X → Y is hidden
 - [ ] Expanding P restores it
-- [ ] A connection X → P, where X is inside P and **P is expanded**, stays visible and keeps SPEC-005
-      FR-002's containment anchoring. The predecessor skipped this case for want of a sensible
+- [ ] A connection X → P, where X is inside P and **P is expanded with no collapsed ancestor of its
+      own**, stays visible and keeps SPEC-005 FR-002's containment anchoring. The qualifier is not
+      pedantry: with P expanded but sitting inside a collapsed R, both endpoints resolve to R and the
+      line correctly hides, so the criterion is false as a universal and a test written from the
+      short version asserts the wrong thing. The predecessor skipped this case for want of a sensible
       anchor; SPEC-005 built one and tests it, so the skip is **not** ported — and it is unnecessary,
       because after resolution one endpoint can only be a strict ancestor of the other when that
       ancestor is expanded (if it were collapsed, both would resolve to the same outermost container
@@ -126,15 +129,23 @@ one, which reports how many it stands for.
 
 - [ ] Three connections from distinct children of collapsed P to the same outside node Y render as
       **one** visible line
-- [ ] That line displays the count it stands for, and the count is 3 in the case above
+- [ ] That line displays the count it stands for, and the count is 3 in the case above. Rendered by
+      `component()` at the line's midpoint under `data-testid="diagram-connection-count"` — named
+      here because the e2e helper this spec promises cannot be written without a selector
 - [ ] A line standing for exactly one connection displays **no** count — the count is information
       about merging, not decoration
 - [ ] Direction is part of the identity: X → Y and Y → X resolving to the same pair of containers
       produce **two** lines, not one. Asserted on the set of **unhidden connection shape ids**, not on
       pixels: with parallel-line offsetting out of scope the two lines are coincident on screen
 - [ ] Expanding P restores all three lines, each against its own child
-- [ ] Two connections between the same pair of *visible* nodes do **not** merge — merging is a
-      consequence of collapse, and this spec does not change what an expanded diagram looks like
+- [ ] Two connections between the same pair of *visible* nodes do **not** merge **when no other
+      connection resolves onto that same pair** — merging is a consequence of collapse, and this spec
+      does not change what an expanded diagram looks like. The qualifier is required by rule 5's gate
+      being scoped to the group: once one member is resolved, hand-drawn duplicates beside it merge
+      too. Without it, this criterion and the mixed case below cannot both hold
+- [ ] The mixed case, which decides how the gate is scoped: with X inside collapsed P, a connection
+      X → Y **and** a hand-drawn P → Y render as **one** line with a count of 2. Expanding P returns
+      them to two lines with no count, and neither connection's records changed
 
 ### FR-004: The merged view is derived, never materialized
 
@@ -156,14 +167,20 @@ ritual in `CLAUDE.md` → *On spec completion*.
 - [ ] `debugStoredSnapshot` is **extended to report every stored shape's `type`** — it currently
       reports one shape found by `props.label` plus the binding list, which cannot express this
       criterion — and the snapshot taken while a container is collapsed contains no shape type other
-      than `diagramNode` and `diagramConnection`, and no more `diagramConnection` records than were
-      drawn
+      than `diagramNode` and `diagramConnection`, and exactly as many `diagramConnection` records as
+      the test itself created. The expected number is the test's own constant, not a count of what a
+      client rendered: the snapshot is worker storage and rendering is a client concern, and joining
+      the two across processes is what would make this assertion mean something other than what it
+      says
 - [ ] Two clients in one room, one of which collapses P, both derive the **same representative** —
       the merged line in each client is the same connection shape id. Asserted across clients,
       because a non-deterministic choice is invisible in a single client and produces two different
       pictures of one room
-- [ ] After client A sets `collapsed: true` on P and nothing else crosses the wire, client B renders
-      one line between P and Y showing a count of 3, from the collapse record alone
+- [ ] After client A sets `collapsed: true` on P, client B renders one line between P and Y showing a
+      count of 3, **and B's full record set is identical to A's** — so B derived the merged view
+      rather than receiving it. Stated this way because "no merge-specific message crossed the wire"
+      is both unassertable with the tooling here and vacuously true (no such message type exists);
+      the record-set equality is the same claim in a form a test can make
 
 ### FR-005: An endpoint can be re-aimed (owed from SPEC-005 FR-004)
 
@@ -182,7 +199,9 @@ the handler; this builds it. The criteria are SPEC-005 FR-004's, unchanged in su
       connection
 - [ ] Dropping an endpoint on the connection's *other* endpoint node is refused — a self-connection
       is not created by the back door
-- [ ] The node under a dragged endpoint is hinted, so the user can see what it will attach to
+- [ ] The node under a dragged endpoint is hinted via tldraw's own mechanism —
+      `editor.setHintingShapes([id])` during the drag, cleared on drop — so the hint is assertable
+      through `editor.getHintingShapeIds()` rather than through pixels
 - [ ] Re-aiming an endpoint onto a node inside a **collapsed** container binds to that node and the
       line immediately resolves onto the container, per FR-001 — the two features meet here, and the
       binding records what was dropped on rather than what is drawn
@@ -199,10 +218,15 @@ three. Rather than pick, the affordance FR-005 builds is withdrawn while the lin
 - [ ] A line standing for more than one connection offers **no** endpoint handles
 - [ ] A line standing for exactly one connection — including one that has been resolved onto a
       collapsed container — keeps its handles and can still be re-aimed per FR-005
-- [ ] Deleting a merged line deletes exactly the one connection it is; the remaining connections
-      re-merge, a line is still drawn, and its count has dropped by one. This is the documented
-      consequence of the Out of Scope decision above, asserted so it is a known behaviour rather than
-      a discovered one
+- [ ] Deleting a merged line deletes exactly the one connection it is, and nothing else. **The count
+      does not simply decrement** — the whole derivation reruns, so with P collapsed containing X and
+      Y and connections X → Z and Y → Z merged into one ×2 line, deleting the drawn line leaves one
+      uncounted line
+- [ ] And the case where the gate flips back off: with P collapsed containing X, one connection
+      X → Y and two hand-drawn P → Y connections merged into one ×3 line, deleting the drawn line can
+      remove the group's only *resolved* member, so rule 5's gate now fails and the remainder return
+      to **two separate uncounted lines**. Asserted because "the count drops by one" is the obvious
+      wrong expectation here, and it is the shape this criterion had before the gate existed
 - [ ] Undo after that delete restores the connection and the count returns to its previous value
 
 ---
@@ -251,7 +275,12 @@ export interface MergeEntry {
 
 export type MergeIndex = ReadonlyMap<string, MergeEntry>
 
-/** The outermost collapsed ancestor, or the shape itself when nothing hides it. */
+/**
+ * The outermost collapsed ancestor, or the shape itself when nothing hides it.
+ * On a parentId cycle it returns the shape itself -- the same refusal-to-loop
+ * convention hierarchy.ts already uses, so a cycle degrades to "unresolved"
+ * rather than to an asymmetric answer where a resolves to b and b to itself.
+ */
 export function visibleStandInFor(shape: HierarchyShape, getShape: GetShape): HierarchyShape
 
 export function computeMergeIndex(
@@ -263,17 +292,46 @@ export function computeMergeIndex(
 **The derivation, stated so no part of it is left to the implementer:**
 
 1. A connection with either terminal unbound is never hidden and never merged — `count: 1`, the null
-   terminal drawn from the shape's fallback props. This is the mid-drag state.
-2. A bound terminal whose node id resolves to no shape gives `hidden: true`. SPEC-005's
+   terminal drawn from the shape's fallback props. This is the mid-drag state. **The *bound* half is
+   still resolved**: a half-drawn line whose bound end sits inside a collapsed container is drawn
+   against the container, not into it. Leaving it unresolved would have `getTerminalsInPageSpace`
+   read the page bounds of an invisible node.
+2. A bound terminal whose node id resolves to no shape gives `hidden: true`, `count: 1`. SPEC-005's
    `onBeforeDeleteToShape` should make this transient; hiding is the same defensive answer
    `visibility.ts` gives today.
 3. Otherwise resolve both terminals through `visibleStandInFor`. Equal resolutions give
-   `hidden: true` (FR-002).
-4. Group the survivors by the ordered key `${startNodeId}=>${endNodeId}` **after** resolution. The
-   **representative is the group member with the lexicographically smallest connection shape id**;
-   it carries `count` = the group size, and every other member gets `hidden: true`. Smallest id
-   rather than creation order or `index`, because two clients can create concurrently and only the
-   id is a value both already agree on.
+   `hidden: true` (FR-002) — which is also where a self-connection already in the records goes,
+   since it resolves equal at *any* collapse state, so an `A → A` hides even in a fully expanded
+   diagram. FR-005 refuses to create one and SPEC-005's tool refuses to draw one, so this is
+   reachable only through a future import path; noted rather than guarded.
+4. **The survivors are the connections not hidden by rules 2-3 *and* with both terminals bound** —
+   a rule-1 connection never enters a group, or two half-drawn lines off the same collapsed
+   container would collide on the key `P=>null` and one would be hidden mid-drag. Group the
+   survivors by the ordered key `${startNodeId}=>${endNodeId}` **after** resolution, then apply
+   rule 5's gate. In a group that merges, the **representative is the member with the smallest
+   connection shape id under plain `<` on the string** — UTF-16 code-unit order, explicitly *not*
+   `localeCompare`, which disagrees with `<` on the mixed-case ids tldraw generates. It carries
+   `count` = the group size, and every other member gets `hidden: true`. Smallest id rather than
+   creation order or `index`, because two clients can create concurrently and only the id is a
+   value both already agree on.
+5. **The gate: a group merges only if at least one of its members was actually resolved** — that is,
+   at least one member has a terminal whose resolved id differs from its bound id. A group where
+   nothing resolved is left as N separate entries, each `count: 1` and none hidden, which is exactly
+   today's behaviour. **Settled by the user, 2026-09-04.** Grouping on the resolved key alone would
+   merge two hand-drawn connections between two *visible* nodes, so an expanded diagram would lose a
+   line and grow a count badge — and this spec promises not to change what an expanded diagram looks
+   like. The gate is on the **group**, not the member: once collapse has made a relationship coarse,
+   every connection that has become that relationship merges into it, including hand-drawn ones that
+   would not have merged on their own.
+
+   Evaluating the gate needs each member's **bound** ids alongside its resolved ones, which is an
+   intermediate inside `computeMergeIndex` — `MergeEntry` must **not** grow a field for it. Nothing
+   downstream of the index needs to know whether a line was resolved.
+
+**Every entry's ids, hidden or not, are the RESOLVED ids**, except a terminal whose node is gone
+(rule 2), which keeps its raw bound id because there is nothing to resolve it against. Nothing
+renders a hidden entry, but the entry is a return value and a unit test asserting a whole object
+should not have to guess.
 
 `visibleStandInFor` is the outermost-collapsed-ancestor walk FR-001 needs. It is **not** the same
 function as `collapsedAncestorOf`, which SPEC-004 defined as the *nearest* collapsed ancestor and
@@ -301,6 +359,11 @@ subject — stated here so it is not re-raised later as duplication.
 // The structural reason this cannot go wrong by accident: merge.ts is a pure
 // src/shared module with no access to page transforms in the first place.
 // getGeometry keeps reading live bounds, as it does today.
+// The `computed` has to live SOMEWHERE across calls: a bare function that builds
+// one per invocation silently reverts to recomputing per shape per change, which
+// is the thing the wrapper exists to prevent, and it reverts silently. Hold it in
+// a module-level WeakMap<Editor, Computed<MergeIndex>>, created on first use and
+// collected with the editor.
 export function getMergeIndex(editor: Editor): MergeIndex
 
 // Consumers, both existing:
@@ -363,11 +426,12 @@ docs/
 ## Implementation Phases
 
 ### Phase 1: The derivation, in isolation
-- `src/shared/shapes/merge.ts`: `visibleStandInFor`, `computeMergeIndex`, and the four derivation
-  rules including smallest-id representative selection
+- `src/shared/shapes/merge.ts`: `visibleStandInFor`, `computeMergeIndex`, and the five derivation
+  rules including smallest-id representative selection and the group gate
 - Unit tests covering nested collapse, internal-to-container, direction, unbound and dangling
-  terminals, and the ancestor case FR-002 keeps visible — all without an Editor, as
-  `hierarchy.test.ts` does
+  terminals, the ancestor case FR-002 keeps visible, and — for rule 5 — two hand-drawn connections
+  between two visible nodes, the mixed case, and the deletion that flips the gate back off. All
+  without an Editor, as `hierarchy.test.ts` does
 
 ### Phase 2: Wiring it to the canvas
 - `src/client/mergeIndex.ts` and the `computed` wrapper
