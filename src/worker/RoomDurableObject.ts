@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers'
 import { InMemorySyncStorage, TLSocketRoom } from '@tldraw/sync-core'
+import { roomSchema } from './schema'
 
 /**
  * One Durable Object per room: a single authoritative copy of the document,
@@ -34,7 +35,9 @@ export class RoomDurableObject extends DurableObject<Env> {
         onChange: () => this.schedulePersist(),
       })
 
-      const room = new TLSocketRoom<any, void>({ storage })
+      // The schema must be the SAME one the client builds its ShapeUtils from, or
+      // records are rejected at the boundary. Both derive from src/shared/shapes.
+      const room = new TLSocketRoom<any, void>({ schema: roomSchema, storage })
       this.storage = storage
       this.room = room
       return room
@@ -43,8 +46,10 @@ export class RoomDurableObject extends DurableObject<Env> {
   }
 
   private schedulePersist() {
+    console.log('[DO] onDataChange fired')
     if (this.persistTimer) clearTimeout(this.persistTimer)
     this.persistTimer = setTimeout(() => {
+      console.log('[DO] debounce timer fired')
       void this.persist()
     }, RoomDurableObject.PERSIST_DEBOUNCE_MS)
   }

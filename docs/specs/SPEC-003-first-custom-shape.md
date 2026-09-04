@@ -1,7 +1,7 @@
 # Spec: First custom shape under sync
 
 **ID:** SPEC-003  
-**Status:** Draft  
+**Status:** In Progress  
 **Last Updated:** 2026-09-03 (rev 4 — post-fix-verification)  
 **Depends On:** SPEC-002
 

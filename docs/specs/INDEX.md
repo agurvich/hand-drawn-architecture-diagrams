@@ -7,7 +7,7 @@ to status only — no prose.
 |------|-------|--------|------------|
 | SPEC-001 | Scaffold and canvas | Completed | None |
 | SPEC-002 | Sync foundation | Completed | SPEC-001 |
-| SPEC-003 | First custom shape under sync | Draft | SPEC-002 |
+| SPEC-003 | First custom shape under sync | In Progress | SPEC-002 |
 
 ## Arcs (build order)
 
