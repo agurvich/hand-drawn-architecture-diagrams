@@ -25,6 +25,22 @@
   two sides carry different migration sequences — a connection-level failure no record-level check
   can see, because nothing is ever rejected.
 
+### Owed — recorded late (2026-09-04)
+
+**FR-004's last criterion was not met, and this spec was marked Completed without recording it.**
+The criterion — *"a room persisted at v1 opens after the v2 migration ships"* — needs a checked-in v1
+snapshot and a dev-only seeding route. Neither was built: there is no `e2e/fixtures/`, and
+`src/worker/index.ts` carries only read-only dev routes.
+
+`process.md` §3 requires a criterion that cannot settle before the push to be recorded as **owed**,
+not silently passed. It was not, and the miss was found by SPEC-004's spec review rather than by
+this spec's own gates.
+
+The migration logic itself **is** covered by unit tests (`node.test.ts`, up and down). What is
+missing is the end-to-end case that a real persisted room survives the migration. **SPEC-004 builds
+the seeding route and fixture** — it needs the same infrastructure for its own v2→v3 migration — and
+settles this criterion there.
+
 ### Deliberate deviations
 
 - **`uiOverrides.tools` alone does not put a tool on the toolbar.** It registers the tool; the toolbar

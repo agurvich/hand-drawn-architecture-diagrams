@@ -39,7 +39,7 @@ and tested rather than one that has been read about.
   props to warrant one.
 - **Porting the predecessor's `DiagramNode` type.** Its shape is informative but it was designed for a
   different renderer, and adopting it here would import decisions this foundation may not want. The
-  port proper is SPEC-006.
+  port proper is the JSON export/import spec — see `docs/specs/INDEX.md` for its current number.
 
 ---
 
