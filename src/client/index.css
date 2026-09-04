@@ -1,0 +1,27 @@
+/* The canvas owns the whole viewport and every gesture on it.
+
+   `touch-action: none` and `overscroll-behavior: none` are the two lines that
+   make SPEC-001 FR-003's "the page did not scroll" criterion pass. Without
+   them a drawing drag on iPad scrolls or rubber-bands the page instead of
+   drawing, which is the single most important thing this spec verifies. */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  /* Stop iOS text-size adjustment and the tap highlight from touching canvas UI. */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.canvas-host {
+  position: fixed;
+  inset: 0;
+  touch-action: none;
+}

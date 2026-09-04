@@ -5,7 +5,7 @@ to status only — no prose.
 
 | Spec | Title | Status | Depends On |
 |------|-------|--------|------------|
-| SPEC-001 | Scaffold and canvas | Draft | None |
+| SPEC-001 | Scaffold and canvas | In Progress | None |
 | SPEC-002 | Sync foundation | Draft | SPEC-001 |
 | SPEC-003 | First custom shape under sync | Draft | SPEC-002 |
 
