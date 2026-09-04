@@ -369,6 +369,68 @@ test.describe('SPEC-006 FR-004 — the merged view is derived, never materialize
   })
 })
 
+test.describe('SPEC-004 FR-004 / SPEC-006 — a merged-away connection cannot stay selected', () => {
+  test('collapsing drops the hidden members of a merge group from the selection', async ({
+    page,
+  }) => {
+    // The selection stripper used to ask isHiddenByCollapse, which walks parentId
+    // -- and a connection is parented to the PAGE, so it answered "not hidden"
+    // for every connection there has ever been. Harmless while a hidden
+    // connection's endpoints were hidden too; a data-loss path once a line is
+    // still DRAWN in the hidden one's place: select it, press Delete, and a
+    // different invisible connection is destroyed.
+    await openRoom(page, roomId('ms1'))
+    const y = await addNode(page, 'Y', { x: 80, y: 700, w: 160, h: 100 })
+    const p = await addNode(page, 'P', { x: 600, y: 120, w: 420, h: 300 })
+    const c1 = await addNode(page, 'C1', { x: 30, y: 40, w: 140, h: 70, parentId: p })
+    const c2 = await addNode(page, 'C2', { x: 30, y: 150, w: 140, h: 70, parentId: p })
+    const keep = await addConnection(page, c1, y, 'shape:aaa000select1')
+    const merged = await addConnection(page, c2, y, 'shape:bbb000select2')
+
+    await page.evaluate(
+      (ids) => {
+        window.__editor!.select(...(ids as never[]))
+      },
+      [keep, merged],
+    )
+    expect(await page.evaluate(() => window.__editor!.getSelectedShapeIds())).toHaveLength(2)
+
+    await setCollapsed(page, p, true)
+
+    // Only the line still on screen survives the selection.
+    expect(await page.evaluate(() => window.__editor!.getSelectedShapeIds())).toEqual([keep])
+
+    // And so Delete removes the one the user is looking at, not the other one.
+    await page.evaluate(() => {
+      window.__editor!.deleteShapes(window.__editor!.getSelectedShapeIds())
+    })
+    expect(
+      await page.evaluate(() =>
+        window
+          .__editor!.getCurrentPageShapes()
+          .filter((s) => s.type === 'diagramConnection')
+          .map((s) => s.id as string),
+      ),
+    ).toEqual([merged])
+  })
+
+  test('collapsing also drops a selected NODE from inside the container', async ({ page }) => {
+    // Not connection-specific, and it was already broken: SPEC-004's own test
+    // collapses FIRST and then selects, so select-then-collapse went uncovered.
+    await openRoom(page, roomId('ms2'))
+    const root = await addNode(page, 'root', { x: 100, y: 100, w: 400, h: 260 })
+    const child = await addNode(page, 'child', { x: 40, y: 40, w: 160, h: 90, parentId: root })
+
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, child)
+    expect(await page.evaluate(() => window.__editor!.getSelectedShapeIds())).toEqual([child])
+
+    await setCollapsed(page, root, true)
+    expect(await page.evaluate(() => window.__editor!.getSelectedShapeIds())).toEqual([])
+  })
+})
+
 test.describe('SPEC-006 FR-006 — a merged line is not edited as one connection', () => {
   test('a merged line offers no endpoint handles; an unmerged one keeps them', async ({ page }) => {
     await openRoom(page, roomId('mh1'))
@@ -464,15 +526,19 @@ test.describe('SPEC-006 FR-006 — a merged line is not edited as one connection
     const y = await addNode(page, 'Y', { x: 80, y: 700, w: 160, h: 100 })
     const p = await addNode(page, 'P', { x: 600, y: 120, w: 420, h: 300 })
     const x = await addNode(page, 'X', { x: 30, y: 40, w: 140, h: 70, parentId: p })
-    const crossing = await addConnection(page, x, y)
-    await addConnection(page, p, y)
-    await addConnection(page, p, y)
+    // The representative is the SMALLEST shape id, so the id is pinned rather
+    // than left to `addConnection`'s random one. Without this the resolved
+    // member represents the group only about a third of the time, and both the
+    // gesture under test and the outcome become a coin toss.
+    const crossing = await addConnection(page, x, y, 'shape:aaa000merge01')
+    await addConnection(page, p, y, 'shape:bbb000merge02')
+    await addConnection(page, p, y, 'shape:ccc000merge03')
 
     await setCollapsed(page, p, true)
     const [merged] = await visibleConnections(page)
     expect(merged).toMatchObject({ count: 3 })
-    // The drawn line IS the resolved member here -- assert that rather than
-    // assume it, or this deletes a hidden shape and tests nothing reachable.
+    // Deleting the line the user can actually see, which here is the resolved
+    // member -- that is the whole point of pinning the ids.
     expect(merged!.id).toBe(crossing)
 
     await page.evaluate((id) => {

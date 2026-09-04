@@ -71,13 +71,24 @@ export async function setCollapsed(page: Page, id: string, collapsed: boolean) {
   )
 }
 
-/** Create a connection between two nodes, the way ConnectionTool does. */
-export async function addConnection(page: Page, fromId: string, toId: string): Promise<string> {
+/**
+ * Create a connection between two nodes, the way ConnectionTool does.
+ *
+ * `id` is for tests that care WHICH connection represents a merge group: the
+ * representative is the smallest shape id, and the default random ids make that
+ * a coin toss.
+ */
+export async function addConnection(
+  page: Page,
+  fromId: string,
+  toId: string,
+  id?: string,
+): Promise<string> {
   return page.evaluate(
-    ({ fromId, toId }) => {
+    ({ fromId, toId, id }) => {
       const ed = window.__editor!
       const rid = () => Math.random().toString(36).slice(2, 12)
-      const cid = `shape:${rid()}`
+      const cid = id ?? `shape:${rid()}`
       ed.run(() => {
         ed.createShape({ id: cid as never, type: 'diagramConnection', x: 0, y: 0 })
         ed.createBinding({
@@ -97,7 +108,7 @@ export async function addConnection(page: Page, fromId: string, toId: string): P
       })
       return cid
     },
-    { fromId, toId },
+    { fromId, toId, id },
   )
 }
 

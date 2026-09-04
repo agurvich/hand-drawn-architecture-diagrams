@@ -18,6 +18,9 @@
 - **`nodeAtPoint.ts`** — one definition of "which node is under this point", so the connection tool
   and endpoint re-aiming cannot disagree about what a drop attaches to.
 - **`debugStoredSnapshot`** reports every stored shape by `type`.
+- **`selection.ts` now asks `editor.isShapeHidden`**, the same question the canvas asks, instead of
+  `isHiddenByCollapse` — and gained a reaction, because the existing guard only fires when the
+  SELECTION changes, never when a selected shape BECOMES hidden. See below.
 
 ### Deliberate deviations
 
@@ -45,9 +48,27 @@
   They differ only under nested collapse, which is exactly the case each is for. Not refactored into
   one: `isHiddenByCollapse` is shipped, tested code with its own subject.
 
+## A defect this spec surfaced rather than caused
+
+**A merged-away connection stayed selected, and Delete then destroyed it unseen.**
+`stripHiddenFromSelection` asked `isHiddenByCollapse`, which walks `parentId` — and a connection is
+parented to the page, so it answered "not hidden" for every connection there has ever been. It also
+only ran as a *before* handler on the selection, so a shape that became hidden while already
+selected was never re-checked at all; SPEC-004's own test collapses first and then selects, which is
+why neither half showed up.
+
+Harmless while a hidden connection's endpoints were hidden with it. Once a line is still drawn in
+its place, it is a data-loss path: select the visible line, press Delete, and a different invisible
+connection is destroyed with no feedback but a count quietly changing. Found by the diff review
+frame that drove the running app rather than reading the diff.
+
+Both halves are fixed and both are mutation-tested. The second half was never connection-specific —
+collapsing a container while one of its children was selected left the child selected too — so there
+is a test for the node case as well.
+
 ## Verification
 
-typecheck 0 · oxlint 0 errors · prettier 0 · unit 76/76 · e2e 80/80 · spec-lint 0 · docs-lint ok.
+typecheck 0 · oxlint 0 errors · prettier 0 · unit 76/76 · e2e 82/82 · spec-lint 0 · docs-lint ok.
 
 **Every load-bearing rule was mutation-tested rather than assumed:**
 
@@ -58,12 +79,21 @@ typecheck 0 · oxlint 0 errors · prettier 0 · unit 76/76 · e2e 80/80 · spec-
 | `visibleStandInFor` returns the *nearest* collapsed ancestor | the nested-collapse test |
 | Rule 5's gate removed (group merges unconditionally) | 2 tests |
 | Re-aim silently refused for a *resolved* terminal | the resolved-handle test — **added by the diff review, which found this one surviving** |
+| Selection reaction does nothing | both selection tests |
+| Selection filter drops the `isShapeHidden` check | both selection tests |
 
 The criterion worth naming: **collapsing and expanding creates and deletes zero records.** Asserted
 by enumerating the full shape-and-binding id set at three points in time, not by comparing counts,
 and confirmed against *worker storage* through `debugStoredSnapshot`'s shape-type census — a client
 could hide what it wrote, storage cannot. Two clients then derive the same representative from the
 collapse record alone, and the second client's record set is identical to the first's.
+
+One test in this spec shipped **flaky** in an intermediate commit and was caught by a reviewer
+running it twelve times: it pinned the merge representative to a randomly-generated shape id, so it
+held about a third of the time. `addConnection` now takes an optional id, and the test pins it —
+which makes the deletion under test the one the user can actually see, rather than a coin toss
+between a visible and a hidden shape. The lesson is the cheap one: a test that names a *specific*
+member of a set ordered by random ids is flaky by construction, and running it once hides that.
 
 Not asserted by any test: the count badge's halo (`.diagram-connection__count`), which is styling
 only. It was shipped inert in the first draft — `var(--color-background)` is defined nowhere, tldraw's
