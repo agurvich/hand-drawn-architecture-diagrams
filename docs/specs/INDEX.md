@@ -12,21 +12,26 @@ to status only — no prose.
 | SPEC-005 | Connections between nodes | Completed | SPEC-004 |
 | SPEC-006 | Merging connections into a collapsed container | Completed | SPEC-004, SPEC-005 |
 | SPEC-007 | JSON export/import and the AI-authoring schema | Completed | SPEC-004, SPEC-005, SPEC-006 |
+| SPEC-008 | Frames and narration | Draft | SPEC-004, SPEC-006, SPEC-007 |
+| SPEC-009 | Frames in the JSON document | Planned | SPEC-007, SPEC-008 |
 
 ## Arcs (build order)
 
 Group related specs and record the order to build them in. Keep this section: a spec split for size
 (`process.md` §4) always records its order here, even if you group nothing else.
 
-- **Canvas migration:** SPEC-001 → SPEC-002 → SPEC-003 → SPEC-004 → SPEC-005 → SPEC-006 → SPEC-007 → SPEC-008
+- **Canvas migration:** SPEC-001 → SPEC-002 → SPEC-003 → SPEC-004 → SPEC-005 → SPEC-006 → SPEC-007 → SPEC-008 → SPEC-009
 
   The rebuild of `../architecture-diagrams` on tldraw. The order is deliberate and inverts the
   predecessor's handoff plan, which put multiplayer last: sync lands before the first custom shape so
   the client/worker schema duality is proven on a trivial shape rather than retrofitted across a
   finished shape library (`decisions.md` → *Multiplayer lands before the first custom shape*).
 
-  SPEC-001 through SPEC-007 are built. SPEC-008 is **planned, not written** — the shape of each is not knowable until the one before it lands, and a spec authored
+  SPEC-001 through SPEC-007 are built and SPEC-008 is authored. SPEC-009 is **planned, not
+  written** — the shape of each is not knowable until the one before it lands, and a spec authored
   against an unproven foundation is rewritten rather than built:
 
-  - SPEC-008 — Frames and narration. It is what adds a `frames` key to SPEC-007's document, which
-    is why that spec deliberately reserves no empty one.
+  - SPEC-009 — Frames in the JSON document. SPEC-007's document is `version: 1` and rejects unknown
+    keys, so carrying frames means a version 2 and a migration that keeps v1 documents importable.
+    Split out of SPEC-008 rather than grown into it: frames are useful before they are portable, and
+    a document version bump is a different subject from the lens.
