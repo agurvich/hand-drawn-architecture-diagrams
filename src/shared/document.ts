@@ -1,5 +1,9 @@
-import { NODE_SHAPE_TYPE, type NodeShapeProps } from './shapes/node'
-import { CONNECTION_SHAPE_TYPE, type ConnectionShapeProps } from './shapes/connection'
+import { NODE_SHAPE_TYPE, nodeShapeDefaultProps, type NodeShapeProps } from './shapes/node'
+import {
+  CONNECTION_SHAPE_TYPE,
+  connectionShapeDefaultProps,
+  type ConnectionShapeProps,
+} from './shapes/connection'
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
 import { isShapeId, SHAPE_ID_PREFIX } from './shapes/hierarchy'
 
@@ -156,9 +160,11 @@ export function parseDocument(input: string): ParseResult {
   }
 
   // Optional on input, so a node-only document is valid; both are always present
-  // on export.
-  const rawNodes = raw.nodes ?? []
-  const rawConnections = raw.connections ?? []
+  // on export. ABSENT, not nullish: `?? []` would coalesce an explicit
+  // `"nodes": null` into an empty array and accept it, which is the author
+  // writing something wrong and seeing an empty diagram rather than an error.
+  const rawNodes = 'nodes' in raw ? raw.nodes : []
+  const rawConnections = 'connections' in raw ? raw.connections : []
   if (!Array.isArray(rawNodes)) return fail('document.nodes', 'must be an array')
   if (!Array.isArray(rawConnections)) return fail('document.connections', 'must be an array')
 
@@ -403,7 +409,7 @@ export function toDocument(
       // One omit-at-default rule for all three: a field annotated for two of
       // them and silent on the third is how an exporter and a guide diverge.
       if (node.rotation !== 0) out.rotation = node.rotation
-      if (node.props.color !== DEFAULT_NODE_COLOR) out.color = node.props.color
+      if (node.props.color !== nodeShapeDefaultProps.color) out.color = node.props.color
       if (node.props.collapsed) out.collapsed = true
       if (isShapeId(node.parentId)) out.parentId = documentId(node.parentId)
       return out
@@ -439,9 +445,6 @@ export function toDocument(
     connections: documentConnections.sort(byId),
   }
 }
-
-/** The node shape's own default, restated here only as the omit-at-default test. */
-const DEFAULT_NODE_COLOR = 'black'
 
 /**
  * A document to records.
@@ -488,7 +491,7 @@ export function fromDocument(
       w: node.w,
       h: node.h,
       label: node.label,
-      color: node.color ?? DEFAULT_NODE_COLOR,
+      color: node.color ?? nodeShapeDefaultProps.color,
       collapsed: node.collapsed ?? false,
     },
   }))
@@ -503,7 +506,7 @@ export function fromDocument(
     x: 0,
     y: 0,
     rotation: 0,
-    props: { start: { x: 0, y: 0 }, end: { x: 0, y: 0 } },
+    props: { ...connectionShapeDefaultProps },
   }))
 
   const bindings: BindingDescriptor[] = document.connections.flatMap((connection) => [

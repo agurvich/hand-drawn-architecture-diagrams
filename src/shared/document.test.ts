@@ -4,12 +4,14 @@ import {
   toDocument,
   fromDocument,
   DOCUMENT_VERSION,
+  DOCUMENTABLE_SHAPE_TYPES,
   type DiagramDocument,
   type ExportableNode,
   type ExportableConnection,
   type BindingDescriptor,
 } from './document'
-import { NODE_SHAPE_TYPE } from './shapes/node'
+import { NODE_SHAPE_TYPE, nodeShapeDefaultProps } from './shapes/node'
+import { CONNECTION_SHAPE_TYPE, connectionShapeDefaultProps } from './shapes/connection'
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
 
 const PAGE = 'page:main'
@@ -174,10 +176,68 @@ describe('parseDocument — rejection, each naming its path', () => {
     expect(errorFrom(doc({ nodes: [node('')] as never }))).toMatch(/^nodes\[0\]\.id: must match/)
   })
 
+  it('ACCEPTS a bare CSS keyword, including the shape default', () => {
+    // Removing the keyword branch left the whole suite green while making a
+    // legal hand-authored document unimportable.
+    for (const color of [nodeShapeDefaultProps.color, 'red', 'rebeccapurple']) {
+      const result = parseDocument(doc({ nodes: [node('a', { color })] as never }))
+      expect(result.ok).toBe(true)
+    }
+  })
+
   it('rejects an invalid color', () => {
     expect(errorFrom(doc({ nodes: [node('a', { color: '#gggggg' })] as never }))).toBe(
       'nodes[0].color: must be a hex color or a CSS color keyword',
     )
+  })
+
+  it('rejects an explicit null for nodes or connections — `?? []` would swallow it', () => {
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, nodes: null }))).toBe(
+      'document.nodes: must be an array',
+    )
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, connections: null }))).toBe(
+      'document.connections: must be an array',
+    )
+  })
+
+  it('rejects a non-array nodes or connections', () => {
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, nodes: {} }))).toBe(
+      'document.nodes: must be an array',
+    )
+  })
+
+  it('rejects a wrong type on every remaining optional and required field', () => {
+    const cases: Array<[Record<string, unknown>, string]> = [
+      [{ label: 1 }, 'nodes[0].label: must be a string'],
+      [{ rotation: 'x' }, 'nodes[0].rotation: must be a finite number'],
+      [{ collapsed: 'yes' }, 'nodes[0].collapsed: must be a boolean'],
+      [{ parentId: 7 }, 'nodes[0].parentId: must be a string'],
+      [{ color: 7 }, 'nodes[0].color: must be a string'],
+    ]
+    for (const [over, expected] of cases) {
+      expect(errorFrom(doc({ nodes: [node('a', over)] as never }))).toBe(expected)
+    }
+  })
+
+  it('rejects a non-string on a connection endpoint, and a bad connection id', () => {
+    expect(
+      errorFrom(
+        doc({
+          nodes: [node('a')] as never,
+          connections: [{ id: 'c', sourceId: 1, targetId: 'a' }] as never,
+        }),
+      ),
+    ).toBe('connections[0].sourceId: must be a string')
+    // The id pattern applies to CONNECTION ids too -- half of the one-namespace
+    // argument, and it was asserted only for nodes.
+    expect(
+      errorFrom(
+        doc({
+          nodes: [node('a')] as never,
+          connections: [{ id: 'bad id', sourceId: 'a', targetId: 'a' }] as never,
+        }),
+      ),
+    ).toMatch(/^connections\[0\]\.id: must match/)
   })
 
   it('rejects a dangling parentId', () => {
@@ -277,6 +337,23 @@ describe('parseDocument — cycles', () => {
     )
   })
 
+  it('names the lowest member of the CYCLE, not of the tail leading into it', () => {
+    // The 3-cycle above cannot tell these apart: there, index 0 is both. Here
+    // the tail is indices 0-2 and the cycle is 3-5, so a walk-wide minimum
+    // would wrongly report nodes[0].
+    const nodes = [
+      node('t0'),
+      node('t1', { parentId: 't0' }),
+      node('t2', { parentId: 't1' }),
+      node('c0', { parentId: 'c2' }),
+      node('c1', { parentId: 'c0' }),
+      node('c2', { parentId: 'c1' }),
+    ]
+    // t2 hangs off the tail; make it reach the cycle so one walk covers both.
+    nodes[0] = node('t0', { parentId: 'c0' })
+    expect(errorFrom(doc({ nodes: nodes as never }))).toBe('nodes[3].parentId: parentId cycle')
+  })
+
   it('accepts a deep chain that is not a cycle', () => {
     const nodes = Array.from({ length: 200 }, (_, i) =>
       node(`n${i}`, i === 0 ? {} : { parentId: `n${i - 1}` }),
@@ -298,7 +375,11 @@ describe('parseDocument — cycles', () => {
 })
 
 describe('parseDocument — totality', () => {
-  it('reports at least the first of two independent errors, and returns no document', () => {
+  it('rejects a document with two independent errors, naming a real one and returning none', () => {
+    // Which one is named follows the PHASE order (per-field, then identity,
+    // then references, then cycles), not the array index -- so the duplicate at
+    // index 1 outranks the dangling parentId at index 0. Both are genuine; the
+    // guarantee is that no partial document escapes.
     const result = parseDocument(
       doc({ nodes: [node('a', { parentId: 'nope' }), node('a')] as never }),
     )
@@ -327,8 +408,27 @@ describe('toDocument', () => {
   })
 
   it('omits rotation, color and collapsed at their defaults — one rule for all three', () => {
-    const document = toDocument([exportableNode('a')], [], [])
+    const document = toDocument(
+      [exportableNode('a', { props: { ...nodeShapeDefaultProps, w: 100, h: 60, label: 'a' } })],
+      [],
+      [],
+    )
     expect(Object.keys(document.nodes[0]!).sort()).toEqual(['h', 'id', 'label', 'w', 'x', 'y'])
+  })
+
+  it('the omit-at-default colour tracks the SHAPE default, not a copy of it', () => {
+    // A second home for that fact drifts silently: change the shape default and
+    // every export starts emitting an explicit color while the suite stays green.
+    const document = toDocument(
+      [
+        exportableNode('a', {
+          props: { w: 1, h: 1, label: 'a', color: nodeShapeDefaultProps.color, collapsed: false },
+        }),
+      ],
+      [],
+      [],
+    )
+    expect(document.nodes[0]).not.toHaveProperty('color')
   })
 
   it('carries a shape parentId and drops a page parentId', () => {
@@ -434,6 +534,11 @@ describe('toDocument — never emits a document parseDocument rejects', () => {
 
 describe('fromDocument', () => {
   it('mints shape ids and restores the omitted defaults', () => {
+    // The literal 'black' below is a DELIBERATE TRIPWIRE, not laziness. Changing
+    // the node shape's default color silently changes what every existing
+    // document means: a node with no `color` starts importing as the new
+    // default, and every export starts emitting an explicit one. That is a
+    // migration-shaped decision, and this is where someone is made to notice.
     const parsed = parseDocument(doc({ nodes: [node('a')] as never }))
     expect(parsed.ok).toBe(true)
     if (!parsed.ok) return
@@ -453,6 +558,30 @@ describe('fromDocument', () => {
     if (!parsed.ok) throw new Error(parsed.error)
     const { nodes } = fromDocument(parsed.document, PAGE)
     expect(nodes.map((n) => n.id)).toEqual(['shape:p', 'shape:c'])
+  })
+
+  it('parents a connection to the PAGE with zeroed geometry and the default props', () => {
+    // Asserted nowhere before: toDocument never reads these fields, so the
+    // round-trip tests cannot see them either. Parenting a connection to a node
+    // would change its coordinate space on import.
+    const parsed = parseDocument(
+      doc({
+        nodes: [node('a'), node('b')] as never,
+        connections: [{ id: 'c', sourceId: 'a', targetId: 'b' }] as never,
+      }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    const { connections } = fromDocument(parsed.document, PAGE)
+    expect(connections).toEqual([
+      {
+        id: 'shape:c',
+        parentId: PAGE,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        props: connectionShapeDefaultProps,
+      },
+    ])
   })
 
   it('gives each connection two bindings, one per terminal', () => {
@@ -550,10 +679,11 @@ describe('the round trip', () => {
   })
 })
 
-describe('the document module does not reach for the shape type strings', () => {
-  it('exports the node type from the one definition', () => {
-    // Cheap guard that the constants are the source, alongside the mechanical
-    // check in shared-imports.test.ts.
-    expect(NODE_SHAPE_TYPE).toBe('diagramNode')
+describe('the shape types a document can describe', () => {
+  it('is exactly the node and the connection', () => {
+    // Not decoration: a third custom shape type added later has to be a
+    // deliberate decision about whether the document covers it, and this is
+    // where that decision gets made rather than forgotten.
+    expect([...DOCUMENTABLE_SHAPE_TYPES]).toEqual([NODE_SHAPE_TYPE, CONNECTION_SHAPE_TYPE])
   })
 })
