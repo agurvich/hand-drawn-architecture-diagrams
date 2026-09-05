@@ -14,6 +14,20 @@ const ALLOWED_SHARED_IMPORTS = ['@tldraw/tlschema', '@tldraw/validate']
 // Extended, not duplicated: one rule covering every shape AND binding type.
 const TYPE_LITERALS = ["'diagramNode'", "'diagramConnection'", "'connectionEndpoint'"]
 
+/**
+ * The three modules that legitimately WRITE a type string -- they are the one
+ * definition every other file consumes.
+ *
+ * Full paths, not basenames: a future `src/shared/<anything>/node.ts` would
+ * otherwise be silently exempt from the check, which is the quiet way a gate
+ * stops guarding.
+ */
+const TYPE_DEFINITION_MODULES = [
+  resolve(SHARED_DIR, 'shapes/node.ts'),
+  resolve(SHARED_DIR, 'shapes/connection.ts'),
+  resolve(SHARED_DIR, 'bindings/connection.ts'),
+]
+
 /** Source files under `root`, excluding tests and fixtures. */
 function sourceFiles(root: string, opts: { includeTests?: boolean } = {}): string[] {
   const out: string[] = []
@@ -46,11 +60,40 @@ function filesDeclaringShapeTypeLiteral(files: { path: string; text: string }[])
 
 describe('FR-001 — one definition, two consumers', () => {
   it('only the shared definition writes any shape OR binding type string', () => {
-    const consumers = [...sourceFiles(CLIENT_DIR), ...sourceFiles(WORKER_DIR)].map((path) => ({
+    // src/shared is scanned too, minus the three definition modules. It was the
+    // one directory the check did not cover, which made it exactly the place a
+    // duplicate literal could land unseen -- and SPEC-007's document.ts is a
+    // shared module that names all three types.
+    const consumers = [
+      ...sourceFiles(CLIENT_DIR),
+      ...sourceFiles(WORKER_DIR),
+      ...sourceFiles(SHARED_DIR).filter((path) => !TYPE_DEFINITION_MODULES.includes(path)),
+    ].map((path) => ({
       path,
       text: readFileSync(path, 'utf8'),
     }))
     expect(filesDeclaringShapeTypeLiteral(consumers)).toEqual([])
+  })
+
+  it('THE CHECK BITES IN src/shared TOO, not only in the consumer trees', () => {
+    const planted = [
+      {
+        path: 'src/shared/Planted.ts',
+        text: readFileSync(join(FIXTURES, 'duplicate-type-literal.txt'), 'utf8'),
+      },
+    ]
+    expect(filesDeclaringShapeTypeLiteral(planted)).toEqual(['src/shared/Planted.ts'])
+  })
+
+  it('the definition modules are exempt by FULL PATH, and all three still exist', () => {
+    // An exclusion pointing at a moved file is an exclusion that exempts
+    // nothing and hides a real violation behind a passing test.
+    for (const path of TYPE_DEFINITION_MODULES) {
+      expect(statSync(path).isFile()).toBe(true)
+      expect(filesDeclaringShapeTypeLiteral([{ path, text: readFileSync(path, 'utf8') }])).toEqual([
+        path,
+      ])
+    }
   })
 
   it('THE CHECK BITES: a planted duplicate literal is caught, with the offending path named', () => {
