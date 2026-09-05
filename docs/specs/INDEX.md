@@ -11,7 +11,7 @@ to status only — no prose.
 | SPEC-004 | Hierarchical nesting and collapse | Completed | SPEC-003 |
 | SPEC-005 | Connections between nodes | Completed | SPEC-004 |
 | SPEC-006 | Merging connections into a collapsed container | Completed | SPEC-004, SPEC-005 |
-| SPEC-007 | JSON export/import and the AI-authoring schema | Draft | SPEC-004, SPEC-005, SPEC-006 |
+| SPEC-007 | JSON export/import and the AI-authoring schema | In Progress | SPEC-004, SPEC-005, SPEC-006 |
 
 ## Arcs (build order)
 

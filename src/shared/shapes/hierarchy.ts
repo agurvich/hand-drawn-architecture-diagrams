@@ -29,9 +29,15 @@ export interface HierarchyShape {
 export type GetShape = (id: string) => HierarchyShape | undefined
 export type GetChildIds = (parentId: string) => readonly string[]
 
+/**
+ * The prefix tldraw gives every shape record id. Exported so `document.ts` can
+ * mint and strip it without writing the string a second time.
+ */
+export const SHAPE_ID_PREFIX = 'shape:'
+
 /** A parentId that names a page rather than a shape terminates every walk. */
 export function isShapeId(id: string): boolean {
-  return id.startsWith('shape:')
+  return id.startsWith(SHAPE_ID_PREFIX)
 }
 
 /**

@@ -1,7 +1,7 @@
 # Spec: JSON export/import and the AI-authoring schema
 
 **ID:** SPEC-007  
-**Status:** Draft  
+**Status:** In Progress  
 **Last Updated:** 2026-09-05 (rev 3 — post-review)  
 **Depends On:** SPEC-004, SPEC-005, SPEC-006
 
