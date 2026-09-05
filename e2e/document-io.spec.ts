@@ -328,10 +328,61 @@ test.describe('SPEC-007 FR-004 — the manual path, which is the only one on an 
     await expect(page.getByTestId('diagram-io')).toHaveCount(0)
   })
 
-  test('every control is at least 44x44', async ({ page }) => {
-    await openRoom(page, roomId('io8'))
+  test("the launcher does not cover any of tldraw's own UI", async ({ page }) => {
+    // It used to sit at top-right, on top of two of the twelve colour swatches:
+    // tapping violet opened this panel instead. Asserted on overlap rather than
+    // on a position, so the next collision fails here too.
+    await openRoom(page, roomId('io9'))
+    const overlaps = await page.evaluate(() => {
+      const launch = document
+        .querySelector('[data-testid="diagram-io-open"]')!
+        .getBoundingClientRect()
+      const zones = [
+        '.tlui-toolbar',
+        '.tlui-style-panel',
+        '.tlui-menu-zone',
+        '.tlui-navigation-panel',
+        '.tlui-helper-buttons',
+      ]
+      return zones.filter((selector) => {
+        const el = document.querySelector(selector)
+        if (!el) return false
+        const box = el.getBoundingClientRect()
+        if (box.width === 0 || box.height === 0) return false
+        return !(
+          launch.right <= box.left ||
+          launch.left >= box.right ||
+          launch.bottom <= box.top ||
+          launch.top >= box.bottom
+        )
+      })
+    })
+    expect(overlaps).toEqual([])
+  })
+
+  test('the panel fits a 375px viewport without clipping its own headings', async ({ page }) => {
+    await openRoom(page, roomId('io10'))
+    await page.setViewportSize({ width: 375, height: 812 })
     await page.getByTestId('diagram-io-open').click()
-    for (const testId of ['diagram-io-close', 'diagram-io-copy', 'diagram-io-import']) {
+    const box = (await page.getByTestId('diagram-io').boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(375)
+  })
+
+  test('every control is at least 44x44, the dialog included', async ({ page }) => {
+    await openRoom(page, roomId('io8'))
+    await drawBox(page, 200, 200)
+    await page.getByTestId('diagram-io-open').click()
+    await page.getByTestId('diagram-io-paste').fill(MINIMAL)
+    await page.getByTestId('diagram-io-import').click()
+    // Including the confirmation's buttons, which the criterion exists for.
+    for (const testId of [
+      'diagram-io-close',
+      'diagram-io-copy',
+      'diagram-io-import',
+      'diagram-io-confirm-yes',
+      'diagram-io-confirm-no',
+    ]) {
       const box = await page.getByTestId(testId).boundingBox()
       expect(box!.width).toBeGreaterThanOrEqual(44)
       expect(box!.height).toBeGreaterThanOrEqual(44)

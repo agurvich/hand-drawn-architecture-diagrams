@@ -24,8 +24,8 @@ that a whiteboard does not.
 ```ts
 interface DiagramDocument {
   version: 1
-  nodes: DocumentNode[] // optional; defaults to []
-  connections: DocumentConnection[] // optional; defaults to []
+  nodes?: DocumentNode[] // defaults to []
+  connections?: DocumentConnection[] // defaults to []
 }
 ```
 
@@ -40,8 +40,8 @@ interface DocumentNode {
   label: string // shown on the node
   x: number // relative to parentId when set, absolute otherwise
   y: number
-  w: number // width in canvas units
-  h: number // height
+  w: number // width in canvas units; must be greater than zero
+  h: number // height; must be greater than zero
   rotation?: number // radians; omit for upright, which is almost always right
   color?: string // hex or a CSS colour keyword; see Colour
   collapsed?: boolean // true = folded up on load
@@ -74,7 +74,9 @@ nothing is half-imported: the document is accepted whole or not at all.
 - `parentId` may not form a cycle, including a node parented to itself.
 - Unknown keys are rejected at every level.
 - `color` must be `#hex` or a lowercase CSS keyword.
-- Every required field must be present and the right type; `x`, `y`, `w`, `h` must be finite numbers.
+- Every required field must be present and the right type. `x` and `y` are any finite numbers,
+  negatives included. **`w` and `h` must be greater than zero** — a zero or negative size is
+  rejected here rather than being allowed through to break the canvas.
 
 ## Ids
 
@@ -82,12 +84,22 @@ Use readable, stable ids — `web-server`, `orders.api`, `vpc_prod`. They surviv
 so a document you write by hand keeps the names you chose when it is exported again. Prefer ids that
 describe the thing rather than its position, so a rename of the label does not strand them.
 
+**A diagram drawn by hand in the app exports with generated ids** like `LX_eNNYs4V_-x7Ipz-Ko8`, since
+that is genuinely what those shapes are called. Renaming them in the JSON is fine and encouraged —
+just rename every reference too, and the validator will tell you precisely which one you missed.
+Export also sorts by id, so a hand-drawn diagram comes back in an order that looks arbitrary.
+
 ## Positioning
 
 There is no auto-layout. `x`/`y`/`w`/`h` are what renders.
 
+- `x`/`y` are the node's **top-left corner**, not its centre.
 - A **top-level** node's position is absolute canvas coordinates.
-- A **child's** position is relative to its parent's own box.
+- A **child's** position is relative to its parent's box, measured from that box's top-left.
+
+**Importing does not move the camera.** If you place a diagram far from the origin, the canvas may
+look empty after import until the reader scrolls or zooms to fit. Keep a diagram near `0,0` unless
+you have a reason not to.
 
 Practical guidance: a leaf node reads well at about `200×120`. Give siblings at least 60 units of gap
 so a connection between them has room. A container needs to be big enough to hold its children's
@@ -102,8 +114,9 @@ to descendants and this one does not, so tint each node you want tinted.
 
 Two things worth knowing:
 
-- A **misspelled keyword passes validation and then renders as nothing.** `rebeccapurple` works;
-  `rebecapurple` is accepted by the check and silently draws no colour. Prefer hex if you are unsure.
+- A **misspelled keyword passes validation and then renders black** — indistinguishable from a node
+  with no colour at all. `rebeccapurple` works; `rebecapurple` is accepted by the check and comes out
+  looking uncoloured. Prefer hex if you are unsure. Keywords must be lowercase: `RED` is rejected.
 - Reuse the same value across nodes in the same conceptual category. That repetition is what makes
   colour read as a category rather than as noise.
 
@@ -125,6 +138,10 @@ Any node other nodes point at via `parentId` is a container. There is no separat
   state.
 - Set `collapsed: true` on containers whose internals are not the point of the diagram you are
   handing over. The reader can open them.
+- **A collapsed container keeps the `w`/`h` you gave it** — it does not shrink to fit its label. A
+  container sized to hold three children ships as a large mostly-empty box with a "3 hidden" badge.
+  If a container spends most of its life collapsed, size it for how it should look collapsed and let
+  its children overflow when it is open, or accept the empty space.
 
 What collapse does, precisely: an endpoint inside a collapsed container resolves to the outermost
 collapsed container holding it. Connections that then have the same source and target merge into one
@@ -166,10 +183,10 @@ collapsed, so the diagram opens as "client → platform → database" and expand
 }
 ```
 
-Collapsed, that draws three lines: client → platform, and a single **×2** line platform → database
-standing for the two services that talk to it. `orders → billing` vanishes, being internal. Expand
-the platform and all five lines return, each against its own service. Nothing about the document
-changed — collapse is a way of looking, not an edit.
+Collapsed, that draws **two** lines: client → platform, and a single **×2** line platform → database
+standing for the two services that talk to it. Both `gateway → orders` and `orders → billing` vanish,
+being internal to the closed box. Expand the platform and all five lines return, each against its own
+service. Nothing about the document changed — collapse is a way of looking, not an edit.
 
 A minimal document, for reference:
 

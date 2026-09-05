@@ -152,6 +152,20 @@ function checkNumber(value: unknown): string | null {
   return typeof value === 'number' && Number.isFinite(value) ? null : 'must be a finite number'
 }
 
+/**
+ * Width and height are POSITIVE, not merely finite.
+ *
+ * `nodeShapeProps` validates them with `T.nonZeroNumber`, so a `w: 0` document
+ * passes every check here and then throws inside `createShapes` -- which escapes
+ * to tldraw's error boundary and replaces the canvas with "Something went wrong"
+ * and a Reset data button. A validator that lets a value through to crash the
+ * app downstream is worse than no validator, because the user is told nothing.
+ */
+function checkSize(value: unknown): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'must be a finite number'
+  return value > 0 ? null : 'must be greater than zero'
+}
+
 export function parseDocument(input: string): ParseResult {
   let raw: unknown
   try {
@@ -197,8 +211,12 @@ export function parseDocument(input: string): ParseResult {
     }
     if (typeof entry.label !== 'string') return fail(`${path}.label`, 'must be a string')
 
-    for (const key of ['x', 'y', 'w', 'h'] as const) {
+    for (const key of ['x', 'y'] as const) {
       const reason = checkNumber(entry[key])
+      if (reason !== null) return fail(`${path}.${key}`, reason)
+    }
+    for (const key of ['w', 'h'] as const) {
+      const reason = checkSize(entry[key])
       if (reason !== null) return fail(`${path}.${key}`, reason)
     }
 
@@ -219,7 +237,10 @@ export function parseDocument(input: string): ParseResult {
     if (entry.color !== undefined) {
       if (typeof entry.color !== 'string') return fail(`${path}.color`, 'must be a string')
       if (!DOCUMENT_COLOR_PATTERN.test(entry.color)) {
-        return fail(`${path}.color`, 'must be a hex color or a CSS color keyword')
+        return fail(
+          `${path}.color`,
+          'must be a hex color like #4f8ff7, or a lowercase CSS color keyword',
+        )
       }
       node.color = entry.color
     }

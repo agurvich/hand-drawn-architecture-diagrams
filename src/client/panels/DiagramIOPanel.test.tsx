@@ -110,7 +110,10 @@ describe('DiagramIOPanel — FR-003, the confirmation gate', () => {
 
     const dialog = screen.getByTestId('diagram-io-confirm')
     expect(dialog).toHaveAttribute('role', 'dialog')
-    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    // Deliberately NOT aria-modal: that tells assistive tech the rest of the
+    // page is inert, while Tab still walks straight out into the panel and the
+    // canvas. Claiming containment we do not enforce is worse than not claiming it.
+    expect(dialog).not.toHaveAttribute('aria-modal')
     expect(dialog).toHaveTextContent(/9 shapes/)
     expect(importDocument).not.toHaveBeenCalled()
 
@@ -143,6 +146,34 @@ describe('DiagramIOPanel — FR-003, the confirmation gate', () => {
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(screen.queryByTestId('diagram-io')).not.toBeInTheDocument()
     expect(importDocument).not.toHaveBeenCalled()
+  })
+
+  it('moves focus into the panel on open and back to the launcher on close', () => {
+    // Opening unmounts the launch button under the user's focus; closing
+    // unmounts the panel under it. Both used to drop focus on <body>, leaving a
+    // keyboard user to tab through the whole canvas UI to get back.
+    render(<DiagramIOPanel editor={editor} />)
+    fireEvent.click(screen.getByTestId('diagram-io-open'))
+    expect(document.activeElement).toBe(screen.getByTestId('diagram-io'))
+
+    fireEvent.click(screen.getByTestId('diagram-io-close'))
+    expect(document.activeElement).toBe(screen.getByTestId('diagram-io-open'))
+  })
+
+  it('returns focus to the launcher after a successful import too', () => {
+    open()
+    paste(VALID)
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    expect(document.activeElement).toBe(screen.getByTestId('diagram-io-open'))
+  })
+
+  it('clears the error when the paste box is edited, so a retry re-announces', () => {
+    open()
+    paste('{ not json')
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent(/not valid JSON/)
+    paste('{ still not json')
+    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent('')
   })
 
   it('moves focus into the dialog and back to its trigger', () => {

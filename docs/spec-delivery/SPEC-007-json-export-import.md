@@ -38,7 +38,7 @@
 
 ## Verification
 
-typecheck 0 · oxlint 0 errors · prettier 0 · unit 159/159 · e2e 103/103 · build 0 · spec-lint 0 ·
+typecheck 0 · oxlint 0 errors · prettier 0 · unit 164/164 · e2e 105/105 · build 0 · spec-lint 0 ·
 docs-lint ok.
 
 **The property worth naming: export can never emit a document its own validator rejects.** Two ways
@@ -64,12 +64,30 @@ mutation testing had missed and two the reviews found surviving:
 | Import without a history mark | the single-undo test |
 | Undocumentable counted by shape type rather than derived | the half-bound-connection test |
 | Confirmation gate removed | 5 tests |
+| `w`/`h` validated as finite rather than positive | the zero-size test |
+| Focus effect missing its `open` dependency | 2 focus tests |
+| Launcher back at top-right, over tldraw's colour swatches | the overlap test |
+| Panel without `box-sizing: border-box` | the 375px viewport test |
 
 Two findings came only from running the code against a real editor, which no unit test could reach:
 the emitted records had no `type`, so `createShapes` threw and tldraw's error boundary replaced the
 canvas — a *well-formed* document would have taken down the app; and the binding join was quadratic,
 2.0s at 16,000 connections, in a module that reasons about linearity twice elsewhere with
 measurements attached.
+
+**A well-formed document could crash the canvas.** `w: 0` and negative sizes are finite, so they
+passed a finite-only check and then threw inside `createShapes` — which escapes to tldraw's error
+boundary and replaces the canvas with a "Reset data" button, telling the user nothing. The guide's own
+enforced list said only "finite numbers", so a model following it could emit exactly this. Found by
+the review that used the app; sizes are now validated as positive.
+
+**Four claims in the authoring guide were wrong**, all found by a reviewer who read it cold and
+authored a 17-node diagram from it without opening the code: the worked example said three lines where
+the app draws two; `x`/`y`'s origin was never defined; a collapsed container keeps the `w`/`h` you gave
+it rather than shrinking; and a misspelled colour keyword renders *black*, not invisibly. That
+reviewer's diagram imported first try and its predicted collapse rendering matched exactly, which is
+the guide's best evidence — but a guide handed to a model as ground truth cannot carry four wrong
+sentences, and no test can see prose.
 
 Not covered: frames, edge sets, node metadata, icons, actors, colour inheritance, z-order and array
 order. Z-order and array order are losses a round trip does not carry, and the guide says so.
