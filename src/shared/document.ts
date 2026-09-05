@@ -88,6 +88,18 @@ export type ParseResult = { ok: true; document: DiagramDocument } | { ok: false;
 export interface ExportableNode {
   /** The raw `shape:...` id; the prefix is stripped on the way into a document. */
   id: string
+  /**
+   * REQUIRED, and easy to leave off. `toDocument` never reads it -- real records
+   * are structural supersets, so export works without it -- but `fromDocument`
+   * has to PRODUCE a complete record, and a shape partial with no `type` makes
+   * `createShapes` throw "No shape util found for type undefined". That throw
+   * escapes to tldraw's React error boundary and replaces the canvas with
+   * "Something went wrong", so a well-formed document would take down the app.
+   *
+   * The round trip cannot catch its absence: it is closed over the one field
+   * that makes a shape a shape.
+   */
+  type: typeof NODE_SHAPE_TYPE
   /** A shape id or a page id. */
   parentId: string
   x: number
@@ -99,6 +111,8 @@ export interface ExportableNode {
 /** A connection shape carries no endpoints of its own -- the bindings do. */
 export interface ExportableConnection {
   id: string
+  /** Required for the same reason as `ExportableNode.type`. */
+  type: typeof CONNECTION_SHAPE_TYPE
   parentId: string
   x: number
   y: number
@@ -415,6 +429,18 @@ export function toDocument(
       return out
     })
 
+  // Indexed once rather than scanned twice per connection. The unindexed
+  // version is O(C^2) and was measured at 2.0s for 16,000 connections against
+  // 11ms for 64,000 indexed -- and it was the one loop in this module whose
+  // linearity nobody had checked, while two others carry measurements in their
+  // comments.
+  const bindingsByConnection = new Map<string, BindingDescriptor[]>()
+  for (const b of bindings) {
+    const list = bindingsByConnection.get(b.fromId)
+    if (list) list.push(b)
+    else bindingsByConnection.set(b.fromId, [b])
+  }
+
   const documentConnections: DocumentConnection[] = []
   for (const connection of connections) {
     // PER TERMINAL, never by binding count. Nothing at the record level forbids
@@ -422,8 +448,8 @@ export function toDocument(
     // concurrently produce exactly that, since sync is last-write-wins per
     // record, not per (shape, terminal). A count test would then export a
     // connection with an undefined targetId, which parseDocument rejects.
-    const terminal = (want: ConnectionTerminal) =>
-      bindings.find((b) => b.fromId === connection.id && b.props.terminal === want)
+    const own = bindingsByConnection.get(connection.id) ?? []
+    const terminal = (want: ConnectionTerminal) => own.find((b) => b.props.terminal === want)
     const source = terminal('start')
     const target = terminal('end')
     if (!source || !target) continue
@@ -483,6 +509,7 @@ export function fromDocument(
 
   const nodes: ExportableNode[] = ordered.map((node) => ({
     id: shapeId(node.id),
+    type: NODE_SHAPE_TYPE,
     parentId: node.parentId === undefined ? pageId : shapeId(node.parentId),
     x: node.x,
     y: node.y,
@@ -502,6 +529,7 @@ export function fromDocument(
   // connection never is.
   const connections: ExportableConnection[] = document.connections.map((connection) => ({
     id: shapeId(connection.id),
+    type: CONNECTION_SHAPE_TYPE,
     parentId: pageId,
     x: 0,
     y: 0,

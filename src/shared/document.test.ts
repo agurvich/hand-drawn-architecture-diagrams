@@ -40,6 +40,7 @@ function node(id: string, over: Record<string, unknown> = {}) {
 function exportableNode(id: string, over: Partial<ExportableNode> = {}): ExportableNode {
   return {
     id: `shape:${id}`,
+    type: NODE_SHAPE_TYPE,
     parentId: PAGE,
     x: 0,
     y: 0,
@@ -52,6 +53,7 @@ function exportableNode(id: string, over: Partial<ExportableNode> = {}): Exporta
 function exportableConnection(id: string): ExportableConnection {
   return {
     id: `shape:${id}`,
+    type: CONNECTION_SHAPE_TYPE,
     parentId: PAGE,
     x: 0,
     y: 0,
@@ -545,12 +547,34 @@ describe('fromDocument', () => {
     const { nodes } = fromDocument(parsed.document, PAGE)
     expect(nodes[0]).toEqual({
       id: 'shape:a',
+      type: NODE_SHAPE_TYPE,
       parentId: PAGE,
       x: 0,
       y: 0,
       rotation: 0,
       props: { w: 100, h: 60, label: 'a', color: 'black', collapsed: false },
     })
+  })
+
+  it('emits a `type` on every shape, or createShapes throws and takes the canvas with it', () => {
+    // The round trip cannot catch this: toDocument never reads `type`, so the
+    // one field that makes a shape a shape is exactly the field the round trip
+    // is closed over. Asserted on the KEY SET, so a missing field fails here
+    // rather than in a React error boundary.
+    const parsed = parseDocument(
+      doc({
+        nodes: [node('a'), node('b')] as never,
+        connections: [{ id: 'c', sourceId: 'a', targetId: 'b' }] as never,
+      }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    const { nodes, connections } = fromDocument(parsed.document, PAGE)
+    const keys = ['id', 'parentId', 'props', 'rotation', 'type', 'x', 'y']
+    for (const record of [...nodes, ...connections]) {
+      expect(Object.keys(record).sort()).toEqual(keys)
+    }
+    expect(nodes.map((n) => n.type)).toEqual([NODE_SHAPE_TYPE, NODE_SHAPE_TYPE])
+    expect(connections.map((c) => c.type)).toEqual([CONNECTION_SHAPE_TYPE])
   })
 
   it('orders a parent before its child, whatever order the document lists them in', () => {
@@ -575,6 +599,7 @@ describe('fromDocument', () => {
     expect(connections).toEqual([
       {
         id: 'shape:c',
+        type: CONNECTION_SHAPE_TYPE,
         parentId: PAGE,
         x: 0,
         y: 0,
@@ -594,6 +619,24 @@ describe('fromDocument', () => {
     if (!parsed.ok) throw new Error(parsed.error)
     const { bindings } = fromDocument(parsed.document, PAGE)
     expect(bindings).toEqual([binding('c', 'a', 'start'), binding('c', 'b', 'end')])
+  })
+})
+
+describe('toDocument — the binding join is indexed, not scanned', () => {
+  it('stays linear with many connections', () => {
+    // Two full scans of every binding per connection is O(C^2): measured at 2.0s
+    // for 16,000 connections. The module reasons about linearity twice
+    // elsewhere and cites numbers; this was the loop nobody checked.
+    const count = 16_000
+    const nodes = [exportableNode('a'), exportableNode('b')]
+    const connections = Array.from({ length: count }, (_, i) => exportableConnection(`c${i}`))
+    const bindings = connections.flatMap((_, i) => [
+      binding(`c${i}`, 'a', 'start'),
+      binding(`c${i}`, 'b', 'end'),
+    ])
+    const started = Date.now()
+    expect(toDocument(nodes, connections, bindings).connections).toHaveLength(count)
+    expect(Date.now() - started).toBeLessThan(1_000)
   })
 })
 
