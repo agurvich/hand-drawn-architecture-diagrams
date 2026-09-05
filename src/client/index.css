@@ -196,3 +196,170 @@ body {
   paint-order: stroke;
   pointer-events: none;
 }
+
+/*
+ * The JSON panel.
+ *
+ * It sits inside .canvas-host, which sets `touch-action: none` for the canvas.
+ * That inherits, and on an iPad it kills touch scrolling and touch text
+ * selection inside a textarea -- which is this panel's ONLY working path when
+ * the page is not a secure context and navigator.clipboard does not exist.
+ * Every interactive part restates touch-action for that reason.
+ */
+/*
+ * TOP-CENTRE, not top-right. Top-right is tldraw's style panel: at 1024x768 a
+ * button at `right: 8px` sits on top of two of the twelve colour swatches, so
+ * tapping violet opened this panel instead. Left is the main menu, bottom-centre
+ * the toolbar, bottom-left the zoom controls. e2e asserts the launcher overlaps
+ * none of them, because the next collision would be just as invisible.
+ */
+.diagram-io__launch,
+.diagram-io {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  touch-action: manipulation;
+}
+
+.diagram-io__launch {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  font:
+    600 13px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #333;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+}
+
+.diagram-io {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Without border-box the padding and border push a 375px viewport's panel to
+     381px wide, and the headings clip to "iagram JSON". */
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  overscroll-behavior: contain;
+}
+
+.diagram-io__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diagram-io__heading {
+  margin: 0;
+  font:
+    600 14px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.diagram-io__label {
+  font:
+    500 12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #555;
+}
+
+.diagram-io__text {
+  width: 100%;
+  min-height: 120px;
+  padding: 8px;
+  font:
+    12px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: #222;
+  background: #fafafa;
+  border: 1px solid #767676;
+  border-radius: 6px;
+  resize: vertical;
+  /* Selecting this text by hand is the fallback the whole panel rests on. */
+  touch-action: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.diagram-io__button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 14px;
+  font:
+    600 13px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #f2f2f2;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+
+.diagram-io__warning {
+  margin: 0;
+  font:
+    12px/1.35 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #8a5a00;
+}
+
+.diagram-io__status:empty,
+.diagram-io__error:empty {
+  display: none;
+}
+
+.diagram-io__status {
+  margin: 0;
+  font:
+    12px/1.35 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #24631f;
+}
+
+.diagram-io__error {
+  margin: 0;
+  font:
+    12px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: #a11;
+}
+
+.diagram-io__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  font:
+    13px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  background: #fff8e6;
+  border: 1px solid #e0b355;
+  border-radius: 8px;
+}
+
+.diagram-io__confirm p {
+  margin: 0;
+}

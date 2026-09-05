@@ -24,3 +24,8 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `merge` | `src/shared/shapes/merge.ts` | Pure derivation of the collapsed view: `visibleStandInFor` (outermost collapsed ancestor) + `computeMergeIndex`'s five rules — injected accessors, no Editor |
 | `getMergeIndex` | `src/client/mergeIndex.ts` | The derivation as a `computed` keyed on the Editor; holds ids, flags and counts, never coordinates |
 | `nodeAtPoint` | `src/client/nodeAtPoint.ts` | The one definition of "which node is under this point", shared by the connection tool and endpoint re-aiming |
+| `document` | `src/shared/document.ts` | The diagram document: strict validator over raw text, plus `toDocument`/`fromDocument`, which meet exactly so the round trip composes |
+| `documentIO` | `src/client/documentIO.ts` | The Editor adapters — `exportDocument`, `importDocument`, `undocumentableShapeCount` |
+| `DiagramIOPanel` | `src/client/panels/DiagramIOPanel.tsx` | Copy the diagram out as JSON, paste one in; text box primary, clipboard an enhancement |
+| `jsonBlocks` | `src/shared/guideExamples.ts` | The authoring guide's fence contract, shared by both test lanes |
+| e2e panel helpers | `e2e/helpers.ts` | `pageRecords`, `openPanel`, `exportedJson`, `pasteDocument`, `addHalfConnection` |

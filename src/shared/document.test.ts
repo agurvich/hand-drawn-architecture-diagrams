@@ -156,6 +156,25 @@ describe('parseDocument — rejection, each naming its path', () => {
     )
   })
 
+  it('rejects a zero or negative w/h — they pass createShapes validation and crash the canvas', () => {
+    // nodeShapeProps uses T.nonZeroNumber, so `w: 0` clears a finite-only check
+    // here and then throws inside createShapes, which escapes to tldraw's error
+    // boundary and replaces the canvas with a Reset data button. The user is
+    // told nothing. Finite is not the same as valid.
+    for (const bad of [0, -1, -200.5]) {
+      expect(errorFrom(doc({ nodes: [node('a', { w: bad })] as never }))).toBe(
+        'nodes[0].w: must be greater than zero',
+      )
+      expect(errorFrom(doc({ nodes: [node('a', { h: bad })] as never }))).toBe(
+        'nodes[0].h: must be greater than zero',
+      )
+    }
+  })
+
+  it('still allows a negative x or y — those are ordinary canvas coordinates', () => {
+    expect(parseDocument(doc({ nodes: [node('a', { x: -500, y: -20 })] as never })).ok).toBe(true)
+  })
+
   it('rejects a non-finite number', () => {
     // JSON has no NaN literal; a string that parses to one does not exist, so
     // this covers the guard against a hand-built value reaching here.
@@ -188,9 +207,11 @@ describe('parseDocument — rejection, each naming its path', () => {
   })
 
   it('rejects an invalid color', () => {
-    expect(errorFrom(doc({ nodes: [node('a', { color: '#gggggg' })] as never }))).toBe(
-      'nodes[0].color: must be a hex color or a CSS color keyword',
+    expect(errorFrom(doc({ nodes: [node('a', { color: '#gggggg' })] as never }))).toMatch(
+      /^nodes\[0\]\.color: must be a hex color/,
     )
+    // Uppercase keywords are rejected, and the message says why.
+    expect(errorFrom(doc({ nodes: [node('a', { color: 'RED' })] as never }))).toContain('lowercase')
   })
 
   it('rejects an explicit null for nodes or connections — `?? []` would swallow it', () => {
@@ -215,6 +236,7 @@ describe('parseDocument — rejection, each naming its path', () => {
       [{ collapsed: 'yes' }, 'nodes[0].collapsed: must be a boolean'],
       [{ parentId: 7 }, 'nodes[0].parentId: must be a string'],
       [{ color: 7 }, 'nodes[0].color: must be a string'],
+      [{ w: '100' }, 'nodes[0].w: must be a finite number'],
     ]
     for (const [over, expected] of cases) {
       expect(errorFrom(doc({ nodes: [node('a', over)] as never }))).toBe(expected)

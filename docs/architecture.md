@@ -76,7 +76,11 @@ The renderer does not port. Two things do:
 
 - **The JSON schema and its AI-authoring guide** — `src/types/diagram.ts` and
   `docs/ai-authoring-guide.md` in the old repo. Rendering-agnostic, and the user names export/import a
-  must-have. Survives the change of foundation nearly as-is.
+  must-have. **The ideas ported; the schema did not.** SPEC-007 shipped a narrower document:
+  `edges` became `connections`, `position` became `x/y/w/h`, validation went from deliberately loose
+  to strict and total, and `metadata`, `edgeSets`, `frames`, `icon`, `isActor`, `autoLayout` and
+  `colorPalette` are all gone until something reads them. Current guide:
+  `docs/ai-authoring-guide.md`; the format lives in `src/shared/document.ts`.
 - **The derivation logic** — `src/engine/` in the old repo: `computeEffectiveGraph`, ancestry
   resolution, container layout. This is the real IP. It is reimplemented to operate over tldraw
   records rather than lifted verbatim, but the algorithms carry.

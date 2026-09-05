@@ -224,3 +224,68 @@ export async function visibleConnections(
       .sort((a, b) => (a.id < b.id ? -1 : 1))
   })
 }
+
+/**
+ * Every shape and binding on the page, in full, sorted by id.
+ *
+ * Enumeration rather than a count: SPEC-007's import criteria are about what
+ * the store holds before and after, and a count cannot tell "replaced" from
+ * "replaced with something else".
+ */
+export async function pageRecords(
+  page: Page,
+): Promise<Array<{ id: string; type: string; parentId?: string; toId?: string }>> {
+  return page.evaluate(() =>
+    window
+      .__editor!.store.allRecords()
+      .filter((r) => r.typeName === 'shape' || r.typeName === 'binding')
+      .map((r) =>
+        r.typeName === 'shape'
+          ? { id: r.id as string, type: r.type as string, parentId: r.parentId as string }
+          : { id: r.id as string, type: r.type as string, toId: r.toId as string },
+      )
+      .sort((a, b) => (a.id < b.id ? -1 : 1)),
+  )
+}
+
+/** Open the JSON panel, tolerating it already being open. */
+export async function openPanel(page: Page) {
+  const launch = page.getByTestId('diagram-io-open')
+  if ((await launch.count()) > 0) await launch.click()
+  await page.getByTestId('diagram-io').waitFor()
+}
+
+/** The JSON the panel is showing for the current page. */
+export async function exportedJson(page: Page): Promise<string> {
+  await openPanel(page)
+  const value = await page.getByTestId('diagram-io-export').inputValue()
+  await page.getByTestId('diagram-io-close').click()
+  return value
+}
+
+/** Paste a document into the panel and press Import. Does NOT confirm. */
+export async function pasteDocument(page: Page, json: string) {
+  await openPanel(page)
+  await page.getByTestId('diagram-io-paste').fill(json)
+  await page.getByTestId('diagram-io-import').click()
+}
+
+/** Create a connection bound at only one end — the mid-drag state. */
+export async function addHalfConnection(page: Page, fromId: string): Promise<string> {
+  return page.evaluate((from) => {
+    const ed = window.__editor!
+    const rid = () => Math.random().toString(36).slice(2, 12)
+    const cid = `shape:${rid()}`
+    ed.run(() => {
+      ed.createShape({ id: cid as never, type: 'diagramConnection', x: 0, y: 0 })
+      ed.createBinding({
+        id: `binding:${rid()}` as never,
+        type: 'connectionEndpoint',
+        fromId: cid as never,
+        toId: from as never,
+        props: { terminal: 'start' },
+      })
+    })
+    return cid
+  }, fromId)
+}
