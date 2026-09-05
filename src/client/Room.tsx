@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Tldraw, type Editor, type TLShape } from 'tldraw'
 import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
@@ -7,6 +7,7 @@ import { stripHiddenFromSelection } from './selection'
 import { bindingUtils, components, shapeUtils, tools, uiOverrides } from './shapes/registry'
 import { shouldHide } from './visibility'
 import { unvalidatedSchemaIfRequested } from './devOnly'
+import { DiagramIOPanel } from './panels/DiagramIOPanel'
 import 'tldraw/tldraw.css'
 
 /**
@@ -53,6 +54,15 @@ export function Room({ roomId }: { roomId: RoomId }) {
       ? { uri, assets: failLoudlyAssetStore, schema: devSchema }
       : { uri, assets: failLoudlyAssetStore, shapeUtils, bindingUtils },
   )
+
+  const [editor, setEditor] = useState<Editor | null>(null)
+  // useCallback with no deps, so the identity is stable. onMount is routed
+  // through tldraw's own useEvent and is not in the editor-construction dep
+  // list, but a stable identity costs nothing and keeps the rule in one place.
+  const onMount = useCallback((mounted: Editor) => {
+    setEditor(mounted)
+    return handleMount(mounted)
+  }, [])
 
   const [slow, setSlow] = useState(false)
   useEffect(() => {
@@ -105,8 +115,12 @@ export function Room({ roomId }: { roomId: RoomId }) {
         overrides={uiOverrides}
         components={components}
         getShapeVisibility={getShapeVisibility}
-        onMount={handleMount}
+        onMount={onMount}
       />
+      {/* A sibling of <Tldraw>, not a `components` override: a textarea inside
+          the canvas component tree fights the canvas's own pointer and keyboard
+          handling, which this panel needs none of. */}
+      <DiagramIOPanel editor={editor} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect
