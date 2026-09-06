@@ -1,6 +1,17 @@
-import type { Editor, TLShape } from 'tldraw'
+import {
+  createCustomRecordId,
+  getIndexAbove,
+  getIndices,
+  uniqueId,
+  ZERO_INDEX_KEY,
+  type Editor,
+  type IndexKey,
+  type TLShape,
+} from 'tldraw'
 import {
   withEffectiveCollapsed,
+  effectiveCollapsed,
+  SCENE_RECORD_TYPE,
   SCENE_VIEW_SINGLETON_ID,
   OFF_SCENE_SINGLETON_ID,
   OFF_SCENE_RECORD_TYPE,
@@ -157,4 +168,127 @@ export function takeOffSceneAndToggle(
       },
     ])
   })
+}
+
+/** Every scene in the room, in order. */
+export function scenesInOrder(editor: Editor): SceneRecord[] {
+  return editor.store
+    .allRecords()
+    .filter((r): r is SceneRecord => r.typeName === SCENE_RECORD_TYPE)
+    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : a.id < b.id ? -1 : 1))
+}
+
+/**
+ * Capture the CURRENT EFFECTIVE VIEW as a new scene, and activate it.
+ *
+ * "Effective" means what is on screen, off-scene overrides included -- not what
+ * the props say. The population is every node that HAS CHILDREN right now:
+ * "container" is not a type here, every node carries `collapsed`, so the set has
+ * to be named. A node with no children is not recorded, and therefore falls back
+ * to its own prop if it later gains some.
+ *
+ * History ignored, like every scene edit. Document-scoped records share the
+ * diagram's undo stack, so without this, drawing a node after capturing and
+ * pressing undo twice deletes the scene -- for everyone in the room.
+ */
+export function captureScene(editor: Editor, name: string): SceneRecord['id'] {
+  const { scene, offScene } = sceneState(editor)
+  const collapsed: Record<string, boolean> = {}
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== NODE_SHAPE_TYPE) continue
+    if (editor.getSortedChildIdsForParent(shape.id).length === 0) continue
+    const own = (shape.props as { collapsed: boolean }).collapsed
+    collapsed[shape.id] = effectiveCollapsed(shape.id, own, scene, offScene)
+  }
+
+  const last = scenesInOrder(editor).at(-1)
+  const id = createCustomRecordId(SCENE_RECORD_TYPE, uniqueId()) as SceneRecord['id']
+  editor.run(
+    () => {
+      editor.store.put([
+        {
+          typeName: SCENE_RECORD_TYPE,
+          id,
+          name,
+          note: '',
+          collapsed,
+          // The selection is the highlight: no new control, and it is a gesture
+          // the reader already performs before talking about something.
+          highlighted: editor.getSelectedShapeIds().map((s) => s as string),
+          index: last ? getIndexAbove(last.index as IndexKey) : (ZERO_INDEX_KEY as string),
+        },
+      ])
+    },
+    { history: 'ignore' },
+  )
+  // Activating also clears offScene, which is viewScene's job.
+  viewScene(editor, id)
+  return id
+}
+
+/** Overwrite a scene's captured view, keeping its id, name, note and position. */
+export function recaptureScene(editor: Editor, sceneId: SceneRecord['id']): void {
+  const existing = editor.store.get(sceneId)
+  if (!existing) return
+  const fresh = captureScene(editor, existing.name)
+  const captured = editor.store.get(fresh)
+  editor.run(
+    () => {
+      if (captured) {
+        editor.store.put([
+          { ...existing, collapsed: captured.collapsed, highlighted: captured.highlighted },
+        ])
+      }
+      editor.store.remove([fresh])
+    },
+    { history: 'ignore' },
+  )
+  viewScene(editor, sceneId)
+}
+
+/** Rename a scene, or rewrite its note. */
+export function updateScene(
+  editor: Editor,
+  sceneId: SceneRecord['id'],
+  patch: Partial<Pick<SceneRecord, 'name' | 'note'>>,
+): void {
+  const existing = editor.store.get(sceneId)
+  if (!existing) return
+  editor.run(() => editor.store.put([{ ...existing, ...patch }]), { history: 'ignore' })
+}
+
+/** Delete a scene. The confirmation is the panel's; this is the write. */
+export function deleteScene(editor: Editor, sceneId: SceneRecord['id']): void {
+  const active = editor.store.get(SCENE_VIEW_SINGLETON_ID)?.activeSceneId ?? null
+  editor.run(() => editor.store.remove([sceneId]), { history: 'ignore' })
+  if (active === sceneId) viewScene(editor, null)
+}
+
+/** Move a scene one place earlier or later in the order. */
+export function moveScene(editor: Editor, sceneId: SceneRecord['id'], delta: -1 | 1): void {
+  const order = scenesInOrder(editor)
+  const from = order.findIndex((s) => s.id === sceneId)
+  const to = from + delta
+  if (from < 0 || to < 0 || to >= order.length) return
+  const moved = order.splice(from, 1)[0]!
+  order.splice(to, 0, moved)
+  // Re-index the whole list: a handful of scenes, and it keeps the keys legible
+  // rather than accumulating fractional depth over repeated moves.
+  const keys = getIndices(order.length)
+  editor.run(
+    () => editor.store.put(order.map((scene, i) => ({ ...scene, index: keys[i + 1]! as string }))),
+    { history: 'ignore' },
+  )
+}
+
+/** Step through the order. Stops at the ends rather than wrapping. */
+export function stepScene(editor: Editor, delta: -1 | 1): void {
+  const order = scenesInOrder(editor)
+  if (order.length === 0) return
+  const active = editor.store.get(SCENE_VIEW_SINGLETON_ID)?.activeSceneId ?? null
+  const current = order.findIndex((s) => s.id === active)
+  // From nowhere, forward starts at the first scene and back at the last.
+  const next = current < 0 ? (delta === 1 ? 0 : order.length - 1) : current + delta
+  if (next < 0 || next >= order.length) return
+  viewScene(editor, order[next]!.id)
 }

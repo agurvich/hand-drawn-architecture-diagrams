@@ -29,3 +29,7 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `DiagramIOPanel` | `src/client/panels/DiagramIOPanel.tsx` | Copy the diagram out as JSON, paste one in; text box primary, clipboard an enhancement |
 | `jsonBlocks` | `src/shared/guideExamples.ts` | The authoring guide's fence contract, shared by both test lanes |
 | e2e panel helpers | `e2e/helpers.ts` | `pageRecords`, `openPanel`, `exportedJson`, `pasteDocument`, `addHalfConnection` |
+| `scenes` | `src/shared/scenes/scene.ts` | The scene records and the pure lens: `effectiveCollapsed`, `withEffectiveCollapsed`, `isSceneStale` |
+| `sceneView` | `src/client/sceneView.ts` | Per-viewer scene state, the shared `GetShape` override, and every scene mutation with its history rule |
+| `NarrationPanel` | `src/client/panels/NarrationPanel.tsx` | Step, capture, rename, reorder, delete; the off-scene marker |
+| e2e scene helpers | `e2e/helpers.ts` | `addScene`, `viewScene`, `hiddenShapeIds`, `offSceneNodeIds`, `activeSceneId` |

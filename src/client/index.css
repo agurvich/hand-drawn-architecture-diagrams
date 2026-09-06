@@ -363,3 +363,209 @@ body {
 .diagram-io__confirm p {
   margin: 0;
 }
+
+/*
+ * The narration bar.
+ *
+ * BOTTOM-LEFT, above tldraw's zoom controls: top-right is the style panel,
+ * top-centre is the JSON launcher, bottom-centre the toolbar. e2e asserts it
+ * overlaps none of them, because the last collision here was invisible until a
+ * reviewer tried to pick a colour and got a panel.
+ *
+ * Inside .canvas-host, which sets `touch-action: none` for the canvas -- so every
+ * interactive part restates it, or a tap does nothing on an iPad.
+ */
+.narration {
+  position: absolute;
+  /* Clear of tldraw's navigation panel, which owns the bottom-left corner.
+     Measured, not guessed: at 8px this overlapped it. */
+  bottom: 56px;
+  left: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  max-width: min(360px, calc(100vw - 16px));
+  touch-action: manipulation;
+}
+
+.narration__bar {
+  display: flex;
+  gap: 4px;
+}
+
+.narration__button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font:
+    600 13px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+
+.narration__button:disabled {
+  color: #767676;
+  background: #f2f2f2;
+}
+
+.narration__button--wide {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narration__note,
+.narration__off,
+.narration__empty {
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  font:
+    13px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+}
+
+.narration__off {
+  color: #8a5a00;
+}
+
+.narration__link {
+  min-height: 44px;
+  padding: 0;
+  font: inherit;
+  color: #1a5fb4;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  touch-action: manipulation;
+}
+
+.narration__panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(360px, calc(100vw - 16px));
+  max-height: calc(100dvh - 120px);
+  overflow: auto;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+  overscroll-behavior: contain;
+}
+
+.narration__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.narration__heading {
+  margin: 0;
+  font:
+    600 14px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.narration__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.narration__item {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.narration__select {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 10px;
+  font:
+    500 13px/1.3 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  text-align: left;
+  background: #f7f7f7;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+
+.narration__select--active {
+  font-weight: 700;
+  background: #e8f0fe;
+}
+
+.narration__stale {
+  font-weight: 400;
+  color: #8a5a00;
+}
+
+.narration__label {
+  font:
+    500 12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #555;
+}
+
+.narration__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  font:
+    13px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  border: 1px solid #767676;
+  border-radius: 6px;
+  touch-action: auto;
+}
+
+.narration__input--note {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.narration__confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  font:
+    13px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  background: #fff8e6;
+  border: 1px solid #e0b355;
+  border-radius: 8px;
+}
+
+.narration__confirm p {
+  margin: 0;
+}

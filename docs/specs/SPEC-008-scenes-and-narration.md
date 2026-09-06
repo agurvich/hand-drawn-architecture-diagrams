@@ -1,7 +1,7 @@
 # Spec: Scenes and narration
 
 **ID:** SPEC-008  
-**Status:** In Progress  
+**Status:** Completed  
 **Last Updated:** 2026-09-05 (rev 3 — post-review)  
 **Depends On:** SPEC-004, SPEC-006, SPEC-007
 
