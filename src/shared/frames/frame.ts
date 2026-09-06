@@ -27,6 +27,7 @@ import type { GetShape, HierarchyShape } from '../shapes/hierarchy'
 
 export const FRAME_RECORD_TYPE = 'diagramFrame'
 export const FRAME_VIEW_RECORD_TYPE = 'diagramFrameView'
+export const OFF_FRAME_RECORD_TYPE = 'diagramOffFrame'
 
 export interface FrameRecord extends BaseRecord<typeof FRAME_RECORD_TYPE, RecordId<FrameRecord>> {
   /** Shown in the list. */
@@ -71,8 +72,35 @@ export interface FrameViewRecord extends BaseRecord<
    * the frame you are viewing.
    */
   activeFrameId: RecordId<FrameRecord> | null
-  /** Nodes taken off-frame by a manual toggle. Cleared when the frame changes. */
-  offFrame: string[]
+}
+
+/**
+ * Which nodes this viewer has taken off-frame. A SEPARATE record, and the split
+ * is load-bearing rather than tidiness.
+ *
+ * tldraw's history records whole-record diffs and filters only on `source`, not
+ * on scope -- so a session record lands on the undo stack like any shape. These
+ * two fields need OPPOSITE treatment:
+ *
+ *   - `activeFrameId` must NEVER be undoable. Merely looking at a frame fused
+ *     itself onto the reader's previous edit, so one undo threw them off the
+ *     frame; and once a toggle was recorded, undo walked them backwards through
+ *     the story.
+ *   - the off-frame set MUST be undoable, atomically with the shape prop the
+ *     toggle writes, or undo restores the prop and leaves the node off-frame --
+ *     showing a state nobody asked for.
+ *
+ * One record cannot be both, and `createCustomRecordType` drops `ephemeralKeys`
+ * so a field-level exemption is not available either. Two records is the fix,
+ * and the boundary between them is exactly the boundary between "history
+ * ignored" and "history recorded".
+ */
+export interface OffFrameRecord extends BaseRecord<
+  typeof OFF_FRAME_RECORD_TYPE,
+  RecordId<OffFrameRecord>
+> {
+  /** Node ids whose own prop wins over the active frame, for this viewer. */
+  nodeIds: string[]
 }
 
 /**
@@ -84,6 +112,7 @@ declare module '@tldraw/tlschema' {
   interface TLGlobalRecordPropsMap {
     [FRAME_RECORD_TYPE]: FrameRecord
     [FRAME_VIEW_RECORD_TYPE]: FrameViewRecord
+    [OFF_FRAME_RECORD_TYPE]: OffFrameRecord
   }
 }
 
@@ -100,6 +129,11 @@ export const FRAME_VIEW_SINGLETON_ID = createCustomRecordId(
   'current',
 ) as RecordId<FrameViewRecord>
 
+export const OFF_FRAME_SINGLETON_ID = createCustomRecordId(
+  OFF_FRAME_RECORD_TYPE,
+  'current',
+) as RecordId<OffFrameRecord>
+
 /** Validators cover the WHOLE record, `id` and `typeName` included. */
 export const frameRecordValidator = T.object<FrameRecord>({
   typeName: T.literal(FRAME_RECORD_TYPE),
@@ -115,7 +149,12 @@ export const frameViewRecordValidator = T.object<FrameViewRecord>({
   typeName: T.literal(FRAME_VIEW_RECORD_TYPE),
   id: idValidator<RecordId<FrameViewRecord>>(FRAME_VIEW_RECORD_TYPE),
   activeFrameId: idValidator<RecordId<FrameRecord>>(FRAME_RECORD_TYPE).nullable(),
-  offFrame: T.arrayOf(T.string),
+})
+
+export const offFrameRecordValidator = T.object<OffFrameRecord>({
+  typeName: T.literal(OFF_FRAME_RECORD_TYPE),
+  id: idValidator<RecordId<OffFrameRecord>>(OFF_FRAME_RECORD_TYPE),
+  nodeIds: T.arrayOf(T.string),
 })
 
 /**
@@ -125,6 +164,8 @@ export const frameViewRecordValidator = T.object<FrameViewRecord>({
 export const frameRecordMigrations = createCustomRecordMigrationSequence({ sequence: [] })
 
 export const frameViewRecordMigrations = createCustomRecordMigrationSequence({ sequence: [] })
+
+export const offFrameRecordMigrations = createCustomRecordMigrationSequence({ sequence: [] })
 
 // --- The lens, as pure functions. No Editor, no tldraw import. ---
 

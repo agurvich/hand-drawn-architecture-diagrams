@@ -3,7 +3,12 @@ import { createTLStore } from 'tldraw'
 import { roomSchema } from '../../worker/schema'
 import { syncSchemaOptions } from '../../client/shapes/registry'
 import { unvalidatedSchemaIfRequested, UNVALIDATED_MARKER } from '../../client/devOnly'
-import { FRAME_RECORD_TYPE, FRAME_VIEW_RECORD_TYPE, customRecordSchemas } from './index'
+import {
+  FRAME_RECORD_TYPE,
+  FRAME_VIEW_RECORD_TYPE,
+  OFF_FRAME_RECORD_TYPE,
+  customRecordSchemas,
+} from './index'
 
 /**
  * Every schema-construction site really carries the frame records.
@@ -14,7 +19,7 @@ import { FRAME_RECORD_TYPE, FRAME_VIEW_RECORD_TYPE, customRecordSchemas } from '
  * source scan would see the argument and pass; only building the schema shows
  * whether it survived.
  */
-const RECORD_TYPES = [FRAME_RECORD_TYPE, FRAME_VIEW_RECORD_TYPE]
+const RECORD_TYPES = [FRAME_RECORD_TYPE, FRAME_VIEW_RECORD_TYPE, OFF_FRAME_RECORD_TYPE]
 
 describe('the frame records reach every schema', () => {
   it('the worker schema carries both', () => {
@@ -44,12 +49,14 @@ describe('the frame records reach every schema', () => {
     // on the wire. Swapping them silently breaks the whole lens design.
     expect(customRecordSchemas[FRAME_RECORD_TYPE].scope).toBe('document')
     expect(customRecordSchemas[FRAME_VIEW_RECORD_TYPE].scope).toBe('session')
+    expect(customRecordSchemas[OFF_FRAME_RECORD_TYPE].scope).toBe('session')
   })
 
   it('the store agrees about which scope each type is in', () => {
     const store = createTLStore(syncSchemaOptions)
     expect(store.scopedTypes.document.has(FRAME_RECORD_TYPE)).toBe(true)
     expect(store.scopedTypes.session.has(FRAME_VIEW_RECORD_TYPE)).toBe(true)
+    expect(store.scopedTypes.session.has(OFF_FRAME_RECORD_TYPE)).toBe(true)
     expect(store.scopedTypes.document.has(FRAME_VIEW_RECORD_TYPE)).toBe(false)
   })
 })

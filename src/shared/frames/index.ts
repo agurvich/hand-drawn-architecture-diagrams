@@ -1,10 +1,13 @@
 import {
   FRAME_RECORD_TYPE,
   FRAME_VIEW_RECORD_TYPE,
+  OFF_FRAME_RECORD_TYPE,
   frameRecordValidator,
   frameViewRecordValidator,
+  offFrameRecordValidator,
   frameRecordMigrations,
   frameViewRecordMigrations,
+  offFrameRecordMigrations,
 } from './frame'
 
 export * from './frame'
@@ -26,5 +29,10 @@ export const customRecordSchemas = {
     scope: 'session' as const,
     validator: frameViewRecordValidator,
     migrations: frameViewRecordMigrations,
+  },
+  [OFF_FRAME_RECORD_TYPE]: {
+    scope: 'session' as const,
+    validator: offFrameRecordValidator,
+    migrations: offFrameRecordMigrations,
   },
 }

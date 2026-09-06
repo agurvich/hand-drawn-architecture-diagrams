@@ -25,6 +25,7 @@ const TYPE_LITERALS = [
   "'connectionEndpoint'",
   "'diagramFrame'",
   "'diagramFrameView'",
+  "'diagramOffFrame'",
 ]
 
 /**

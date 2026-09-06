@@ -318,18 +318,33 @@ export async function addFrame(
   )
 }
 
-/** Point this viewer at a frame, or at none. Session-scoped: never synced. */
+/**
+ * Point this viewer at a frame, or at none. Session-scoped: never synced.
+ *
+ * Goes through the app's own `viewFrame`, not a raw `store.put`. The whole point
+ * of that function is that the write is history-IGNORED, and a test that wrote
+ * the record directly would prove nothing about the thing under test.
+ */
 export async function viewFrame(page: Page, frameId: string | null) {
-  await page.evaluate((id) => {
-    window.__editor!.store.put([
-      {
-        typeName: 'diagramFrameView',
-        id: 'diagramFrameView:current',
-        activeFrameId: id,
-        offFrame: [],
-      } as never,
-    ])
-  }, frameId)
+  await page.evaluate((id) => window.__frames!.viewFrame(window.__editor!, id), frameId)
+}
+
+/** The nodes this viewer has taken off-frame. */
+export async function offFrameNodeIds(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const record = window.__editor!.store.get('diagramOffFrame:current' as never) as
+      { nodeIds: string[] } | undefined
+    return [...(record?.nodeIds ?? [])].sort()
+  })
+}
+
+/** Which frame this viewer is on, or null. */
+export async function activeFrameId(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const record = window.__editor!.store.get('diagramFrameView:current' as never) as
+      { activeFrameId: string | null } | undefined
+    return record?.activeFrameId ?? null
+  })
 }
 
 /**

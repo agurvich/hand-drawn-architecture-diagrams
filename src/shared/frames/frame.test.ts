@@ -4,6 +4,11 @@ import {
   withEffectiveCollapsed,
   isFrameStale,
   FRAME_RECORD_TYPE,
+  FRAME_VIEW_RECORD_TYPE,
+  OFF_FRAME_RECORD_TYPE,
+  frameRecordValidator,
+  frameViewRecordValidator,
+  offFrameRecordValidator,
   type FrameRecord,
 } from './frame'
 import { isHiddenByCollapse, type HierarchyShape } from '../shapes/hierarchy'
@@ -199,5 +204,61 @@ describe('isFrameStale', () => {
     expect(
       isFrameStale(frame({ collapsed: { 'shape:gone': true }, highlighted: ['shape:a'] }), get),
     ).toBe(false)
+  })
+})
+
+describe('the validators reject, which is the direction regressions go', () => {
+  const frameShape = {
+    typeName: FRAME_RECORD_TYPE,
+    id: 'diagramFrame:f1',
+    name: 'F',
+    note: '',
+    collapsed: {},
+    highlighted: [],
+    index: 'a1',
+  }
+
+  it('accepts a well-formed frame', () => {
+    expect(() => frameRecordValidator.validate(frameShape)).not.toThrow()
+  })
+
+  it('rejects an id without the type prefix', () => {
+    // The criterion with the thinnest evidence otherwise: swapping idValidator
+    // for T.string would not have reddened anything.
+    expect(() => frameRecordValidator.validate({ ...frameShape, id: 'f1' })).toThrow()
+    expect(() => frameRecordValidator.validate({ ...frameShape, id: 'shape:f1' })).toThrow()
+  })
+
+  it('rejects a missing or wrong-typed field', () => {
+    for (const bad of [
+      { ...frameShape, name: undefined },
+      { ...frameShape, note: 7 },
+      { ...frameShape, collapsed: { a: 'yes' } },
+      { ...frameShape, highlighted: 'a' },
+      { ...frameShape, index: 1 },
+      { ...frameShape, typeName: 'somethingElse' },
+    ]) {
+      expect(() => frameRecordValidator.validate(bad)).toThrow()
+    }
+  })
+
+  it('rejects an unknown field, so a stray write cannot ride along', () => {
+    expect(() => frameRecordValidator.validate({ ...frameShape, camera: {} })).toThrow()
+  })
+
+  it('validates the two SESSION records, which never cross the wire and so have no other guard', () => {
+    const view = {
+      typeName: FRAME_VIEW_RECORD_TYPE,
+      id: 'diagramFrameView:current',
+      activeFrameId: null,
+    }
+    expect(() => frameViewRecordValidator.validate(view)).not.toThrow()
+    expect(() =>
+      frameViewRecordValidator.validate({ ...view, activeFrameId: 'not-a-frame-id' }),
+    ).toThrow()
+
+    const off = { typeName: OFF_FRAME_RECORD_TYPE, id: 'diagramOffFrame:current', nodeIds: [] }
+    expect(() => offFrameRecordValidator.validate(off)).not.toThrow()
+    expect(() => offFrameRecordValidator.validate({ ...off, nodeIds: [7] })).toThrow()
   })
 })

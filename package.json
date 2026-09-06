@@ -19,7 +19,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@tldraw/store": "5.4.0",
+    "@tldraw/store": "^5.4.0",
     "@tldraw/sync": "^5.4.0",
     "@tldraw/sync-core": "^5.4.0",
     "react": "^19.2.8",
