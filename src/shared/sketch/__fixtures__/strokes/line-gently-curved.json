@@ -1,0 +1,32 @@
+{
+  "name": "line-gently-curved",
+  "expect": "line",
+  "why": "Nobody draws a straight line.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 65,
+      "y": -15
+    },
+    {
+      "x": 130,
+      "y": -25
+    },
+    {
+      "x": 200,
+      "y": -28
+    },
+    {
+      "x": 270,
+      "y": -20
+    },
+    {
+      "x": 340,
+      "y": -3
+    }
+  ]
+}

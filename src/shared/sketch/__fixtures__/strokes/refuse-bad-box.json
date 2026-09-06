@@ -1,0 +1,40 @@
+{
+  "name": "refuse-bad-box",
+  "expect": "none",
+  "why": "Meant as a box, drawn far too loosely to be called one.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 120,
+      "y": -15
+    },
+    {
+      "x": 170,
+      "y": 50
+    },
+    {
+      "x": 155,
+      "y": 150
+    },
+    {
+      "x": 40,
+      "y": 180
+    },
+    {
+      "x": -30,
+      "y": 130
+    },
+    {
+      "x": -35,
+      "y": 50
+    },
+    {
+      "x": 10,
+      "y": 12
+    }
+  ]
+}

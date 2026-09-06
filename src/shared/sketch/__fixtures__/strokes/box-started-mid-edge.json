@@ -1,0 +1,56 @@
+{
+  "name": "box-started-mid-edge",
+  "expect": "box",
+  "why": "Started halfway along the top; the corners are in a different order.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 70,
+      "y": -1
+    },
+    {
+      "x": 99,
+      "y": 1
+    },
+    {
+      "x": 101,
+      "y": 70
+    },
+    {
+      "x": 98,
+      "y": 150
+    },
+    {
+      "x": 20,
+      "y": 152
+    },
+    {
+      "x": -70,
+      "y": 149
+    },
+    {
+      "x": -101,
+      "y": 151
+    },
+    {
+      "x": -99,
+      "y": 70
+    },
+    {
+      "x": -102,
+      "y": 1
+    },
+    {
+      "x": -60,
+      "y": 0
+    },
+    {
+      "x": -2,
+      "y": 2
+    }
+  ]
+}

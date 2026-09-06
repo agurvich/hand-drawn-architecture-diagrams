@@ -1,0 +1,32 @@
+{
+  "name": "line-straight",
+  "expect": "line",
+  "why": "The plain case: one node to another.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 60,
+      "y": 2
+    },
+    {
+      "x": 130,
+      "y": -1
+    },
+    {
+      "x": 200,
+      "y": 1
+    },
+    {
+      "x": 270,
+      "y": 0
+    },
+    {
+      "x": 340,
+      "y": 2
+    }
+  ]
+}

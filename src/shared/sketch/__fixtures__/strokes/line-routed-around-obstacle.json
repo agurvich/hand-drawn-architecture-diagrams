@@ -1,0 +1,64 @@
+{
+  "name": "line-routed-around-obstacle",
+  "expect": "box",
+  "why": "RIGHT, DOWN, RIGHT -- three corners, and its ends can fall close enough that the pure classifier calls it a box. That is CORRECT for a node-blind function. The client adapter overrides it when both ends resolve to two different nodes, which is FR-003 and is why the rule is outcome-shaped rather than order-shaped. This fixture exists to pin the pure verdict so the override has something to override.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 70,
+      "y": 1
+    },
+    {
+      "x": 140,
+      "y": -1
+    },
+    {
+      "x": 142,
+      "y": 50
+    },
+    {
+      "x": 140,
+      "y": 100
+    },
+    {
+      "x": 138,
+      "y": 150
+    },
+    {
+      "x": 200,
+      "y": 152
+    },
+    {
+      "x": 260,
+      "y": 149
+    },
+    {
+      "x": 262,
+      "y": 100
+    },
+    {
+      "x": 259,
+      "y": 50
+    },
+    {
+      "x": 257,
+      "y": 5
+    },
+    {
+      "x": 190,
+      "y": 3
+    },
+    {
+      "x": 80,
+      "y": 2
+    },
+    {
+      "x": 12,
+      "y": 1
+    }
+  ]
+}

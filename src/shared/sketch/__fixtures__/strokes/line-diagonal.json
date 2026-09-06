@@ -1,0 +1,28 @@
+{
+  "name": "line-diagonal",
+  "expect": "line",
+  "why": "Direction must not matter.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 60,
+      "y": 50
+    },
+    {
+      "x": 130,
+      "y": 100
+    },
+    {
+      "x": 200,
+      "y": 150
+    },
+    {
+      "x": 270,
+      "y": 200
+    }
+  ]
+}

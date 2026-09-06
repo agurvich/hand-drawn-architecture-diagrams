@@ -1,0 +1,44 @@
+{
+  "name": "box-small-but-usable",
+  "expect": "box",
+  "why": "Near the small end of what should still become a node.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 50,
+      "y": -1
+    },
+    {
+      "x": 100,
+      "y": 1
+    },
+    {
+      "x": 101,
+      "y": 30
+    },
+    {
+      "x": 99,
+      "y": 60
+    },
+    {
+      "x": 50,
+      "y": 61
+    },
+    {
+      "x": 0,
+      "y": 59
+    },
+    {
+      "x": -1,
+      "y": 30
+    },
+    {
+      "x": 1,
+      "y": 2
+    }
+  ]
+}

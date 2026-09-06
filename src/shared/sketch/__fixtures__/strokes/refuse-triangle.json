@@ -1,0 +1,24 @@
+{
+  "name": "refuse-triangle",
+  "expect": "none",
+  "why": "Closed, three corners. The nearest miss to a box.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 100,
+      "y": 170
+    },
+    {
+      "x": -100,
+      "y": 170
+    },
+    {
+      "x": 0,
+      "y": 0
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "refuse-l-shape",
+  "expect": "none",
+  "why": "Closed, and every corner is square -- so the squareness test admits it. Only the CORNER COUNT refuses it. A bracket round two things is a real annotation.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 200,
+      "y": 0
+    },
+    {
+      "x": 200,
+      "y": 90
+    },
+    {
+      "x": 120,
+      "y": 90
+    },
+    {
+      "x": 120,
+      "y": 180
+    },
+    {
+      "x": 0,
+      "y": 180
+    },
+    {
+      "x": 0,
+      "y": 90
+    },
+    {
+      "x": 2,
+      "y": 5
+    }
+  ]
+}

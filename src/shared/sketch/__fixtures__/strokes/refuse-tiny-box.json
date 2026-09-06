@@ -1,0 +1,36 @@
+{
+  "name": "refuse-tiny-box",
+  "expect": "none",
+  "why": "A real closed rectangle with four square corners -- it passes every shape test. It is refused for being too small to be a node anyone could read or tap.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 28,
+      "y": -1
+    },
+    {
+      "x": 30,
+      "y": 22
+    },
+    {
+      "x": 29,
+      "y": 25
+    },
+    {
+      "x": 2,
+      "y": 26
+    },
+    {
+      "x": -1,
+      "y": 12
+    },
+    {
+      "x": 1,
+      "y": 2
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "name": "refuse-scribble",
+  "expect": "none",
+  "why": "Crossing out a word. The commonest annotation there is.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 40,
+      "y": -40
+    },
+    {
+      "x": 0,
+      "y": 40
+    },
+    {
+      "x": 80,
+      "y": -30
+    },
+    {
+      "x": 10,
+      "y": 50
+    },
+    {
+      "x": 100,
+      "y": -20
+    },
+    {
+      "x": 30,
+      "y": 60
+    },
+    {
+      "x": 120,
+      "y": 0
+    }
+  ]
+}

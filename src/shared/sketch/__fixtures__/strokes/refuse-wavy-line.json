@@ -1,0 +1,44 @@
+{
+  "name": "refuse-wavy-line",
+  "expect": "none",
+  "why": "Open, long, and never doubles back -- so only the DEVIATION test refuses it. Underlining a whole phrase with a flourish looks exactly like this.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 40,
+      "y": -40
+    },
+    {
+      "x": 80,
+      "y": 0
+    },
+    {
+      "x": 120,
+      "y": 40
+    },
+    {
+      "x": 160,
+      "y": 0
+    },
+    {
+      "x": 200,
+      "y": -40
+    },
+    {
+      "x": 240,
+      "y": 0
+    },
+    {
+      "x": 280,
+      "y": 40
+    },
+    {
+      "x": 320,
+      "y": 0
+    }
+  ]
+}
