@@ -1,8 +1,8 @@
 # Spec: Scenes in the JSON document
 
 **ID:** SPEC-009  
-**Status:** Draft  
-**Last Updated:** 2026-09-05 (rev 3 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-06 (rev 4 — built)  
 **Depends On:** SPEC-007, SPEC-008
 
 ## Overview
@@ -192,6 +192,12 @@ that catches it is the fifth.
       plausible index scheme first scrambles and a three-scene test still passes
 - [ ] A round trip is exact: export, import, export again yields an identical document
 - [ ] The imported scenes reach a second client, and both clients' scene records match
+- [ ] **The import confirmation counts scenes.** Added during the build (2026-09-06), because the
+      existing gate is `onPage - (nodes + connections)` and scenes are not page shapes — so a room
+      with six hand-authored scenes and nothing undocumentable was replaced with no confirmation at
+      all, and the dialog copy spoke only of shapes. This applies the settled "everything, but ask
+      first" decision rather than making a new one; it is recorded here because it is behaviour no
+      other criterion covers.
 
 ### FR-004: The guide teaches scenes
 

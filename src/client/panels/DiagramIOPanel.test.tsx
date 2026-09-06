@@ -7,11 +7,13 @@ import { DOCUMENT_VERSION } from '@shared/shapes'
 const exportDocument = vi.fn()
 const importDocument = vi.fn()
 const undocumentableShapeCount = vi.fn()
+const replacedSceneCount = vi.fn()
 
 vi.mock('../documentIO', () => ({
   exportDocument: (...args: unknown[]) => exportDocument(...args) as unknown,
   importDocument: (...args: unknown[]) => importDocument(...args) as unknown,
   undocumentableShapeCount: (...args: unknown[]) => undocumentableShapeCount(...args) as unknown,
+  replacedSceneCount: (...args: unknown[]) => replacedSceneCount(...args) as unknown,
 }))
 
 const editor = {} as Editor
@@ -32,8 +34,14 @@ function paste(text: string) {
 }
 
 beforeEach(() => {
-  exportDocument.mockReturnValue({ version: DOCUMENT_VERSION, nodes: [], connections: [] })
+  exportDocument.mockReturnValue({
+    version: DOCUMENT_VERSION,
+    nodes: [],
+    connections: [],
+    scenes: [],
+  })
   undocumentableShapeCount.mockReturnValue(0)
+  replacedSceneCount.mockReturnValue(0)
 })
 
 afterEach(() => {
@@ -44,7 +52,12 @@ describe('DiagramIOPanel — FR-004', () => {
   it('shows the current diagram as JSON, with no clipboard API involved', () => {
     open()
     const box = screen.getByTestId('diagram-io-export') as HTMLTextAreaElement
-    expect(JSON.parse(box.value)).toEqual({ version: DOCUMENT_VERSION, nodes: [], connections: [] })
+    expect(JSON.parse(box.value)).toEqual({
+      version: DOCUMENT_VERSION,
+      nodes: [],
+      connections: [],
+      scenes: [],
+    })
     expect(box.readOnly).toBe(true)
   })
 
@@ -190,5 +203,28 @@ describe('DiagramIOPanel — FR-003, the confirmation gate', () => {
 
     fireEvent.click(screen.getByTestId('diagram-io-confirm-no'))
     expect(document.activeElement).toBe(screen.getByTestId('diagram-io-import'))
+  })
+
+  it('CONFIRMS when the room has scenes, even with nothing undocumentable', () => {
+    // Scenes are not page shapes, so `undocumentableShapeCount` cannot see them.
+    // Without its own count, a room of six hand-authored scenes was replaced in
+    // silence -- the case a shape-only gate is structurally blind to.
+    replacedSceneCount.mockReturnValue(6)
+    open()
+    paste(VALID)
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    expect(screen.getByTestId('diagram-io-confirm')).toHaveTextContent(/6 scenes/)
+    expect(importDocument).not.toHaveBeenCalled()
+  })
+
+  it('says how many of EACH would go when both are at risk', () => {
+    undocumentableShapeCount.mockReturnValue(3)
+    replacedSceneCount.mockReturnValue(1)
+    open()
+    paste(VALID)
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    const confirm = screen.getByTestId('diagram-io-confirm')
+    expect(confirm).toHaveTextContent(/3 shapes/)
+    expect(confirm).toHaveTextContent(/1 scene /)
   })
 })

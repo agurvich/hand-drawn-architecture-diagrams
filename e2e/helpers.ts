@@ -290,6 +290,46 @@ export async function addHalfConnection(page: Page, fromId: string): Promise<str
   }, fromId)
 }
 
+/**
+ * Every scene record in the room, in index order.
+ *
+ * `pageRecords` filters to shapes and bindings, so scenes are INVISIBLE to it --
+ * which is why the whole document-io suite could not see scene loss or scene
+ * undo at all. Four inline copies of this filter had accumulated in
+ * `scenes.spec.ts`; this is the last one.
+ */
+export async function sceneRecords(page: Page): Promise<
+  Array<{
+    id: string
+    name: string
+    note: string
+    collapsed: Record<string, boolean>
+    highlighted: string[]
+  }>
+> {
+  return page.evaluate(() =>
+    window
+      .__editor!.store.allRecords()
+      .filter((r) => r.typeName === 'diagramScene')
+      .map((r) => ({
+        id: r.id as string,
+        name: r.name as string,
+        note: r.note as string,
+        collapsed: r.collapsed as Record<string, boolean>,
+        highlighted: r.highlighted as string[],
+        index: r.index as string,
+      }))
+      .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : a.id < b.id ? -1 : 1))
+      .map(({ index: _index, ...rest }) => rest),
+  )
+}
+
+/** Paste a document and confirm the replacement dialog. */
+export async function pasteDocumentAndConfirm(page: Page, json: string) {
+  await pasteDocument(page, json)
+  await page.getByTestId('diagram-io-confirm-yes').click()
+}
+
 /** Create a scene record directly, without the authoring UI (which is PR 2). */
 export async function addScene(
   page: Page,

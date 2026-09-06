@@ -33,3 +33,7 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `sceneView` | `src/client/sceneView.ts` | Per-viewer scene state, the shared `GetShape` override, and every scene mutation with its history rule |
 | `NarrationPanel` | `src/client/panels/NarrationPanel.tsx` | Step, capture, rename, reorder, delete; the off-scene marker |
 | e2e scene helpers | `e2e/helpers.ts` | `addScene`, `viewScene`, `hiddenShapeIds`, `offSceneNodeIds`, `activeSceneId` |
+| `sceneType` | `src/shared/scenes/sceneType.ts` | The scene type string and its id prefix, tldraw-free so `document.ts` can strip it |
+| v1 corpus | `src/shared/__fixtures__/v1/` | Frozen `"version": 1` documents; the regression base for any future version bump |
+| e2e document helpers | `e2e/helpers.ts` | `sceneRecords`, `pasteDocumentAndConfirm` |
+

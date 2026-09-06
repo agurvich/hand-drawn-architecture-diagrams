@@ -13,7 +13,7 @@ to status only — no prose.
 | SPEC-006 | Merging connections into a collapsed container | Completed | SPEC-004, SPEC-005 |
 | SPEC-007 | JSON export/import and the AI-authoring schema | Completed | SPEC-004, SPEC-005, SPEC-006 |
 | SPEC-008 | Scenes and narration | Completed | SPEC-004, SPEC-006, SPEC-007 |
-| SPEC-009 | Scenes in the JSON document | Draft | SPEC-007, SPEC-008 |
+| SPEC-009 | Scenes in the JSON document | Completed | SPEC-007, SPEC-008 |
 | SPEC-010 | Sketch to clean shape | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-011 | Actors on connections | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-012 | Actors in the JSON document | Planned | SPEC-009, SPEC-011 |
@@ -31,8 +31,8 @@ Group related specs and record the order to build them in. Keep this section: a 
   the client/worker schema duality is proven on a trivial shape rather than retrofitted across a
   finished shape library (`decisions.md` -> *Multiplayer lands before the first custom shape*).
 
-  SPEC-001 through SPEC-008 are built; SPEC-009 is authored. The order is not negotiable -- the shape
-  of each was not knowable until the one before it landed, and a spec authored against an unproven
+  SPEC-001 through SPEC-009 are built, closing the arc. The order is not negotiable -- the shape of
+  each was not knowable until the one before it landed, and a spec authored against an unproven
   foundation is rewritten rather than built.
 
   SPEC-009 closes the arc: a document that carries its narration as well as its diagram, which is
