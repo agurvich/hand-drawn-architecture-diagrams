@@ -1,0 +1,20 @@
+{
+  "name": "refuse-dot",
+  "expect": "none",
+  "why": "A tap. Below any extent worth calling a shape.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 2.75,
+      "y": 1.94
+    },
+    {
+      "x": 1.74,
+      "y": 2.37
+    }
+  ]
+}

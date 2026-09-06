@@ -8,6 +8,10 @@ import { defineConfig, devices } from '@playwright/test'
  */
 export default defineConfig({
   testDir: './e2e',
+  // The corpus capture harness is a TOOL, not a test: it writes fixture files
+  // and is run deliberately. Left in the suite it would rewrite the corpus on
+  // every run, so the recogniser would be tuned against whatever it does now.
+  testIgnore: '**/tools/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

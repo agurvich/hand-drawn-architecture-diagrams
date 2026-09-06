@@ -36,4 +36,10 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `sceneType` | `src/shared/scenes/sceneType.ts` | The scene type string and its id prefix, tldraw-free so `document.ts` can strip it |
 | v1 corpus | `src/shared/__fixtures__/v1/` | Frozen `"version": 1` documents; the regression base for any future version bump |
 | e2e document helpers | `e2e/helpers.ts` | `sceneRecords`, `pasteDocumentAndConfirm` |
+| `recognise` | `src/shared/sketch/recognise.ts` | Pure stroke classifier: box, line or nothing, plus `isPurposeful` and the named tolerances |
+| stroke corpus | `src/shared/sketch/__fixtures__/strokes/` | 21 recorded strokes with expected verdicts; 12 are refusals |
+| capture harness | `e2e/tools/capture-strokes.spec.ts` | Draws real strokes and writes the corpus; run via `playwright.capture.ts` |
+| `sketchMode` | `src/client/sketch/sketchMode.ts` | Per-viewer recognition toggle, off by default, history-ignored |
+| `SketchToggle` | `src/client/panels/SketchToggle.tsx` | The control, with the conversion live region |
+| e2e sketch helpers | `e2e/helpers.ts` | `penStroke`, `shapesByType`, `setSketchMode` |
 

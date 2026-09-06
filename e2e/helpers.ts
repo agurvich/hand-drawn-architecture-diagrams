@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test'
 import type { Page, BrowserContext, Browser } from '@playwright/test'
 
 export function roomId(prefix: string): string {
@@ -407,4 +408,56 @@ export async function hiddenShapeIds(page: Page, type?: string): Promise<string[
         .sort(),
     type,
   )
+}
+
+/**
+ * Draw a stroke with real pen-typed pointer events.
+ *
+ * Through CDP and the actual draw tool, never by calling the recogniser: the
+ * GESTURE is the feature, and a test that called `recognise` directly would pass
+ * against a build where no stroke ever reaches it -- which is exactly how
+ * SPEC-005 shipped a handle nothing dragged.
+ */
+export async function penStroke(page: Page, path: Array<[number, number]>) {
+  const cdp = await page.context().newCDPSession(page)
+  const pen = (type: 'mousePressed' | 'mouseMoved' | 'mouseReleased', x: number, y: number) =>
+    cdp.send('Input.dispatchMouseEvent', {
+      type,
+      x,
+      y,
+      button: 'left',
+      buttons: type === 'mouseReleased' ? 0 : 1,
+      clickCount: 1,
+      pointerType: 'pen',
+      force: 0.6,
+    })
+
+  await page.evaluate(() => {
+    window.__editor!.setCurrentTool('draw')
+  })
+  await pen('mousePressed', path[0]![0], path[0]![1])
+  for (const [x, y] of path.slice(1)) await pen('mouseMoved', x, y)
+  const last = path[path.length - 1]!
+  await pen('mouseReleased', last[0], last[1])
+  // The conversion runs in an after-change handler, so give the store a tick.
+  await page.waitForTimeout(120)
+}
+
+/** Shapes on the page, by type. */
+export async function shapesByType(page: Page): Promise<Record<string, number>> {
+  return page.evaluate(() => {
+    const out: Record<string, number> = {}
+    for (const shape of window.__editor!.getCurrentPageShapes()) {
+      out[shape.type] = (out[shape.type] ?? 0) + 1
+    }
+    return out
+  })
+}
+
+/** Turn sketch recognition on or off through the real control. */
+export async function setSketchMode(page: Page, on: boolean) {
+  const button = page.getByTestId('sketch-toggle')
+  const pressed = (await button.getAttribute('aria-pressed')) === 'true'
+  if (pressed !== on) await button.click()
+  await expect(button).toHaveAttribute('aria-pressed', String(on))
 }

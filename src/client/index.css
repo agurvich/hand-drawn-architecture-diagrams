@@ -655,3 +655,69 @@ body {
 .diagram-connection--highlighted {
   color: #1a5fb4;
 }
+
+/*
+ * The sketch-recognition toggle.
+ *
+ * Bottom-RIGHT: tldraw owns the bottom-left (navigation panel) and the top strip
+ * (menus, style panel), and the narration bar already sits above the navigation
+ * panel. Measured against the same overlap assertion the JSON launcher gained.
+ */
+.sketch-toggle {
+  position: absolute;
+  right: 8px;
+  bottom: 56px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  touch-action: manipulation;
+}
+.sketch-toggle__button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  font:
+    600 13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+/* The ON state is a FILL, not a border tint: a 1px difference is not a state
+   anyone can read at arm's length on a tablet. */
+.sketch-toggle__button--on {
+  color: #fff;
+  background: #1a5fb4;
+  border-color: #14488a;
+}
+.sketch-toggle__state {
+  font-weight: 700;
+}
+.sketch-toggle__status {
+  max-width: 260px;
+  margin: 0;
+  padding: 0;
+  font:
+    13px/1.4 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  border: 0;
+}
+/* Empty until something is announced -- but never display:none, which would
+   take it out of the accessibility tree and silence it. */
+.sketch-toggle__status:not(:empty) {
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+}

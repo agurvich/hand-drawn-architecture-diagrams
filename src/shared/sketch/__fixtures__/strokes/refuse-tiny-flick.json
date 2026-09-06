@@ -1,0 +1,24 @@
+{
+  "name": "refuse-tiny-flick",
+  "expect": "none",
+  "why": "A short straight flick -- perfectly straight, no backtrack, so every line test passes it. Only MIN_STROKE_EXTENT refuses it. A tick or a comma.",
+  "via": "cdp-pen",
+  "points": [
+    {
+      "x": 0,
+      "y": 0
+    },
+    {
+      "x": 3.31,
+      "y": 1.44
+    },
+    {
+      "x": 7.33,
+      "y": 5.6
+    },
+    {
+      "x": 9.73,
+      "y": 6.63
+    }
+  ]
+}
