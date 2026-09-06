@@ -17,6 +17,7 @@ to status only — no prose.
 | SPEC-010 | Sketch to clean shape | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-011 | Actors on connections | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-012 | Actors in the JSON document | Planned | SPEC-009, SPEC-011 |
+| SPEC-013 | Hand-drawn content inside a node | Draft | SPEC-004, SPEC-006, SPEC-008, SPEC-010 |
 
 ## Arcs (build order)
 
@@ -48,6 +49,13 @@ Group related specs and record the order to build them in. Keep this section: a 
   uses and for the `@tldraw/store` allowlist widening that pattern required. It does **not** need the
   document work, so it can be built before or after SPEC-009 -- which is the whole reason it is a
   separate arc rather than a tail on the migration one.
+
+- **Sketchbook:** SPEC-010 -> SPEC-013
+
+  Making the surface feel drawn on rather than filled in. SPEC-010 turns a sketch into structure;
+  SPEC-013 lets a sketch stay a sketch and still belong to the thing it was drawn inside. They share
+  one mechanism -- what a node will accept as a child -- and SPEC-013 changes the answer SPEC-010
+  depends on, so the order is not negotiable.
 
 - **Modelling:** SPEC-011 -> SPEC-012
 
