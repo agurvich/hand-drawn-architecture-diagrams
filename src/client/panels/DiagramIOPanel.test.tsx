@@ -222,6 +222,40 @@ describe('DiagramIOPanel — FR-003, the confirmation gate', () => {
     expect(importDocument).not.toHaveBeenCalled()
   })
 
+  it('says DELETED, not replaced, when the document carries no scenes', () => {
+    // The destructive case read identically to the harmless one. Every document
+    // written before SPEC-009 has no `scenes` key -- and the guide promises
+    // those still import -- so this is the common path.
+    replacedSceneCount.mockReturnValue(50)
+    open()
+    paste(VALID) // VALID has no scenes key
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    const confirm = screen.getByTestId('diagram-io-confirm')
+    expect(confirm).toHaveTextContent(/50 scenes in this room will be deleted/)
+    expect(confirm).toHaveTextContent(/this document has none/)
+  })
+
+  it('says REPLACED when the document brings scenes of its own', () => {
+    replacedSceneCount.mockReturnValue(2)
+    open()
+    paste(
+      JSON.stringify({
+        version: DOCUMENT_VERSION,
+        nodes: [],
+        connections: [],
+        scenes: [
+          { id: 'x', name: 'X' },
+          { id: 'y', name: 'Y' },
+          { id: 'z', name: 'Z' },
+        ],
+      }),
+    )
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    expect(screen.getByTestId('diagram-io-confirm')).toHaveTextContent(
+      /2 scenes in this room will be replaced by the document\u2019s 3/,
+    )
+  })
+
   it('says how many of EACH would go when both are at risk', () => {
     undocumentableShapeCount.mockReturnValue(3)
     replacedSceneCount.mockReturnValue(1)

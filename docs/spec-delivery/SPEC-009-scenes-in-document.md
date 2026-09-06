@@ -91,6 +91,23 @@ rather than failing. `Object.fromEntries` now builds the map, which creates it a
 without polluting anything. The runtime lens already had this right — `effectiveCollapsed` uses
 `Object.hasOwn` deliberately.
 
+**AN IMPORT PERFORMED OFFLINE COMES BACK AS A MERGE, NOT A REPLACEMENT.** Found by using it:
+disconnect, import, reconnect, and the room is the union of both documents — tldraw sync's rebase
+re-adds the records the offline client removed while keeping the ones it created. The cause is below
+`documentIO.ts` and the shape half is already true of SPEC-007, so this spec did not introduce it —
+but it makes it worse in a way worth naming: `importDocument` always mints from `ZERO_INDEX_KEY`, so
+the resurrected scenes and the imported ones occupy the same index range and **interleave** under the
+`(index, id)` tiebreak rather than concatenating. The user gets two unrelated walkthroughs shuffled
+together in an order nobody authored, after being told "importing replaces the whole page". Undo does
+clean it up. This needs a spec of its own; it is recorded here rather than left to be rediscovered.
+
+**A viewer's off-scene set is cleared only on the importing client.** The comment in
+`documentIO.ts` gives the reason the importer clears its own — a folded-off node silently suppresses
+the new scene's `collapsed` entry — and that reasoning applies verbatim to every *other* viewer in
+the room, where it cannot be done, because the record is session-scoped and the importer has no reach
+into another session. It self-heals the moment that viewer steps to any scene, since `viewScene`
+clears the set.
+
 **Not covered:** transactional atomicity of the import (nothing tests a throw mid-import), and there
 is no v2 → v1 downgrade. A v1 build handed a v2 document reports `document.scenes: unknown key`,
 because its own key check runs before its version check — nothing here reaches a build that already

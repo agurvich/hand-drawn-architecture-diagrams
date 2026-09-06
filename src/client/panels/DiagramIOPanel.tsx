@@ -93,6 +93,10 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
     hadPending.current = pending !== null
   }, [pending])
 
+  // How many scenes the pending document carries, so the dialog can tell
+  // "replaced by these" apart from "deleted, and nothing takes their place".
+  const incomingScenes = pending?.scenes.length ?? 0
+
   const runImport = (document: DiagramDocument) => {
     if (!editor) return
     importDocument(editor, document)
@@ -245,12 +249,22 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
                 anything else the JSON cannot describe — will be deleted.{' '}
               </>
             )}
-            {replacedScenes > 0 && (
-              <>
-                {replacedScenes} scene{replacedScenes === 1 ? '' : 's'} in this room will be
-                replaced by the document&rsquo;s.{' '}
-              </>
-            )}
+            {replacedScenes > 0 &&
+              (incomingScenes > 0 ? (
+                <>
+                  {replacedScenes} scene{replacedScenes === 1 ? '' : 's'} in this room will be
+                  replaced by the document&rsquo;s {incomingScenes}.{' '}
+                </>
+              ) : (
+                <>
+                  {/* The destructive case, and it used to read identically to
+                      the harmless one. Every document written before SPEC-009
+                      has no scenes key -- and the guide promises those still
+                      import -- so this is the common path, not the exotic one. */}
+                  {replacedScenes} scene{replacedScenes === 1 ? '' : 's'} in this room will be{' '}
+                  <strong>deleted</strong>; this document has none.{' '}
+                </>
+              ))}
             One undo brings everything back.
           </p>
           <button

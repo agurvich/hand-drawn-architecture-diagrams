@@ -235,6 +235,10 @@ one that is.
 a no-op. `highlighted` takes either, because accenting a line is as useful as accenting a box.
 Every id must exist in the same document; a dangling reference is refused rather than ignored.
 
+One thing it does not catch: **folding a node with no children does nothing**, silently. It is not an
+error, because that node may gain children later and the entry should still mean something then. So
+name the containers you actually want folded rather than listing every node.
+
 Scenes are ordered by their position in the array. There is no index field: a list is already
 ordered, and carrying both would give the format two places to disagree.
 
@@ -295,13 +299,17 @@ conversation was actually about. Nothing in the diagram changed between beats.
 
 ## What a round trip does not carry
 
-Export is faithful except in two ways, both deliberate:
+Export is faithful except in three ways, all deliberate:
 
 - **Z-order.** Nodes that overlap may come back in a different stacking order. Avoid relying on
   overlap to mean anything.
 - **Array order.** Export sorts `nodes` and `connections` by id, so a document you wrote in a
   meaningful order comes back alphabetised. It is the same diagram; do not read the order as
-  intent.
+  intent. `scenes` is the exception — that order is yours, and it survives.
+- **A scene's references to things the document cannot carry.** A scene can name a shape drawn by
+  hand, or one that has since been deleted; those entries are dropped from the exported scene while
+  the scene itself survives, possibly naming nothing. Nothing warns you, because the alternative is
+  an export that refuses its own room.
 
 Anything you drew by hand in the app — pencil strokes, text, notes, tldraw's own shapes — is **not**
 part of the document and is not exported. Importing replaces the whole page, so the app warns you and
