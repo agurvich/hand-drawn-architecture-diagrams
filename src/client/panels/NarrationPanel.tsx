@@ -31,7 +31,7 @@ interface NarrationPanelProps {
  */
 export function NarrationPanel({ editor }: NarrationPanelProps) {
   const [open, setOpen] = useState(false)
-  const [pendingDelete, setPendingDelete] = useState<SceneRecord | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<SceneRecord['id'] | null>(null)
   const launchButton = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
   const confirmButton = useRef<HTMLButtonElement>(null)
@@ -48,14 +48,16 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
     () => (editor ? sceneState(editor).offScene.size > 0 : false),
     [editor],
   )
+  // Gated on `open`: it walks every id every scene names, and it only renders
+  // inside the list.
   const staleIds = useValue(
     'stale scenes',
     () => {
-      if (!editor) return new Set<string>()
+      if (!editor || !open) return new Set<string>()
       const get = (id: string) => editor.getShape(id as never)
       return new Set(scenes.filter((s) => isSceneStale(s, get)).map((s) => s.id as string))
     },
-    [editor, scenes],
+    [editor, open, scenes],
   )
 
   useEffect(() => {
@@ -65,24 +67,26 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
   }, [open])
 
   useEffect(() => {
-    if (pendingDelete) confirmButton.current?.focus()
-    hadPending.current = pendingDelete !== null
-  }, [pendingDelete])
+    if (pendingDeleteId) confirmButton.current?.focus()
+    else if (hadPending.current) panel.current?.focus()
+    hadPending.current = pendingDeleteId !== null
+  }, [pendingDeleteId])
 
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      if (pendingDelete) setPendingDelete(null)
+      if (pendingDeleteId) setPendingDeleteId(null)
       else setOpen(false)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, pendingDelete])
+  }, [open, pendingDeleteId])
 
   if (!editor) return null
 
   const step = (delta: -1 | 1) => stepScene(editor, delta)
+  const pendingDelete = scenes.find((s) => s.id === pendingDeleteId) ?? null
   const position = active ? scenes.findIndex((s) => s.id === active.id) : -1
 
   return (
@@ -125,19 +129,28 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
           {active.note}
         </p>
       )}
-      {offScene && (
-        <p className="narration__off" role="status" data-testid="narration-off-scene">
-          You have opened something this scene folds.{' '}
-          <button
-            type="button"
-            className="narration__link"
-            data-testid="narration-restore"
-            onClick={() => active && viewScene(editor, active.id)}
-          >
-            Back to the scene
-          </button>
-        </p>
-      )}
+      {/* Permanently mounted, text swapped: a live region inserted WITH its
+          content already present is the classic case assistive tech does not
+          announce, because the region was never in the tree to mutate. */}
+      <p
+        className={`narration__off${offScene ? '' : ' narration__off--empty'}`}
+        role="status"
+        data-testid="narration-off-scene"
+      >
+        {offScene && (
+          <>
+            You have opened something this scene folds.{' '}
+            <button
+              type="button"
+              className="narration__link"
+              data-testid="narration-restore"
+              onClick={() => active && viewScene(editor, active.id)}
+            >
+              Back to the scene
+            </button>
+          </>
+        )}
+      </p>
 
       {open && (
         <div
@@ -211,7 +224,7 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
                     className="narration__button"
                     data-testid="narration-delete"
                     aria-label={`Delete ${scene.name}`}
-                    onClick={() => setPendingDelete(scene)}
+                    onClick={() => setPendingDeleteId(scene.id)}
                   >
                     ✕
                   </button>
@@ -235,21 +248,23 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
                 Name
               </label>
               <input
+                key={`${active.id}-name`}
                 id={`${headingId}-name`}
                 className="narration__input"
                 data-testid="narration-name"
-                value={active.name}
-                onChange={(e) => updateScene(editor, active.id, { name: e.target.value })}
+                defaultValue={active.name}
+                onBlur={(e) => updateScene(editor, active.id, { name: e.target.value })}
               />
               <label className="narration__label" htmlFor={`${headingId}-note`}>
                 Note
               </label>
               <textarea
+                key={`${active.id}-note`}
                 id={`${headingId}-note`}
                 className="narration__input narration__input--note"
                 data-testid="narration-note-input"
-                value={active.note}
-                onChange={(e) => updateScene(editor, active.id, { note: e.target.value })}
+                defaultValue={active.note}
+                onBlur={(e) => updateScene(editor, active.id, { note: e.target.value })}
               />
               <button
                 type="button"
@@ -280,7 +295,7 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
                 data-testid="narration-confirm-yes"
                 onClick={() => {
                   deleteScene(editor, pendingDelete.id)
-                  setPendingDelete(null)
+                  setPendingDeleteId(null)
                 }}
               >
                 Delete
@@ -289,7 +304,7 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
                 type="button"
                 className="narration__button"
                 data-testid="narration-confirm-no"
-                onClick={() => setPendingDelete(null)}
+                onClick={() => setPendingDeleteId(null)}
               >
                 Cancel
               </button>

@@ -1,9 +1,11 @@
 import {
+  computed,
   createCustomRecordId,
   getIndexAbove,
-  getIndices,
+  getIndexBetween,
   uniqueId,
   ZERO_INDEX_KEY,
+  type Computed,
   type Editor,
   type IndexKey,
   type TLShape,
@@ -170,12 +172,61 @@ export function takeOffSceneAndToggle(
   })
 }
 
-/** Every scene in the room, in order. */
+/**
+ * Every scene in the room, in order.
+ *
+ * Behind a `computed` with an `isEqual`, keyed on the editor, exactly as
+ * `mergeIndex` is. `store.allRecords()` reads every value atom in the store, so
+ * an unguarded call makes the panel depend on the camera and on every shape --
+ * and the fresh array it returns fails `Object.is` every time, so React
+ * re-renders on every pointer frame of a drag.
+ */
+const orders = new WeakMap<Editor, Computed<SceneRecord[]>>()
+
+function sameOrder(a: SceneRecord[], b: SceneRecord[]): boolean {
+  return a.length === b.length && a.every((scene, i) => scene === b[i])
+}
+
 export function scenesInOrder(editor: Editor): SceneRecord[] {
-  return editor.store
-    .allRecords()
-    .filter((r): r is SceneRecord => r.typeName === SCENE_RECORD_TYPE)
-    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : a.id < b.id ? -1 : 1))
+  let order = orders.get(editor)
+  if (!order) {
+    order = computed(
+      'scenes in order',
+      () =>
+        editor.store
+          .allRecords()
+          .filter((r): r is SceneRecord => r.typeName === SCENE_RECORD_TYPE)
+          .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : a.id < b.id ? -1 : 1)),
+      { isEqual: sameOrder },
+    )
+    orders.set(editor, order)
+  }
+  return order.get()
+}
+
+/**
+ * The current effective view, as a scene's `collapsed` map.
+ *
+ * Extracted so `recaptureScene` does not have to create a scene and delete it
+ * again: that committed a document-scoped record in its own transaction, so a
+ * throw in the second one leaked a duplicate scene to everyone in the room, and
+ * between the two the temporary scene was genuinely visible and syncable.
+ *
+ * The population is every node that HAS CHILDREN right now: "container" is not a
+ * type here -- every node carries `collapsed` -- so the set has to be named. A
+ * node with no children is not recorded, and therefore falls back to its own
+ * prop if it later gains some.
+ */
+export function captureCollapsedMap(editor: Editor): Record<string, boolean> {
+  const { scene, offScene } = sceneState(editor)
+  const collapsed: Record<string, boolean> = {}
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== NODE_SHAPE_TYPE) continue
+    if (editor.getSortedChildIdsForParent(shape.id).length === 0) continue
+    const own = (shape.props as { collapsed: boolean }).collapsed
+    collapsed[shape.id] = effectiveCollapsed(shape.id, own, scene, offScene)
+  }
+  return collapsed
 }
 
 /**
@@ -192,15 +243,7 @@ export function scenesInOrder(editor: Editor): SceneRecord[] {
  * pressing undo twice deletes the scene -- for everyone in the room.
  */
 export function captureScene(editor: Editor, name: string): SceneRecord['id'] {
-  const { scene, offScene } = sceneState(editor)
-  const collapsed: Record<string, boolean> = {}
-  for (const shape of editor.getCurrentPageShapes()) {
-    if (shape.type !== NODE_SHAPE_TYPE) continue
-    if (editor.getSortedChildIdsForParent(shape.id).length === 0) continue
-    const own = (shape.props as { collapsed: boolean }).collapsed
-    collapsed[shape.id] = effectiveCollapsed(shape.id, own, scene, offScene)
-  }
-
+  const collapsed = captureCollapsedMap(editor)
   const last = scenesInOrder(editor).at(-1)
   const id = createCustomRecordId(SCENE_RECORD_TYPE, uniqueId()) as SceneRecord['id']
   editor.run(
@@ -226,23 +269,21 @@ export function captureScene(editor: Editor, name: string): SceneRecord['id'] {
   return id
 }
 
-/** Overwrite a scene's captured view, keeping its id, name, note and position. */
+/**
+ * Overwrite a scene's captured view, keeping its id, name, note and position.
+ *
+ * One write. An earlier version captured a temporary scene and deleted it, which
+ * committed a synced record in its own transaction -- a leak on any throw, and
+ * visible to every client in between.
+ */
 export function recaptureScene(editor: Editor, sceneId: SceneRecord['id']): void {
   const existing = editor.store.get(sceneId)
   if (!existing) return
-  const fresh = captureScene(editor, existing.name)
-  const captured = editor.store.get(fresh)
-  editor.run(
-    () => {
-      if (captured) {
-        editor.store.put([
-          { ...existing, collapsed: captured.collapsed, highlighted: captured.highlighted },
-        ])
-      }
-      editor.store.remove([fresh])
-    },
-    { history: 'ignore' },
-  )
+  const collapsed = captureCollapsedMap(editor)
+  const highlighted = editor.getSelectedShapeIds().map((s) => s as string)
+  editor.run(() => editor.store.put([{ ...existing, collapsed, highlighted }]), {
+    history: 'ignore',
+  })
   viewScene(editor, sceneId)
 }
 
@@ -264,21 +305,33 @@ export function deleteScene(editor: Editor, sceneId: SceneRecord['id']): void {
   if (active === sceneId) viewScene(editor, null)
 }
 
-/** Move a scene one place earlier or later in the order. */
+/**
+ * Move a scene one place earlier or later.
+ *
+ * ONE record, with a fractional index between its new neighbours. Re-indexing the
+ * whole list writes N records from a fixed sequence, so two clients reordering at
+ * once merge halves of two different orders per-record and land on neither
+ * person's intent -- and a concurrent capture can mint a duplicate index, after
+ * which the order is decided by an id tiebreak nobody asked for. Fractional
+ * indexing is the total order over data both clients already have, which is what
+ * `decisions.md` requires of a tie.
+ */
 export function moveScene(editor: Editor, sceneId: SceneRecord['id'], delta: -1 | 1): void {
   const order = scenesInOrder(editor)
   const from = order.findIndex((s) => s.id === sceneId)
   const to = from + delta
   if (from < 0 || to < 0 || to >= order.length) return
-  const moved = order.splice(from, 1)[0]!
-  order.splice(to, 0, moved)
-  // Re-index the whole list: a handful of scenes, and it keeps the keys legible
-  // rather than accumulating fractional depth over repeated moves.
-  const keys = getIndices(order.length)
-  editor.run(
-    () => editor.store.put(order.map((scene, i) => ({ ...scene, index: keys[i + 1]! as string }))),
-    { history: 'ignore' },
+
+  const without = order.filter((s) => s.id !== sceneId)
+  const before = without[to - 1]
+  const after = without[to]
+  const index = getIndexBetween(
+    before?.index as IndexKey | undefined,
+    after?.index as IndexKey | undefined,
   )
+  editor.run(() => editor.store.put([{ ...order[from]!, index: index as string }]), {
+    history: 'ignore',
+  })
 }
 
 /** Step through the order. Stops at the ends rather than wrapping. */

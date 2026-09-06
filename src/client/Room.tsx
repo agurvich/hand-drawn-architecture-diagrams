@@ -142,10 +142,10 @@ export function Room({ roomId }: { roomId: RoomId }) {
 
 function handleMount(editor: Editor) {
   window.__editor = editor
-  // Exposed for e2e until PR 2 gives narration a surface. Same reasoning as
-  // __editor above: the alternative is a test that writes records directly and
-  // therefore never exercises the history rules these functions exist for.
-  window.__scenes = { viewScene, takeOffSceneAndToggle, stepScene } as unknown as Window['__scenes']
+  // Exposed for e2e. `stepScene` in particular cannot be reached through the UI
+  // at its own boundary -- the panel disables the buttons there -- so its guard
+  // is asserted directly, and making it wrap otherwise left every test green.
+  window.__scenes = { viewScene, takeOffSceneAndToggle, stepScene }
   // Returned disposer is run by tldraw when the editor unmounts.
   return stripHiddenFromSelection(editor)
 }

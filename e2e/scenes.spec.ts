@@ -477,9 +477,11 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     await page.getByTestId('narration-open').click()
     await page.getByTestId('narration-capture').click()
     await page.getByTestId('narration-name').fill('Overview')
+    await page.getByTestId('narration-name').blur()
     await setCollapsed(page, p, true)
     await page.getByTestId('narration-capture').click()
     await page.getByTestId('narration-name').fill('Detail')
+    await page.getByTestId('narration-name').blur()
     await expect(page.getByTestId('narration-select')).toHaveCount(2)
 
     // Reorder, then close the list: stepping is the common action.
@@ -524,6 +526,7 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     await page.getByTestId('narration-open').click()
     await page.getByTestId('narration-capture').click()
     await page.getByTestId('narration-name').fill('Kept')
+    await page.getByTestId('narration-name').blur()
 
     const idBefore = await page.evaluate(
       () =>
@@ -558,12 +561,14 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     await page.getByTestId('narration-capture').click()
     await page.getByTestId('narration-close').click()
 
-    await expect(page.getByTestId('narration-off-scene')).toHaveCount(0)
+    // The region is permanently mounted so it can announce; its TEXT is the
+    // signal, not its presence.
+    await expect(page.getByTestId('narration-off-scene')).toHaveText('')
     await page.getByTestId('diagram-node-toggle').first().click()
-    await expect(page.getByTestId('narration-off-scene')).toBeVisible()
+    await expect(page.getByTestId('narration-off-scene')).toContainText('opened something')
 
     await page.getByTestId('narration-restore').click()
-    await expect(page.getByTestId('narration-off-scene')).toHaveCount(0)
+    await expect(page.getByTestId('narration-off-scene')).toHaveText('')
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
   })
 
@@ -590,6 +595,146 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     await expect(page.getByTestId('narration-open')).toContainText('1/2')
     await step(-1)
     await expect(page.getByTestId('narration-open')).toContainText('1/2')
+  })
+
+  test('a note is written, shown while the scene is active, and kept by re-capture', async ({
+    page,
+  }) => {
+    // The whole note path had no test: making updateScene ignore `note`
+    // entirely left every one of these green.
+    await openRoom(page, roomId('sn1'))
+    const { p } = await diagram(page)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+
+    await page.getByTestId('narration-note-input').fill('Start from the client and work inwards.')
+    await page.getByTestId('narration-note-input').blur()
+    await page.getByTestId('narration-close').click()
+    await expect(page.getByTestId('narration-note')).toHaveText(
+      'Start from the client and work inwards.',
+    )
+
+    // Re-capture keeps it, along with the name and the position.
+    await page.getByTestId('diagram-node-toggle').first().click()
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-recapture').click()
+    await expect(page.getByTestId('narration-note-input')).toHaveValue(
+      'Start from the client and work inwards.',
+    )
+    const captured = await page.evaluate(() => {
+      const s = window.__editor!.store.allRecords().find((r) => r.typeName === 'diagramScene') as {
+        note: string
+        collapsed: Record<string, boolean>
+      }
+      return s
+    })
+    expect(captured.note).toBe('Start from the client and work inwards.')
+    expect(captured.collapsed[p]).toBe(true)
+  })
+
+  test('a scene with no note shows no note line', async ({ page }) => {
+    await openRoom(page, roomId('sn2'))
+    await diagram(page)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.getByTestId('narration-close').click()
+    await expect(page.getByTestId('narration-note')).toHaveCount(0)
+  })
+
+  test('SELECTING a scene from the list applies it, and marks it active', async ({ page }) => {
+    // The list's primary action. Nothing clicked a row before this.
+    await openRoom(page, roomId('sn3'))
+    const { c1, c2 } = await diagram(page)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click() // scene 1: expanded
+    // The control, not the prop: while scene 1 is active it overrides the prop,
+    // so writing it directly changes nothing on screen and captures nothing new.
+    await page.getByTestId('diagram-node-toggle').first().click()
+    await page.getByTestId('narration-capture').click() // scene 2: folded
+
+    // Scene 2 is active and folding P.
+    expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
+    await expect(page.getByTestId('narration-select').nth(1)).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+
+    await page.getByTestId('narration-select').first().click()
+    expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([])
+    await expect(page.getByTestId('narration-select').first()).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    await expect(page.getByTestId('narration-select').nth(1)).not.toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+  })
+
+  test('capture takes the SELECTION as the highlight, and clears it when nothing is selected', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('sn4'))
+    const { y } = await diagram(page)
+    await page.evaluate((id) => {
+      window.__editor!.select(id as never)
+    }, y)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+
+    const highlighted = () =>
+      page.evaluate(
+        () =>
+          (
+            window.__editor!.store.allRecords().find((r) => r.typeName === 'diagramScene') as {
+              highlighted: string[]
+            }
+          ).highlighted,
+      )
+    expect(await highlighted()).toEqual([y])
+
+    await page.evaluate(() => {
+      window.__editor!.selectNone()
+    })
+    await page.getByTestId('narration-recapture').click()
+    expect(await highlighted()).toEqual([])
+  })
+
+  test('capturing clears the off-scene set', async ({ page }) => {
+    await openRoom(page, roomId('sn5'))
+    const { p } = await diagram(page)
+    await setCollapsed(page, p, true)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.getByTestId('diagram-node-toggle').first().click()
+    expect(await offSceneNodeIds(page)).toEqual([p])
+
+    await page.getByTestId('narration-capture').click()
+    expect(await offSceneNodeIds(page)).toEqual([])
+  })
+
+  test('two clients agree on the ORDER, not just the count', async ({ browser }) => {
+    const room = roomId('sn6')
+    const p1 = await newParticipant(browser)
+    const p2 = await newParticipant(browser)
+    await openRoom(p1.page, room)
+    await openRoom(p2.page, room)
+    await diagram(p1.page)
+
+    await p1.page.getByTestId('narration-open').click()
+    for (const name of ['One', 'Two', 'Three']) {
+      await p1.page.getByTestId('narration-capture').click()
+      await p1.page.getByTestId('narration-name').fill(name)
+      await p1.page.getByTestId('narration-name').blur()
+    }
+    await p1.page.getByTestId('narration-up').last().click()
+
+    const names = (page: typeof p1.page) => page.getByTestId('narration-select').allTextContents()
+    await p2.page.getByTestId('narration-open').click()
+    await expect.poll(() => names(p2.page), { timeout: 15_000 }).toEqual(await names(p1.page))
+
+    await p1.ctx.close()
+    await p2.ctx.close()
   })
 
   test('the empty state says what a scene is for', async ({ page }) => {
@@ -622,6 +767,7 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     await p1.page.getByTestId('narration-open').click()
     await p1.page.getByTestId('narration-capture').click()
     await p1.page.getByTestId('narration-name').fill('Shared')
+    await p1.page.getByTestId('narration-name').blur()
 
     await p2.page.getByTestId('narration-open').click()
     await expect(p2.page.getByTestId('narration-select')).toHaveCount(1)
@@ -671,6 +817,9 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
       'narration-capture',
       'narration-select',
       'narration-delete',
+      'narration-up',
+      'narration-down',
+      'narration-recapture',
     ]) {
       const box = await page.getByTestId(id).first().boundingBox()
       expect(box!.width, id).toBeGreaterThanOrEqual(44)

@@ -52,12 +52,28 @@ asserts the merge output is deep-equal to setting the prop for real; an e2e asse
 | No history mark before the toggle | the single-undo test |
 | Off-scene not cleared on scene change | the clears-on-change test |
 | Scene edits recording history | 2 authoring tests |
-| Capture recording every node, not just containers | 3 tests |
+| Capture recording every node, not just containers | the containers-only test |
 | Stepping wrapping at the ends | the stops-at-the-ends test |
+| The note ignored on write | the note test |
+| Re-capture dropping the note | the note test |
+| Capture ignoring the selection | the highlight test |
+| `moveScene` doing nothing | the reorder test |
 
-Two of those survived a first round and were found by review: the off-scene write had **no test at
-all** — deleting it left every test green — and the record shape itself was wrong, which took a
-reviewer driving the app to see. `activeSceneId` and the off-scene set need opposite undo treatment
-and cannot share a record; that is now a `decisions.md` entry.
+**Three survived a round and were found by review**, which is the honest count:
 
-Not covered: highlight rendering (owed, above), and scenes in the JSON document, which is SPEC-009.
+- the off-scene write had **no test at all** — deleting it left every test green;
+- the record shape itself was wrong, which took a reviewer driving the app to see. `activeSceneId`
+  and the off-scene set need opposite undo treatment and cannot share a record; that is now a
+  `decisions.md` entry;
+- the **entire note path** was unguarded — making the note a no-op passed 36/36 — along with list
+  selection, whose rows nothing had ever clicked.
+
+Review also caught three things that were correct-by-luck rather than by design: `recaptureScene`
+committed a temporary scene in its own transaction, so a throw in the second one would have leaked a
+duplicate to every client; `moveScene` re-indexed every scene from a fixed sequence, which two
+clients reordering at once merge into neither person's order; and the panel read every record in the
+store on every pointer frame.
+
+Not covered: highlight **rendering** (owed, above — the record carries `highlighted`, capture writes
+it and the staleness check reads it, but nothing draws it), and scenes in the JSON document, which is
+SPEC-009.

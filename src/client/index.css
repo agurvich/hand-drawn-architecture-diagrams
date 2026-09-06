@@ -569,3 +569,13 @@ body {
 .narration__confirm p {
   margin: 0;
 }
+
+/*
+ * Collapsed, NOT `display: none`. The region has to stay in the accessibility
+ * tree for a later mutation to be announced at all -- and `display: none` takes
+ * it out of the tree, which is the same failure as mounting it conditionally.
+ */
+.narration__off--empty {
+  padding: 0;
+  border: 0;
+}
