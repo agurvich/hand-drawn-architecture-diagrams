@@ -15,6 +15,8 @@ to status only — no prose.
 | SPEC-008 | Frames and narration | In Progress | SPEC-004, SPEC-006, SPEC-007 |
 | SPEC-009 | Frames in the JSON document | Draft | SPEC-007, SPEC-008 |
 | SPEC-010 | Sketch to clean shape | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
+| SPEC-011 | Actors on connections | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
+| SPEC-012 | Actors in the JSON document | Planned | SPEC-009, SPEC-011 |
 
 ## Arcs (build order)
 
@@ -45,3 +47,14 @@ Group related specs and record the order to build them in. Keep this section: a 
 
   SPEC-009 closes the arc: a document that carries its narration as well as its diagram, which is
   what lets a model be asked for a walkthrough rather than a picture.
+
+- **Modelling:** SPEC-011 -> SPEC-012
+
+  Attributing a connection to the thing that performs it, independent of its two ends. Ported in
+  spirit from the predecessor's actor/action/trigger model, but re-derived rather than copied: on
+  this foundation an attribution is a binding, which is what `architecture.md` -> Deferred suspected.
+
+  - SPEC-012 - Actors in the JSON document. Split out for the same reason SPEC-009 was split out of
+    SPEC-008: it needs a version 3 and its own frozen corpus, and it is unbuildable until SPEC-009
+    exists. Folding it into SPEC-011 would pin four buildable requirements behind two that are not.
+    Until it lands, an attribution does not survive an export, and the guide must say so.

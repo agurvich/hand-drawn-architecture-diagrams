@@ -156,14 +156,14 @@ mid-build. Reasoning: `decisions.md` → *Secondary features deferred pending re
 - **Node-lens grouping** — regrouping nodes into regions by a shared metadata key, with barycenter
   crossing-reduction. Seam: a derived layout pass over records; it reads the graph and writes
   positions, so it needs no new shape.
-- **Actor / action / trigger model** — attributing an edge to an actor independent of its endpoints.
-  Seam: likely falls out of the binding model for free, since a binding already points at a specific
-  port rather than at a shape. Worth re-deriving rather than porting.
+- **Actor / action / trigger model** — the ACTOR half is no longer deferred: specified as SPEC-011
+  (2026-09-05), and the suspicion below held — an attribution is a binding. TRIGGERS remain deferred:
+  they need a connection to bind to a connection, which SPEC-005 deliberately fenced off, and moving
+  that fence should be argued on its own evidence.
 - **Per-frame sticky notes, share-link / read-only mode** — the read-only case may reduce to a tldraw
   primitive plus a room permission rather than the old app's store-level mutation choke point.
-- **Sketch → clean-shape recognition** — no longer deferred: specified as SPEC-010 (2026-09-05). One
-  of the three motivations for the rebuild, and the one tldraw does not ship. Bounded and additive: a
-  simplify-and-classify pass over freedraw strokes.
+- **Sketch → clean-shape recognition** — one of the three motivations for the rebuild, and the one
+  tldraw does not ship. Bounded and additive: a simplify-and-classify pass over freedraw strokes.
 - **"Trace a request"** — walk the connection graph in topological order from a chosen source and
   generate a frame sequence automatically, so narration is derived rather than hand-authored. Reuses
   the workflow kit's dependency resolver without adopting its execution semantics. Speculative, and
