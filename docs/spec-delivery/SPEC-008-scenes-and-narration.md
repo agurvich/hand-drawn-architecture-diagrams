@@ -21,8 +21,16 @@
 - **Capture takes the current selection as the highlight.** The spec left the authoring gesture open;
   this needs no new control and is a gesture a reader already performs.
 - **Highlight is ring AND dim**, per the user (2026-09-05). It refuses to dim when nothing it names
-  still resolves: a page where everything is faded and nothing is lit reads as broken rather than
-  focused, and a scene outlives the shapes it points at.
+  is **visible** -- not merely when nothing resolves. The difference is two clicks: a scene can fold
+  the container its own highlighted node lives in, and a reader can fold it themselves through the
+  off-scene gesture. The shape still resolves in both cases, so the first cut left the page grey
+  with nothing lit -- the exact state the rule exists to prevent. A page where everything is faded
+  and nothing is accented reads as broken rather than focused.
+- **Dimming is 70%, and the number is a contrast floor rather than a taste.** A dimmed node stays
+  in the accessibility tree, so it owes the 4.5:1 every other label does. Measured off the rendered
+  node -- the label is `#2e2e2e`, not the `#111` the stylesheet suggests -- 35% gives 2.27:1 and 60%
+  gives 3.86:1. The e2e computes the ratio from the live element, so the number cannot drift away
+  from the rule it satisfies.
 
 ## What changed from earlier specs?
 
@@ -63,6 +71,12 @@ asserts the merge output is deep-equal to setting the prop for real; an e2e asse
 | The dim opacity removed | the computed-style assertion |
 | The bar back to content-sized | the drift test |
 | The list row untruncated | the long-name test |
+| The visibility half of the highlight filter | the folded-container tests |
+| Dimming a page whose scene highlights nothing | the empty-highlight test |
+| The connection dim rule, or the connection ring rule | the painted-connection test |
+| The note moved back below the bar | the bar-drift test |
+| The stale marker moved back inside the clip | the long-name stale test |
+| The dim opacity back to 35% | the contrast test |
 
 **Three survived a round and were found by review**, which is the honest count:
 
@@ -78,6 +92,13 @@ committed a temporary scene in its own transaction, so a throw in the second one
 duplicate to every client; `moveScene` re-indexed every scene from a fixed sequence, which two
 clients reordering at once merge into neither person's order; and the panel read every record in the
 store on every pointer frame.
+
+**A third review read the highlight itself** and found the rule it advertised was false, and
+reachable in two clicks -- plus a performance regression the last commit had just finished fixing
+one function above (an unguarded read inside every shape's render scope re-rendered an unrelated
+node 40 times across a 20-step drag), and three mutations that survived in the very class that
+commit claimed to have closed: the connection accent was asserted on class names, so the rule could
+be emptied in silence.
 
 **A second review used the panel to author a five-scene walkthrough** and found four surface defects
 no test had: with twenty scenes the column grew upward until the bar sat on top of tldraw's undo
