@@ -33,7 +33,7 @@ guide warns the author about this in prose, which is the wrong place for it.
 
 ### Out of Scope
 
-- **Frames and narration.** SPEC-008's subject. The document gains a `frames` key there; this spec
+- **Scenes and narration.** SPEC-008's subject. The document gains a `scenes` key there; this spec
   does not reserve one, because an empty array nothing reads is a field authors will fill in and
   wonder why nothing happens.
 - **Node `metadata`.** The predecessor carried `Record<string, string>` on nodes and edges, feeding
@@ -88,7 +88,7 @@ be rejected. The panel hands it what the user pasted.
       no node in the document; a connection `sourceId` or `targetId` naming no node; a `parentId`
       cycle; a wrong type on any field; **an unknown key at any level**
 - [ ] Unknown keys are rejected rather than ignored, and this is the criterion that decides it: an
-      author who writes `frames` today must be told it does nothing, which is the whole failure mode
+      author who writes `scenes` today must be told it does nothing, which is the whole failure mode
       the Overview describes
 - [ ] **Ids are one namespace, and duplicates are rejected across it.** A node id used twice, a
       connection id used twice, **and a connection id equal to a node id** are each rejected, each
@@ -274,7 +274,7 @@ invariants *are* enforced.
       that silently passes over an empty set is the failure mode this criterion is most exposed to
 - [ ] It carries at least one worked example that uses nesting and collapse, since a guide that only
       shows a flat graph teaches the wrong thing about this tool
-- [ ] It does not describe frames, edge sets, actors, metadata or icons as available
+- [ ] It does not describe scenes, edge sets, actors, metadata or icons as available
 
 ---
 
@@ -483,5 +483,5 @@ e2e/
 ### Phase 5: Completion corrections
 - `architecture.md` §5 currently says the predecessor's schema "survives the change of foundation
   nearly as-is". After this spec it does not: `edges` becomes `connections`, `position` becomes
-  `x/y/w/h`, and `metadata`, `edgeSets`, `frames`, `icon`, `isActor`, `autoLayout` and
+  `x/y/w/h`, and `metadata`, `edgeSets`, `scenes`, `icon`, `isActor`, `autoLayout` and
   `colorPalette` are all gone. Correct that prose as part of the completion ritual

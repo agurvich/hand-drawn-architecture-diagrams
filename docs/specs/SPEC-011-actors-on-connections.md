@@ -153,11 +153,11 @@ legible on a diagram where most lines are not attributed.
       still reach the line or whatever is behind it
 - [ ] An attribution to a node hidden by **collapse** shows the stand-in container's label, not a
       name for something not on screen — `visibleStandInFor`, as endpoints already resolve
-- [ ] An attribution to a node hidden by a **frame** does the same, which requires
-      `frameAwareGetShape` and not the raw accessor. A separate criterion because the natural
+- [ ] An attribution to a node hidden by a **scene** does the same, which requires
+      `sceneAwareGetShape` and not the raw accessor. A separate criterion because the natural
       implementation passes the collapse half and silently fails this one — SPEC-008's whole finding
       was that collapse is read in two places and one consumer got the raw accessor. This label is a
-      **third** consumer, and `frameView.ts` must be named in the file list for that reason
+      **third** consumer, and `sceneView.ts` must be named in the file list for that reason
 
 ### FR-004: Merging, and what a merged line can honestly say
 
@@ -273,7 +273,7 @@ src/
 │   │                                  #   `sameEntry` must gain actorId, or re-attributing
 │   │                                  #   produces an index the memo calls unchanged and the
 │   │                                  #   label never updates, with no error
-│   ├── frameView.ts                   # the frame-aware accessor the label must resolve through
+│   ├── sceneView.ts                   # the scene-aware accessor the label must resolve through
 │   ├── bindings/ActorBindingUtil.ts   # NEW -- and NOT a copy of the endpoint util
 │   ├── shapes/
 │   │   ├── ConnectionShapeUtil.tsx    # the actor label, stacked clear of the x-N count

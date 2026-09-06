@@ -19,7 +19,7 @@
 
 - **The reparent hook is `onDragShapesIn`, not `onDragShapesOver`** — the spec named the wrong one.
   `onDragShapesOver` fires on every cursor move and is not gated by `canReceiveNewChildrenOfType`, so
-  reparenting there runs once per pointer frame, churning the store and spamming sync. Found by the
+  reparenting there runs once per pointer scene, churning the store and spamming sync. Found by the
   plan review, in code that had already been written. The spec's FR-002 description was corrected in
   place, since it was a factual claim rather than a preference.
 - **`onDragShapesOut` is guarded on `info.nextDraggingOverShapeId`.** Without it, dragging straight
@@ -29,7 +29,7 @@
   hint, and the refusal.
 - **`wouldCreateCycle` is not used on the drag path.** The editor's `hasAncestor` covers it there;
   the pure helper remains for the programmatic path and is unit-tested.
-- **FR-006 is a regression suite over framework behaviour** — tldraw already deletes, duplicates and
+- **FR-006 is a regression suite over scenework behaviour** — tldraw already deletes, duplicates and
   undoes subtrees. A green FR-006 is not evidence this spec's code is correct.
 
 ## What changed from earlier specs?

@@ -12,7 +12,7 @@ import { NodeTool } from '../tools/NodeTool'
 import { ConnectionTool } from '../tools/ConnectionTool'
 import { Toolbar } from './Toolbar'
 import { NODE_SHAPE_TYPE, CONNECTION_SHAPE_TYPE } from '@shared/shapes'
-import { customRecordSchemas } from '@shared/frames'
+import { customRecordSchemas } from '@shared/scenes'
 
 /**
  * useSync does NOT include tldraw's default shape utils the way <Tldraw> does,

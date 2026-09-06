@@ -50,7 +50,7 @@ describe('the authoring guide', () => {
   it('does not present a deferred feature as available', () => {
     // Named in prose as unavailable is fine; used in an example is not.
     for (const block of blocks) {
-      for (const key of ['frames', 'edgeSets', 'metadata', 'icon', 'isActor', 'autoLayout']) {
+      for (const key of ['scenes', 'edgeSets', 'metadata', 'icon', 'isActor', 'autoLayout']) {
         expect(block).not.toContain(`"${key}"`)
       }
     }

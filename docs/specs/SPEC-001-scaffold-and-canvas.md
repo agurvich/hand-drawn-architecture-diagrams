@@ -9,7 +9,7 @@
 
 Stand up the repository so there is something to build on: a running application that shows a tldraw
 canvas you can draw on with a finger or an Apple Pencil, and a set of quality gates that actually run.
-Nothing domain-specific is built here — no containers, no connections, no frames. The value of this
+Nothing domain-specific is built here — no containers, no connections, no scenes. The value of this
 spec is that the next one starts from a green, checked, deployable-shaped project instead of an empty
 directory, and that the single motivating feature of the whole rebuild — that drawing on an iPad feels
 right — is judged by a human on real hardware before any effort is spent on top of it, with an

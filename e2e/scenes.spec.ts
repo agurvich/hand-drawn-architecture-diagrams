@@ -4,13 +4,13 @@ import { fileURLToPath } from 'node:url'
 import {
   openRoom,
   shapeCount,
-  offFrameNodeIds,
-  activeFrameId,
+  offSceneNodeIds,
+  activeSceneId,
   newParticipant,
   addNode,
   addConnection,
-  addFrame,
-  viewFrame,
+  addScene,
+  viewScene,
   hiddenShapeIds,
   pageRecords,
   visibleConnections,
@@ -30,7 +30,7 @@ const preMigrationRoom = JSON.parse(
 /**
  * SPEC-008 PR 1: the records and the lens.
  *
- * Frames are driven directly through the store here — the authoring UI is PR 2.
+ * Scenes are driven directly through the store here — the authoring UI is PR 2.
  * That is what makes this a PR on its own: every criterion below is about the
  * model, not the surface.
  */
@@ -46,8 +46,8 @@ async function diagram(page: Page) {
   return { y, p, c1, c2, k1, k2 }
 }
 
-test.describe('SPEC-008 FR-001 — the frame records', () => {
-  test('a frame syncs to a second client and reaches durable storage', async ({
+test.describe('SPEC-008 FR-001 — the scene records', () => {
+  test('a scene syncs to a second client and reaches durable storage', async ({
     browser,
     request,
   }) => {
@@ -57,24 +57,24 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
     await openRoom(p1.page, room)
     await openRoom(p2.page, room)
 
-    const frameId = await addFrame(p1.page, 'Overview', {}, { index: 'a2' })
+    const sceneId = await addScene(p1.page, 'Overview', {}, { index: 'a2' })
 
     await expect
-      .poll(() => p2.page.evaluate((id) => !!window.__editor!.store.get(id as never), frameId), {
+      .poll(() => p2.page.evaluate((id) => !!window.__editor!.store.get(id as never), sceneId), {
         timeout: 15_000,
       })
       .toBe(true)
 
-    // On CONTENT, not a document count: a frame is neither a shape nor a
+    // On CONTENT, not a document count: a scene is neither a shape nor a
     // binding, so every existing probe field is blind to it.
     await expect
       .poll(
         async () =>
           (
             (await (await request.get(`/api/dev/snapshot/${room}`)).json()) as {
-              frames?: Array<{ name: string }>
+              scenes?: Array<{ name: string }>
             }
-          ).frames?.map((f) => f.name),
+          ).scenes?.map((f) => f.name),
         { timeout: 20_000 },
       )
       .toEqual(['Overview'])
@@ -83,19 +83,19 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
     await p2.ctx.close()
   })
 
-  test('room contents outlive every client, frames included', async ({ browser, request }) => {
+  test('room contents outlive every client, scenes included', async ({ browser, request }) => {
     const room = roomId('fr2')
     const p1 = await newParticipant(browser)
     await openRoom(p1.page, room)
-    await addFrame(p1.page, 'Survives')
+    await addScene(p1.page, 'Survives')
     await expect
       .poll(
         async () =>
           (
             (await (await request.get(`/api/dev/snapshot/${room}`)).json()) as {
-              frames?: unknown[]
+              scenes?: unknown[]
             }
-          ).frames?.length,
+          ).scenes?.length,
         { timeout: 20_000 },
       )
       .toBe(1)
@@ -107,7 +107,7 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
       .poll(() =>
         p2.page.evaluate(
           () =>
-            window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramFrame').length,
+            window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramScene').length,
         ),
       )
       .toBe(1)
@@ -123,14 +123,14 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
     await openRoom(p1.page, room)
     await openRoom(p2.page, room)
 
-    const frameId = await addFrame(p1.page, 'Mine')
-    await viewFrame(p1.page, frameId)
+    const sceneId = await addScene(p1.page, 'Mine')
+    await viewScene(p1.page, sceneId)
     await expect
       .poll(
         () =>
           p2.page.evaluate(
             () =>
-              window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramFrame')
+              window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramScene')
                 .length,
           ),
         { timeout: 15_000 },
@@ -139,7 +139,7 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
 
     const viewRecords = await p2.page.evaluate(
       () =>
-        window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramFrameView').length,
+        window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramSceneView').length,
     )
     expect(viewRecords).toBe(0)
 
@@ -147,13 +147,13 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
     await p2.ctx.close()
   })
 
-  test('a room persisted before frames existed opens cleanly and shows none', async ({
+  test('a room persisted before scenes existed opens cleanly and shows none', async ({
     browser,
     request,
   }) => {
     // ACTUALLY SEEDED, through the route SPEC-004 uses for its migration proof.
     // The first version of this test opened a fresh room and asserted zero
-    // frames -- trivially true, and unable to fail for the reason the criterion
+    // scenes -- trivially true, and unable to fail for the reason the criterion
     // exists: a snapshot persisted before the schema gained two record types.
     const room = roomId('fr4')
     const seeded = await request.put(`/api/dev/snapshot/${room}`, { data: preMigrationRoom })
@@ -166,7 +166,7 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
     expect(
       await p.page.evaluate(
         () =>
-          window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramFrame').length,
+          window.__editor!.store.allRecords().filter((r) => r.typeName === 'diagramScene').length,
       ),
     ).toBe(0)
     await expect(p.page.getByTestId('diagram-node')).toHaveCount(1)
@@ -174,27 +174,27 @@ test.describe('SPEC-008 FR-001 — the frame records', () => {
   })
 })
 
-test.describe('SPEC-008 FR-003 — a frame is a lens, and never writes', () => {
-  test('viewing a frame folds a container for this viewer', async ({ page }) => {
+test.describe('SPEC-008 FR-003 — a scene is a lens, and never writes', () => {
+  test('viewing a scene folds a container for this viewer', async ({ page }) => {
     await openRoom(page, roomId('fl1'))
     const { p, c1, c2 } = await diagram(page)
 
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([])
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
+    await viewScene(page, sceneId)
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
   })
 
-  test('MERGING follows the frame — the claim the whole design rests on', async ({ page }) => {
+  test('MERGING follows the scene — the claim the whole design rests on', async ({ page }) => {
     // Collapse is read twice: the visibility walk and the merge derivation. If
-    // only one saw the frame, P would fold while the lines crossing its boundary
+    // only one saw the scene, P would fold while the lines crossing its boundary
     // stayed unmerged, drawn to shapes no longer on screen.
     await openRoom(page, roomId('fl2'))
     const { y, p } = await diagram(page)
 
     expect(await visibleConnections(page)).toHaveLength(2)
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
+    await viewScene(page, sceneId)
 
     const merged = await visibleConnections(page)
     expect(merged).toHaveLength(1)
@@ -204,8 +204,8 @@ test.describe('SPEC-008 FR-003 — a frame is a lens, and never writes', () => {
   test('the container itself reads as folded — control, label and badge', async ({ page }) => {
     await openRoom(page, roomId('fl3'))
     const { p } = await diagram(page)
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
+    await viewScene(page, sceneId)
 
     const toggle = page.getByTestId('diagram-node-toggle').first()
     await expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -223,11 +223,11 @@ test.describe('SPEC-008 FR-003 — a frame is a lens, and never writes', () => {
     const shapeRecords = () => pageRecords(page)
     const before = await shapeRecords()
 
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
+    await viewScene(page, sceneId)
     expect(await shapeRecords()).toEqual(before)
 
-    await viewFrame(page, null)
+    await viewScene(page, null)
     expect(await shapeRecords()).toEqual(before)
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([])
   })
@@ -242,8 +242,8 @@ test.describe('SPEC-008 FR-003 — a frame is a lens, and never writes', () => {
     const { p } = await diagram(p1.page)
     await expect.poll(() => visibleConnections(p2.page).then((c) => c.length)).toBe(2)
 
-    const frameId = await addFrame(p1.page, 'Folded', { [p]: true })
-    await viewFrame(p1.page, frameId)
+    const sceneId = await addScene(p1.page, 'Folded', { [p]: true })
+    await viewScene(p1.page, sceneId)
     expect(await hiddenShapeIds(p1.page, 'diagramNode')).toHaveLength(2)
 
     // B is untouched: same visible lines, nothing hidden at all.
@@ -254,35 +254,35 @@ test.describe('SPEC-008 FR-003 — a frame is a lens, and never writes', () => {
     await p2.ctx.close()
   })
 
-  test('a frame can force-EXPAND a container whose own prop is collapsed', async ({ page }) => {
+  test('a scene can force-EXPAND a container whose own prop is collapsed', async ({ page }) => {
     await openRoom(page, roomId('fl6'))
     const { p, c1, c2 } = await diagram(page)
     await setCollapsed(page, p, true)
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
 
-    const frameId = await addFrame(page, 'Open it', { [p]: false })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Open it', { [p]: false })
+    await viewScene(page, sceneId)
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([])
   })
 
-  test('a container the frame does not name keeps its own prop', async ({ page }) => {
+  test('a container the scene does not name keeps its own prop', async ({ page }) => {
     await openRoom(page, roomId('fl7'))
     const { p, c1, c2 } = await diagram(page)
     await setCollapsed(page, p, true)
 
-    const frameId = await addFrame(page, 'Silent', { 'shape:someone-else': true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Silent', { 'shape:someone-else': true })
+    await viewScene(page, sceneId)
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
   })
 
-  test('a frame-folded container refuses drops, so a dropped node cannot vanish', async ({
+  test('a scene-folded container refuses drops, so a dropped node cannot vanish', async ({
     page,
   }) => {
     await openRoom(page, roomId('fl8'))
     const { p } = await diagram(page)
     const loose = await addNode(page, 'Loose', { x: 100, y: 100, w: 120, h: 80 })
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
+    await viewScene(page, sceneId)
 
     const accepts = await page.evaluate(
       ({ p, loose }) => {
@@ -299,20 +299,20 @@ test.describe('SPEC-008 FR-003 — a frame is a lens, and never writes', () => {
 
 test.describe('SPEC-008 FR-004 — the history rules', () => {
   // The one thing PR 1 implements of FR-004, and the thing nothing was watching:
-  // deleting the off-frame write entirely left all 186 unit and 117 e2e tests
+  // deleting the off-scene write entirely left all 186 unit and 117 e2e tests
   // green.
 
-  test('the toggle takes the node off-frame, and ONE undo reverses both', async ({ page }) => {
+  test('the toggle takes the node off-scene, and ONE undo reverses both', async ({ page }) => {
     await openRoom(page, roomId('fh1'))
     const { p, c1, c2 } = await diagram(page)
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
-    await viewFrame(page, frameId)
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
+    await viewScene(page, sceneId)
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
 
     // The control shows the EFFECTIVE state, so this reads "expand".
     await page.getByTestId('diagram-node-toggle').first().click()
 
-    expect(await offFrameNodeIds(page)).toEqual([p])
+    expect(await offSceneNodeIds(page)).toEqual([p])
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([])
     const own = () =>
       page.evaluate(
@@ -324,26 +324,26 @@ test.describe('SPEC-008 FR-004 — the history rules', () => {
     await page.evaluate(() => {
       window.__editor!.undo()
     })
-    // BOTH reversed. Undoing only the prop would leave the node off-frame,
+    // BOTH reversed. Undoing only the prop would leave the node off-scene,
     // showing a state the user never asked for.
-    expect(await offFrameNodeIds(page)).toEqual([])
+    expect(await offSceneNodeIds(page)).toEqual([])
     expect(await hiddenShapeIds(page, 'diagramNode')).toEqual([c1, c2].sort())
   })
 
-  test('merely VIEWING a frame is not undoable', async ({ page }) => {
+  test('merely VIEWING a scene is not undoable', async ({ page }) => {
     // Measured, not theorised: tldraw's history filters on source, not on record
     // scope, so an unmarked session write fuses onto the reader's previous edit
-    // and one undo throws them off the frame they were reading.
+    // and one undo throws them off the scene they were reading.
     await openRoom(page, roomId('fh2'))
     const { p } = await diagram(page)
-    const frameId = await addFrame(page, 'Folded', { [p]: true })
+    const sceneId = await addScene(page, 'Folded', { [p]: true })
 
     await page.evaluate((id) => {
       const ed = window.__editor!
       ed.markHistoryStoppingPoint()
       ed.updateShape({ id: id as never, type: 'diagramNode', props: { label: 'Payments' } })
     }, p)
-    await viewFrame(page, frameId)
+    await viewScene(page, sceneId)
 
     await page.evaluate(() => {
       window.__editor!.undo()
@@ -355,7 +355,7 @@ test.describe('SPEC-008 FR-004 — the history rules', () => {
         p,
       ),
     ).toBe('P')
-    expect(await activeFrameId(page)).toBe(frameId)
+    expect(await activeSceneId(page)).toBe(sceneId)
   })
 
   test('undo after a toggle does not walk the reader backwards through the story', async ({
@@ -363,44 +363,44 @@ test.describe('SPEC-008 FR-004 — the history rules', () => {
   }) => {
     await openRoom(page, roomId('fh3'))
     const { p } = await diagram(page)
-    const f1 = await addFrame(page, 'One', { [p]: true }, { index: 'a1' })
-    const f2 = await addFrame(page, 'Two', {}, { index: 'a2' })
+    const f1 = await addScene(page, 'One', { [p]: true }, { index: 'a1' })
+    const f2 = await addScene(page, 'Two', {}, { index: 'a2' })
 
-    await viewFrame(page, f1)
+    await viewScene(page, f1)
     await page.getByTestId('diagram-node-toggle').first().click()
-    await viewFrame(page, f2)
+    await viewScene(page, f2)
 
     await page.evaluate(() => {
       window.__editor!.undo()
     })
-    // Still on F2. The toggle's recorded diff must not carry activeFrameId --
+    // Still on F2. The toggle's recorded diff must not carry activeSceneId --
     // which is why the two live in separate records.
-    expect(await activeFrameId(page)).toBe(f2)
+    expect(await activeSceneId(page)).toBe(f2)
   })
 
-  test('changing frames clears the off-frame set', async ({ page }) => {
-    // Otherwise the previous frame's overrides silently suppress the new frame's
-    // values, and the reader sees a frame that is not the frame.
+  test('changing scenes clears the off-scene set', async ({ page }) => {
+    // Otherwise the previous scene's overrides silently suppress the new scene's
+    // values, and the reader sees a scene that is not the scene.
     await openRoom(page, roomId('fh4'))
     const { p } = await diagram(page)
-    const f1 = await addFrame(page, 'One', { [p]: true }, { index: 'a1' })
-    const f2 = await addFrame(page, 'Two', { [p]: true }, { index: 'a2' })
+    const f1 = await addScene(page, 'One', { [p]: true }, { index: 'a1' })
+    const f2 = await addScene(page, 'Two', { [p]: true }, { index: 'a2' })
 
-    await viewFrame(page, f1)
+    await viewScene(page, f1)
     await page.getByTestId('diagram-node-toggle').first().click()
-    expect(await offFrameNodeIds(page)).toEqual([p])
+    expect(await offSceneNodeIds(page)).toEqual([p])
 
-    await viewFrame(page, f2)
-    expect(await offFrameNodeIds(page)).toEqual([])
+    await viewScene(page, f2)
+    expect(await offSceneNodeIds(page)).toEqual([])
     expect(await hiddenShapeIds(page, 'diagramNode')).toHaveLength(2)
   })
 
-  test('with NO frame active, a toggle records nothing off-frame', async ({ page }) => {
+  test('with NO scene active, a toggle records nothing off-scene', async ({ page }) => {
     // Otherwise every ordinary collapse appends forever and permanently defeats
     // the identity fast path in withEffectiveCollapsed.
     await openRoom(page, roomId('fh5'))
     await diagram(page)
     await page.getByTestId('diagram-node-toggle').first().click()
-    expect(await offFrameNodeIds(page)).toEqual([])
+    expect(await offSceneNodeIds(page)).toEqual([])
   })
 })

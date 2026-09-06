@@ -49,7 +49,7 @@ multiplayer, and sketch-to-clean-shape recognition. None is worth building from 
 does not. It was rejected on extensibility: it has no first-class custom-element API and its toolbar
 and properties panel are not overridable, so the realistic pattern is a companion overlay synced
 through `updateScene`/`customData` rather than a native extension. Our core feature — hierarchical
-containers with frame-based narration — *is* a custom element, so the thing we most need is the thing
+containers with scene-based narration — *is* a custom element, so the thing we most need is the thing
 Excalidraw makes hardest. Its self-hosted multiplayer is also DIY (a community relay), against
 tldraw's documented, officially-maintained path.
 
@@ -62,7 +62,7 @@ cost is a separate entry: [*Hobby licence accepted for now*](#hobby-licence-acce
 
 ### Store-native domain state
 
-**Settled 2026-09-03.** Hierarchy, connections, frames and every other piece of domain state are
+**Settled 2026-09-03.** Hierarchy, connections, scenes and every other piece of domain state are
 tldraw records, mutated through tldraw's own `Editor`/store APIs. A parallel state manager — a Zustand
 store that renders *into* tldraw as a view — is explicitly not built.
 
@@ -123,12 +123,12 @@ updated with the answer.
 ### Secondary features deferred pending real use
 
 **Settled 2026-09-03.** Edge sets (lens-scoped edges), node-lens grouping, the actor/action/trigger
-model, per-frame sticky notes and the share-link/read-only mode are **not** ported on a schedule.
+model, per-scene sticky notes and the share-link/read-only mode are **not** ported on a schedule.
 They are recorded in `architecture.md` → *Deferred / Non-goals* with their seams, and revisited once
 the tool is usable.
 
 The handoff ranks them "valuable but secondary" against the core of hierarchical nesting plus
-frame-based narration. The user is explicit that this is a chance to reorganise rather than
+scene-based narration. The user is explicit that this is a chance to reorganise rather than
 transcribe — including that they are less attached to edge sets than they were, and will not know
 whether the feature is necessary until they have actually used the rebuilt tool. Porting a feature
 before that judgement is possible risks carrying over a shape the new foundation makes obsolete;

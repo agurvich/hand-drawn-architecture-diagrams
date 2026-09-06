@@ -1,5 +1,5 @@
 import { computed, type Computed, type Editor } from 'tldraw'
-import { frameAwareGetShape } from './frameView'
+import { sceneAwareGetShape } from './sceneView'
 import {
   computeMergeIndex,
   CONNECTION_SHAPE_TYPE,
@@ -54,16 +54,16 @@ function deriveMergeIndex(editor: Editor): MergeIndex {
       endNodeId: bindings.find((b) => b.props.terminal === 'end')?.toId ?? null,
     })
   }
-  // The same frame-aware accessor visibility.ts uses. Collapse is read in two
-  // places; if only one of them saw the frame, a frame would fold a container
+  // The same scene-aware accessor visibility.ts uses. Collapse is read in two
+  // places; if only one of them saw the scene, a scene would fold a container
   // while the connections crossing its boundary stayed unmerged and drawn to
   // shapes that are no longer on screen.
-  return computeMergeIndex(connections, frameAwareGetShape(editor))
+  return computeMergeIndex(connections, sceneAwareGetShape(editor))
 }
 
 /**
  * The derivation reads every shape record on the page, so ANY shape change --
- * including every pointer frame of dragging an unrelated node -- reruns it and
+ * including every pointer scene of dragging an unrelated node -- reruns it and
  * produces a fresh Map. Without this the new Map's identity alone would
  * invalidate every connection's geometry, handles and visibility caches, which
  * on an iPad is a real cost for no change in output.

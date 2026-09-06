@@ -128,8 +128,8 @@ describe('parseDocument — rejection, each naming its path', () => {
   })
 
   it('rejects an unknown key at the top level', () => {
-    expect(errorFrom(json({ version: DOCUMENT_VERSION, frames: [] }))).toBe(
-      'document.frames: unknown key',
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, scenes: [] }))).toBe(
+      'document.scenes: unknown key',
     )
   })
 
@@ -525,8 +525,8 @@ describe('toDocument — never emits a document parseDocument rejects', () => {
   it('omits a node nested inside a shape the document cannot describe, and its subtree', () => {
     const document = toDocument(
       [
-        exportableNode('framed', { parentId: 'shape:someFrame' }),
-        exportableNode('deep', { parentId: 'shape:framed' }),
+        exportableNode('scened', { parentId: 'shape:someScene' }),
+        exportableNode('deep', { parentId: 'shape:scened' }),
         exportableNode('fine'),
       ],
       [],
@@ -538,9 +538,9 @@ describe('toDocument — never emits a document parseDocument rejects', () => {
 
   it('omits a connection whose endpoint is an undocumentable node', () => {
     const document = toDocument(
-      [exportableNode('framed', { parentId: 'shape:someFrame' }), exportableNode('ok')],
+      [exportableNode('scened', { parentId: 'shape:someScene' }), exportableNode('ok')],
       [exportableConnection('c')],
-      [binding('c', 'ok', 'start'), binding('c', 'framed', 'end')],
+      [binding('c', 'ok', 'start'), binding('c', 'scened', 'end')],
     )
     expect(document.connections).toEqual([])
     expect(parseDocument(json(document)).ok).toBe(true)

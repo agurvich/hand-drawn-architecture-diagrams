@@ -76,9 +76,9 @@ describe('DiagramIOPanel — FR-004', () => {
 
   it('names the offending path, so a big document can be corrected', () => {
     open()
-    paste(JSON.stringify({ version: DOCUMENT_VERSION, nodes: [], connections: [], frames: [] }))
+    paste(JSON.stringify({ version: DOCUMENT_VERSION, nodes: [], connections: [], scenes: [] }))
     fireEvent.click(screen.getByTestId('diagram-io-import'))
-    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent('document.frames: unknown key')
+    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent('document.scenes: unknown key')
   })
 
   it('warns beside the JSON when the page holds shapes the document cannot carry', () => {

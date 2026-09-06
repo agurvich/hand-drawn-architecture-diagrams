@@ -10,9 +10,9 @@ declare global {
      * directly would prove nothing about the thing under test -- and the thing
      * under test is precisely WHICH writes reach the undo stack.
      */
-    __frames?: {
-      viewFrame: (editor: Editor, frameId: string | null) => void
-      takeOffFrameAndToggle: (editor: Editor, shape: { id: string }, effective: boolean) => void
+    __scenes?: {
+      viewScene: (editor: Editor, sceneId: string | null) => void
+      takeOffSceneAndToggle: (editor: Editor, shape: { id: string }, effective: boolean) => void
     }
   }
 }
