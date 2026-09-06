@@ -46,4 +46,5 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `actors` | `src/client/actors.ts` | `actorIdOf`, `attributeTo`, `clearActor` — the one place an attribution is made |
 | `ActorBindingUtil` | `src/client/bindings/ActorBindingUtil.ts` | Deliberately hookless: the absence of a delete hook is the behaviour |
 | `ActorControl` | `src/client/panels/ActorControl.tsx` | Performed-by, on the selected connection |
+| e2e content helpers | `e2e/helpers.ts` | `addTldrawShape`, `parentOf`, `pageBounds`, `dragCorner` |
 

@@ -11,6 +11,7 @@ import { highlightState, sceneState, takeOffSceneAndToggle } from '../sceneView'
 import { actorsOfSelection } from '../actors'
 import {
   NODE_SHAPE_TYPE,
+  CONNECTION_SHAPE_TYPE,
   nodeShapeDefaultProps,
   nodeShapeMigrations,
   nodeShapeProps,
@@ -58,15 +59,63 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
    * semantics that a diagram node should not have.
    */
   override canReceiveNewChildrenOfType(shape: NodeShape, type: TLShape['type']) {
+    // EVERYTHING EXCEPT A CONNECTION. Not a list of accepted types -- a list is
+    // what goes stale the first time tldraw ships a new shape, and the rule is
+    // genuinely "is this a connection", not "is this one of the six things we
+    // thought of". A `diagramConnection` is parented to the PAGE by design
+    // (SPEC-005), and SPEC-006's merge derivation depends on that.
+    //
+    // The cheap type test runs FIRST: tldraw calls this once per candidate
+    // parent on every pointer-down of every stroke, and `sceneState` reads the
+    // store.
+    if (type === CONNECTION_SHAPE_TYPE) return false
     // EFFECTIVE, not the raw prop. This refusal exists so a dropped node cannot
     // vanish into a closed container -- and a container folded only by a scene
     // hides its children just as thoroughly, so it has to refuse too.
     const { scene, offScene } = sceneState(this.editor)
-    return (
-      type === NODE_SHAPE_TYPE &&
-      !effectiveCollapsed(shape.id, shape.props.collapsed, scene, offScene)
-    )
+    return !effectiveCollapsed(shape.id, shape.props.collapsed, scene, offScene)
   }
+
+  /**
+   * RESIZING A NODE DOES NOT RESIZE WHAT IS INSIDE IT.
+   *
+   * `ShapeUtil.canResizeChildren` defaults to TRUE, and tldraw's `Resizing`
+   * state visits every descendant unless a parent says otherwise. Measured
+   * through the real corner handle before this line existed: a 300x200 node
+   * taken to 600x400 doubled its content and moved it, and a non-uniform drag
+   * squashed it by different factors on each axis. Enlarging a box must not
+   * enlarge your handwriting.
+   *
+   * The hook takes the PARENT only, so it cannot answer differently for a pen
+   * stroke and for a child node -- which is why "nested nodes stop scaling too"
+   * is a decision the user made (2026-09-06) rather than an implementation
+   * detail. One rule for everything inside a box: you resize what you grabbed,
+   * nothing else.
+   */
+  override canResizeChildren() {
+    return false
+  }
+
+  /*
+   * NO `canRemoveChildrenOfType` OVERRIDE, and the absence is a decision.
+   *
+   * tldraw finishes a resize, a translate and a dozen menu actions with
+   * `kickoutOccludedShapes`, which returns to the page any child that no longer
+   * overlaps its parent. That hook would suppress it -- but it CANNOT TELL an
+   * explicit drag from an automatic kickout, because both go through it.
+   *
+   * Suppressing it means content can never leave a box by hand: measured, a
+   * 500px drag clear of the node left the content still parented to it. It also
+   * broke dragging a nested NODE out, which SPEC-004 delivered -- the claim that
+   * only the automatic path was affected was simply wrong, and the nesting suite
+   * caught it.
+   *
+   * So the default stands, on the user's decision (2026-09-06): writing can be
+   * dragged out of a box. The cost, stated rather than discovered: shrinking a
+   * box CLEAR OF its content also returns that content to the page, and moving
+   * the box afterwards then leaves it behind. There is no third option without
+   * machinery to distinguish the two gestures.
+   */
 
   /**
    * The REPARENT hook. Deliberately not `onDragShapesOver`, which fires on every
