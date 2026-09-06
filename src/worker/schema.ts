@@ -1,5 +1,6 @@
 import { createTLSchema, defaultShapeSchemas, defaultBindingSchemas } from '@tldraw/tlschema'
 import { customShapeSchemas, customBindingSchemas } from '../shared/shapes'
+import { customRecordSchemas } from '../shared/frames'
 
 /**
  * The worker's half of the shape declaration, built from the same shared
@@ -16,4 +17,7 @@ export const roomSchema = createTLSchema({
   // Same replace-not-extend trap as `shapes`: omitting the spread would make
   // tldraw's own arrow bindings unknown at the room boundary.
   bindings: { ...defaultBindingSchemas, ...customBindingSchemas },
+  // Custom RECORD types -- frames. No defaults to spread here: tldraw's own
+  // record types are not opt-in the way shapes and bindings are.
+  records: customRecordSchemas,
 })

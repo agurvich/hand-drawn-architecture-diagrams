@@ -289,3 +289,66 @@ export async function addHalfConnection(page: Page, fromId: string): Promise<str
     return cid
   }, fromId)
 }
+
+/** Create a frame record directly, without the authoring UI (which is PR 2). */
+export async function addFrame(
+  page: Page,
+  name: string,
+  collapsed: Record<string, boolean> = {},
+  opts: { highlighted?: string[]; index?: string } = {},
+): Promise<string> {
+  return page.evaluate(
+    ({ name, collapsed, highlighted, index }) => {
+      const ed = window.__editor!
+      const id = `diagramFrame:${Math.random().toString(36).slice(2, 12)}`
+      ed.store.put([
+        {
+          typeName: 'diagramFrame',
+          id,
+          name,
+          note: '',
+          collapsed,
+          highlighted: highlighted ?? [],
+          index: index ?? 'a1',
+        } as never,
+      ])
+      return id
+    },
+    { name, collapsed, highlighted: opts.highlighted, index: opts.index },
+  )
+}
+
+/** Point this viewer at a frame, or at none. Session-scoped: never synced. */
+export async function viewFrame(page: Page, frameId: string | null) {
+  await page.evaluate((id) => {
+    window.__editor!.store.put([
+      {
+        typeName: 'diagramFrameView',
+        id: 'diagramFrameView:current',
+        activeFrameId: id,
+        offFrame: [],
+      } as never,
+    ])
+  }, frameId)
+}
+
+/**
+ * Which shapes this viewer currently has hidden.
+ *
+ * `type` matters more than it looks: folding a container also merges the
+ * connections crossing its boundary, so the hidden set legitimately contains
+ * connections too. A test about which NODES a frame folds has to say so, or it
+ * fails on the feature working.
+ */
+export async function hiddenShapeIds(page: Page, type?: string): Promise<string[]> {
+  return page.evaluate(
+    (wanted) =>
+      window
+        .__editor!.getCurrentPageShapes()
+        .filter((s) => (wanted ? s.type === wanted : true))
+        .filter((s) => window.__editor!.isShapeHidden(s.id))
+        .map((s) => s.id as string)
+        .sort(),
+    type,
+  )
+}

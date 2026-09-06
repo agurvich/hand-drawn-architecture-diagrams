@@ -105,10 +105,12 @@ The fix is to override at the **`GetShape` boundary both consumers already share
 - [ ] Viewing a frame that folds container P hides P's descendants for this viewer, through the same visibility path collapse already uses
 - [ ] **Merging follows the frame.** With P folded by a frame only, connections crossing P's boundary merge and re-anchor onto P exactly as they do when P's own prop is set — asserted directly, because this is the criterion that fails if the override is applied at one call site and not the other
 - [ ] **P itself reads as folded.** Its rendered state, its collapse control's label and `aria-expanded`, and its hidden-descendant badge all follow the effective value, not the prop — otherwise a frame hides the children while the container still shows "Collapse" and no count
+- [ ] **A frame-folded container refuses drops**, the same way a prop-collapsed one does. `canReceiveNewChildrenOfType` reads the raw prop today, and its own comment says the refusal exists so a dropped node cannot vanish — which is exactly what happens if the lens hides the children and the drop is still accepted
 - [ ] **No shape record changes.** The full set of shape and binding records is identical before viewing a frame, while viewing, and after leaving — enumerated, not counted
 - [ ] **A second client sees nothing.** With A viewing a frame that folds P, B's rendered view and record set are both unchanged
 - [ ] The effective state of a node is: its own prop if it has been taken off-frame (FR-004); else the frame's value if the frame names it; else its own prop. That order is the contract
 - [ ] A frame's highlight accents the named nodes and connections, and ids that no longer resolve are ignored rather than erroring
+- [ ] **Capture takes the current selection as the highlight**, and capturing with nothing selected clears it. Decided in-session rather than left open: it needs no new control, the gesture is one a reader already performs (select the two things you are about to talk about), and it makes re-capture's "overwrites its collapse map and highlight" a single coherent action
 - [ ] **A frame that survives an import degrades safely.** SPEC-007's import replaces the page but frames are not shapes, so they outlive it and their collapse maps may name nothing that exists. A frame is **stale** when it names at least one node and *none* of the ids it names — in `collapsed` or `highlighted` — resolves to a shape. A frame that names nothing is empty, not stale, and a frame with one surviving id is neither. The surface marks a stale frame rather than presenting it as working
 - [ ] Leaving frames returns every node to its own prop, including ones the frame had folded
 
@@ -290,7 +292,7 @@ export function frameState(editor: Editor): {
 | `src/client/visibility.ts` | pass `frameAwareGetShape(editor)` instead of the raw accessor |
 | `src/client/mergeIndex.ts` | the same, so merging follows the frame |
 | `src/client/shapes/NodeShapeUtil.tsx` | read the effective value for the rendered state, the control's label and `aria-expanded`, and the descendant badge |
-| `src/client/Room.tsx` | `records` on both `useSync` branches; render the narration surface |
+| `src/client/Room.tsx` | `records` on the **non-`schema`** `useSync` branch only; render the narration surface |
 | `src/client/devOnly.ts` | `records` on the permissive dev schema |
 | `src/worker/schema.ts` | `records` |
 
@@ -312,13 +314,13 @@ src/
 │   │   │                          #        run against the real hierarchy.ts and merge.ts
 │   │   └── index.ts               # NEW -- the customRecordSchemas registry
 │   └── shapes/
-│       └── shared-imports.test.ts # allowlist gains @tldraw/store; guard covers 4 type strings
+│       └── shared-imports.test.ts # allowlist gains @tldraw/store; guard covers 5 type strings
 ├── client/
 │   ├── frameView.ts               # NEW -- frameAwareGetShape, frameState, the mutations
 │   ├── visibility.ts              # uses the frame-aware accessor
 │   ├── mergeIndex.ts              # the same
 │   ├── devOnly.ts                 # + records
-│   ├── Room.tsx                   # + records on BOTH useSync branches, + the surface
+│   ├── Room.tsx                   # + records on the non-schema useSync branch, + the surface
 │   ├── shapes/NodeShapeUtil.tsx   # renders the effective state
 │   └── panels/
 │       ├── NarrationPanel.tsx     # NEW

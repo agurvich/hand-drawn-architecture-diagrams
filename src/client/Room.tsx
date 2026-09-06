@@ -4,7 +4,14 @@ import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
-import { bindingUtils, components, shapeUtils, tools, uiOverrides } from './shapes/registry'
+import {
+  bindingUtils,
+  components,
+  shapeUtils,
+  syncSchemaOptions,
+  tools,
+  uiOverrides,
+} from './shapes/registry'
 import { shouldHide } from './visibility'
 import { unvalidatedSchemaIfRequested } from './devOnly'
 import { DiagramIOPanel } from './panels/DiagramIOPanel'
@@ -52,7 +59,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
   const store = useSync(
     devSchema
       ? { uri, assets: failLoudlyAssetStore, schema: devSchema }
-      : { uri, assets: failLoudlyAssetStore, shapeUtils, bindingUtils },
+      : { uri, assets: failLoudlyAssetStore, ...syncSchemaOptions },
   )
 
   const [editor, setEditor] = useState<Editor | null>(null)
