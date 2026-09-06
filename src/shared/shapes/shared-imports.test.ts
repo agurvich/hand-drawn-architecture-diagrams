@@ -10,9 +10,23 @@ const CLIENT_DIR = resolve(ROOT, 'src/client')
 const WORKER_DIR = resolve(ROOT, 'src/worker')
 const FIXTURES = resolve(ROOT, 'src/shared/shapes/__fixtures__')
 
-const ALLOWED_SHARED_IMPORTS = ['@tldraw/tlschema', '@tldraw/validate']
-// Extended, not duplicated: one rule covering every shape AND binding type.
-const TYPE_LITERALS = ["'diagramNode'", "'diagramConnection'", "'connectionEndpoint'"]
+/**
+ * `@tldraw/store` is here for BaseRecord and RecordId, which @tldraw/tlschema
+ * IMPORTS and does not re-export -- SPEC-008's frame records cannot be typed
+ * without it. That is the whole of the widening, decided in the spec rather than
+ * in a build: `tldraw` itself stays forbidden, because importing it would pull
+ * React, the DOM and CSS into the Worker bundle, which is why this fence exists.
+ */
+const ALLOWED_SHARED_IMPORTS = ['@tldraw/tlschema', '@tldraw/validate', '@tldraw/store']
+// Extended, not duplicated: one rule covering every shape, binding AND record type.
+const TYPE_LITERALS = [
+  "'diagramNode'",
+  "'diagramConnection'",
+  "'connectionEndpoint'",
+  "'diagramFrame'",
+  "'diagramFrameView'",
+  "'diagramOffFrame'",
+]
 
 /**
  * The three modules that legitimately WRITE a type string -- they are the one
@@ -26,6 +40,7 @@ const TYPE_DEFINITION_MODULES = [
   resolve(SHARED_DIR, 'shapes/node.ts'),
   resolve(SHARED_DIR, 'shapes/connection.ts'),
   resolve(SHARED_DIR, 'bindings/connection.ts'),
+  resolve(SHARED_DIR, 'frames/frame.ts'),
 ]
 
 /** Source files under `root`, excluding tests and fixtures. */
@@ -85,7 +100,7 @@ describe('FR-001 — one definition, two consumers', () => {
     expect(filesDeclaringShapeTypeLiteral(planted)).toEqual(['src/shared/Planted.ts'])
   })
 
-  it('the definition modules are exempt by FULL PATH, and all three still exist', () => {
+  it('the definition modules are exempt by FULL PATH, and every one still exists', () => {
     // An exclusion pointing at a moved file is an exclusion that exempts
     // nothing and hides a real violation behind a passing test.
     for (const path of TYPE_DEFINITION_MODULES) {

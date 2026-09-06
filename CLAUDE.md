@@ -36,7 +36,10 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 ## Tech Stack
 
 - TypeScript 6 (strict), React 19, Vite 8 — Node >= 22.12 (tldraw 5's `engines`; Node 20 is excluded)
-- tldraw SDK **5.x** — canvas, custom shapes, bindings — plus its sync client. Pinned to 5.x, not
+- tldraw SDK **5.x** — canvas, custom shapes, bindings — plus its sync client. `@tldraw/store` is a
+  direct dependency at `^5.4.0` -- a RANGE, not an exact pin: tlschema pins its siblings exactly, so
+  an exact root pin is what would force a second nested copy the moment tldraw floats, and two copies
+  mean two distinct `RecordId` brands. Pinned to 5.x, not
   4.x: on 4.x `indicator()` is still abstract and `getIndicatorPath` only runs once
   `useLegacyIndicator()` returns false, so a shape written the modern way silently draws no selection
   indicator. Greenfield, so take the API that is not a migration artifact

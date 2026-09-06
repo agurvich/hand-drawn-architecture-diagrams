@@ -1,4 +1,5 @@
-import { computed, type Computed, type Editor, type TLShape } from 'tldraw'
+import { computed, type Computed, type Editor } from 'tldraw'
+import { frameAwareGetShape } from './frameView'
 import {
   computeMergeIndex,
   CONNECTION_SHAPE_TYPE,
@@ -53,7 +54,11 @@ function deriveMergeIndex(editor: Editor): MergeIndex {
       endNodeId: bindings.find((b) => b.props.terminal === 'end')?.toId ?? null,
     })
   }
-  return computeMergeIndex(connections, (id) => editor.getShape(id as TLShape['id']))
+  // The same frame-aware accessor visibility.ts uses. Collapse is read in two
+  // places; if only one of them saw the frame, a frame would fold a container
+  // while the connections crossing its boundary stayed unmerged and drawn to
+  // shapes that are no longer on screen.
+  return computeMergeIndex(connections, frameAwareGetShape(editor))
 }
 
 /**

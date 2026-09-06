@@ -4,7 +4,15 @@ import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
-import { bindingUtils, components, shapeUtils, tools, uiOverrides } from './shapes/registry'
+import { takeOffFrameAndToggle, viewFrame } from './frameView'
+import {
+  bindingUtils,
+  components,
+  shapeUtils,
+  syncSchemaOptions,
+  tools,
+  uiOverrides,
+} from './shapes/registry'
 import { shouldHide } from './visibility'
 import { unvalidatedSchemaIfRequested } from './devOnly'
 import { DiagramIOPanel } from './panels/DiagramIOPanel'
@@ -52,7 +60,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
   const store = useSync(
     devSchema
       ? { uri, assets: failLoudlyAssetStore, schema: devSchema }
-      : { uri, assets: failLoudlyAssetStore, shapeUtils, bindingUtils },
+      : { uri, assets: failLoudlyAssetStore, ...syncSchemaOptions },
   )
 
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -132,6 +140,10 @@ export function Room({ roomId }: { roomId: RoomId }) {
 
 function handleMount(editor: Editor) {
   window.__editor = editor
+  // Exposed for e2e until PR 2 gives narration a surface. Same reasoning as
+  // __editor above: the alternative is a test that writes records directly and
+  // therefore never exercises the history rules these functions exist for.
+  window.__frames = { viewFrame, takeOffFrameAndToggle } as Window['__frames']
   // Returned disposer is run by tldraw when the editor unmounts.
   return stripHiddenFromSelection(editor)
 }

@@ -12,7 +12,7 @@ to status only — no prose.
 | SPEC-005 | Connections between nodes | Completed | SPEC-004 |
 | SPEC-006 | Merging connections into a collapsed container | Completed | SPEC-004, SPEC-005 |
 | SPEC-007 | JSON export/import and the AI-authoring schema | Completed | SPEC-004, SPEC-005, SPEC-006 |
-| SPEC-008 | Frames and narration | Draft | SPEC-004, SPEC-006, SPEC-007 |
+| SPEC-008 | Frames and narration | In Progress | SPEC-004, SPEC-006, SPEC-007 |
 | SPEC-009 | Frames in the JSON document | Planned | SPEC-007, SPEC-008 |
 
 ## Arcs (build order)

@@ -6,6 +6,8 @@ import {
   type TLResizeInfo,
   resizeBox,
 } from 'tldraw'
+import { effectiveCollapsed } from '@shared/frames'
+import { frameState, takeOffFrameAndToggle } from '../frameView'
 import {
   NODE_SHAPE_TYPE,
   nodeShapeDefaultProps,
@@ -55,7 +57,14 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
    * semantics that a diagram node should not have.
    */
   override canReceiveNewChildrenOfType(shape: NodeShape, type: TLShape['type']) {
-    return type === NODE_SHAPE_TYPE && !shape.props.collapsed
+    // EFFECTIVE, not the raw prop. This refusal exists so a dropped node cannot
+    // vanish into a closed container -- and a container folded only by a frame
+    // hides its children just as thoroughly, so it has to refuse too.
+    const { frame, offFrame } = frameState(this.editor)
+    return (
+      type === NODE_SHAPE_TYPE &&
+      !effectiveCollapsed(shape.id, shape.props.collapsed, frame, offFrame)
+    )
   }
 
   /**
@@ -107,18 +116,22 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
       this.editor.getSortedChildIdsForParent(id as NodeShape['id']),
     )
     const hasChildren = childCount > 0
-    const { collapsed } = shape.props
+    // The EFFECTIVE state, not the raw prop. A frame is a lens over collapse, so
+    // a container a frame folds must render folded -- otherwise its children
+    // vanish while it still offers "Collapse" and shows no count.
+    const { frame, offFrame } = frameState(this.editor)
+    const collapsed = effectiveCollapsed(shape.id, shape.props.collapsed, frame, offFrame)
 
     const toggle = (e: React.PointerEvent | React.MouseEvent) => {
       // Without this the press also selects, drags or enters label editing --
-      // FR-004 requires activating the control to do none of those.
+      // SPEC-004 FR-004 requires activating the control to do none of those.
       e.stopPropagation()
       e.preventDefault()
-      this.editor.updateShape<NodeShape>({
-        id: shape.id,
-        type: NODE_SHAPE_TYPE,
-        props: { collapsed: !collapsed },
-      })
+      // Writes the opposite of the EFFECTIVE state -- what the user can see --
+      // and takes the node off-frame in the SAME recorded change, so one undo
+      // reverses both. Split across two changes, undo would restore the prop
+      // while leaving the node off-frame, showing a state nobody asked for.
+      takeOffFrameAndToggle(this.editor, shape, collapsed)
     }
 
     return (

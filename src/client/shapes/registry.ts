@@ -12,6 +12,7 @@ import { NodeTool } from '../tools/NodeTool'
 import { ConnectionTool } from '../tools/ConnectionTool'
 import { Toolbar } from './Toolbar'
 import { NODE_SHAPE_TYPE, CONNECTION_SHAPE_TYPE } from '@shared/shapes'
+import { customRecordSchemas } from '@shared/frames'
 
 /**
  * useSync does NOT include tldraw's default shape utils the way <Tldraw> does,
@@ -23,6 +24,21 @@ export const tools = [...defaultTools, NodeTool, ConnectionTool]
 
 /** Registered on BOTH useSync and <Tldraw>, exactly as shapeUtils are. */
 export const bindingUtils = [...defaultBindingUtils, ConnectionBindingUtil]
+
+/**
+ * Everything the synced store's schema is built from, as ONE object.
+ *
+ * Hoisted out of Room.tsx so a test can assert on the exact options useSync
+ * receives -- inline options inside a component are unreachable, and the
+ * alternative is a source-text scan, which cannot tell a live argument from a
+ * dead one.
+ *
+ * Note `records` belongs to THIS branch only. `TLStoreSchemaOptions` is a union
+ * of `{shapeUtils, bindingUtils, records}` and `{schema}`; passing both
+ * typechecks and the schema branch discards `records` silently, so devOnly.ts
+ * builds its own createTLSchema({ records }) instead.
+ */
+export const syncSchemaOptions = { shapeUtils, bindingUtils, records: customRecordSchemas }
 
 export const uiOverrides: TLUiOverrides = {
   tools(editor, toolsInMenu) {
