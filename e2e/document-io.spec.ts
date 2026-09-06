@@ -12,6 +12,7 @@ import {
   pasteDocument,
   pasteDocumentAndConfirm,
   sceneRecords,
+  viewScene,
   addScene,
   connectionCount,
   roomId,
@@ -559,7 +560,7 @@ test.describe('SPEC-009 — scenes in the document', () => {
     const a = await addNode(page, 'A', { x: 0, y: 0, w: 400, h: 300 })
     await addNode(page, 'child', { x: 20, y: 40, w: 120, h: 80, parentId: a })
     const scene = await addScene(page, 'Folded', { [a]: true }, { index: 'a1' })
-    await page.evaluate((id) => window.__scenes!.viewScene(window.__editor!, id as never), scene)
+    await viewScene(page, scene)
     await page.evaluate(
       (id) => window.__scenes!.takeOffSceneAndToggle(window.__editor!, { id: id as never }, true),
       a,
@@ -577,11 +578,12 @@ test.describe('SPEC-009 — scenes in the document', () => {
       }),
     )
 
-    // Activating the IMPORTED scene is the part that matters: with no scene
-    // active a stale off-scene set is inert, so the assertion would pass either
-    // way and the mutation would not bite.
+    // Activating the imported scene puts the room in the state a viewer would
+    // actually be in when the stale set would bite. The assertion itself is on
+    // the RECORD's existence, which is what the import removes -- `viewScene`
+    // only empties `nodeIds`, so the two are distinguishable.
     const imported = (await sceneRecords(page))[0]!.id
-    await page.evaluate((id) => window.__scenes!.viewScene(window.__editor!, id as never), imported)
+    await viewScene(page, imported)
     expect(
       await page.evaluate(() =>
         window.__editor!.store.allRecords().some((r) => r.typeName === 'diagramOffScene'),

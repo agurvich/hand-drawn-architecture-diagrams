@@ -295,8 +295,9 @@ export async function addHalfConnection(page: Page, fromId: string): Promise<str
  *
  * `pageRecords` filters to shapes and bindings, so scenes are INVISIBLE to it --
  * which is why the whole document-io suite could not see scene loss or scene
- * undo at all. Four inline copies of this filter had accumulated in
- * `scenes.spec.ts`; this is the last one.
+ * undo at all. `scenes.spec.ts` still inlines this filter in several places;
+ * those predate this helper and are left alone rather than churned through a
+ * reviewed file, but new assertions should come here.
  */
 export async function sceneRecords(page: Page): Promise<
   Array<{

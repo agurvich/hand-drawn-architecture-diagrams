@@ -145,6 +145,16 @@ describe('parseDocument — rejection, each naming its path', () => {
     expect(errorFrom(json({ version, nodes: [] }))).toBe(message)
   })
 
+  it('reports the VERSION before an unknown key, which is the whole reorder', () => {
+    // The only assertion that pins the order at HEAD. The other version tests
+    // pass documents with no unknown key, so they would stay green with the
+    // checks in either order -- and the mutation that used to prove this went
+    // inert the moment `scenes` became a legal top-level key.
+    expect(errorFrom(json({ version: 9, bogus: 1 }))).toBe(
+      'document.version: expected 1 or 2, got 9',
+    )
+  })
+
   it('rejects a v1 document carrying scenes, naming the VERSION not the key', () => {
     // After the reorder `version: 1` passes the version gate and `scenes` is a
     // legal v2 key, so without its own guard this document is ACCEPTED and the
@@ -937,6 +947,41 @@ describe('toDocument — scenes', () => {
     const out = toDocument([], [], [], [exportableScene('s1', { collapsed: { 'shape:a': true } })])
     expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
     expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('drops a reference to a node parented into a tldraw shape', () => {
+    // The fourth drop case, and the only one whose node still EXISTS -- it is
+    // simply undescribable, because the document cannot express a parent it has
+    // no record of.
+    const parented = [exportableNode('a'), exportableNode('b', { parentId: 'shape:someFrame' })]
+    const out = toDocument(
+      parented,
+      [],
+      [],
+      [exportableScene('s1', { collapsed: { 'shape:b': true }, highlighted: ['shape:b'] })],
+    )
+    expect(out.nodes.map((n) => n.id)).toEqual(['a'])
+    expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('keeps a collapsed key called __proto__, which is a legal node id', () => {
+    // It matches DOCUMENT_ID_PATTERN, so an author or a model can write it --
+    // and assigning it on a plain `{}` is a silent no-op, so the entry would
+    // vanish from the export while the re-import still validated. The round
+    // trip lying is worse than the round trip failing.
+    const nodes = [exportableNode('__proto__'), exportableNode('ok')]
+    const out = toDocument(
+      nodes,
+      [],
+      [],
+      [exportableScene('s1', { collapsed: { 'shape:__proto__': true, 'shape:ok': false } })],
+    )
+    expect(Object.keys(out.scenes[0]!.collapsed!).sort()).toEqual(['__proto__', 'ok'])
+    const reparsed = parseDocument(json(out))
+    expect(reparsed.ok && Object.hasOwn(reparsed.document.scenes[0]!.collapsed!, '__proto__')).toBe(
+      true,
+    )
   })
 
   it('drops a highlight on a half-bound connection', () => {

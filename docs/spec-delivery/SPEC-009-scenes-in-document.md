@@ -54,8 +54,9 @@ because all of them would otherwise have shipped silently:
 
 | Mutation | Caught by |
 | --- | --- |
-| The upgrade moved ahead of the unknown-key check | 11 tests, the v1 corpus among them |
+| The version check moved back after the unknown-key check | the ordering test |
 | The v1-with-scenes guard deleted | the version-error test |
+| `collapsed` built on a plain `{}` instead of `Object.fromEntries` | the `__proto__` test |
 | `highlighted` filtered through `documentableNodeIds` (nodes only) | the surviving-connection test |
 | `collapsed` filtered against STRIPPED ids | the surviving-node test |
 | The `(index, id)` tiebreak dropped | the tied-index test |
@@ -67,12 +68,28 @@ because all of them would otherwise have shipped silently:
 | The scene count dropped from the confirmation gate | the scenes-only confirmation test |
 | The guide's ` ```ts ` version reverted to 1 | the fenced-block sweep |
 
-**One mutation is deliberately dead and should stay that way.** Moving the scene writes merely
-*outside* `editor.run()` does **not** break the single undo — everything after
+**Two mutations are dead, and it is worth being exact about which.**
+
+*Moving the upgrade ahead of the unknown-key check* was live during Phase 2 — 12 tests red, the v1
+corpus among them — and went **inert in Phase 3**, when `scenes` joined `TOP_LEVEL_KEYS`. It proves
+the ordering was necessary while it was being built and proves nothing at HEAD. What pins the
+ordering now is a direct assertion that `{"version": 9, "bogus": 1}` reports the *version*, not the
+key. Every other version test passes a document with no unknown key, so they would stay green with
+the checks in either order.
+
+*Moving the scene writes merely outside `editor.run()`* does **not** break the single undo — everything after
 `markHistoryStoppingPoint` accumulates into one pending diff regardless of transaction boundaries.
 `run()` is still correct there, for atomicity and a single reactive flush, but a plan claiming that
 mutation as proof would have been claiming proof from a green test. The live mutation is moving the
 writes *before the mark*.
+
+**A silent round-trip loss, found in review and fixed:** `__proto__` matches `DOCUMENT_ID_PATTERN`,
+so it is a legal node id — and `JSON.parse` creates it as an own property, so it parsed and imported
+correctly, but assigning it on a plain `{}` during export hit `Object.prototype`'s accessor and was a
+no-op. The entry vanished from the export while the re-import still validated: the round trip lying
+rather than failing. `Object.fromEntries` now builds the map, which creates it as an own property
+without polluting anything. The runtime lens already had this right — `effectiveCollapsed` uses
+`Object.hasOwn` deliberately.
 
 **Not covered:** transactional atomicity of the import (nothing tests a throw mid-import), and there
 is no v2 → v1 downgrade. A v1 build handed a v2 document reports `document.scenes: unknown key`,

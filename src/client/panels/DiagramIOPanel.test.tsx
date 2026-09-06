@@ -213,7 +213,12 @@ describe('DiagramIOPanel — FR-003, the confirmation gate', () => {
     open()
     paste(VALID)
     fireEvent.click(screen.getByTestId('diagram-io-import'))
-    expect(screen.getByTestId('diagram-io-confirm')).toHaveTextContent(/6 scenes/)
+    const confirm = screen.getByTestId('diagram-io-confirm')
+    expect(confirm).toHaveTextContent(/6 scenes/)
+    // Not "the whole page" when no page shape is at risk -- and no raw HTML
+    // entity, which a string literal in JSX renders verbatim.
+    expect(confirm.textContent).toContain('Importing replaces this room\u2019s scenes.')
+    expect(confirm.textContent).not.toContain('&rsquo;')
     expect(importDocument).not.toHaveBeenCalled()
   })
 

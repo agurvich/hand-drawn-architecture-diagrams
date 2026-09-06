@@ -238,7 +238,7 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
           data-testid="diagram-io-confirm"
         >
           <p id={`${headingId}-confirm`}>
-            Importing replaces the whole page.{' '}
+            Importing replaces {undocumentable > 0 ? 'the whole page' : 'this room\u2019s scenes'}.{' '}
             {undocumentable > 0 && (
               <>
                 {undocumentable} shape{undocumentable === 1 ? '' : 's'} — drawings, notes and

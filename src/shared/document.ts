@@ -686,10 +686,19 @@ export function toDocument(
       // One omit-at-default rule for all three, matching the node's.
       if (scene.note !== '') out.note = scene.note
 
-      const collapsed: Record<string, boolean> = {}
-      for (const [id, value] of Object.entries(scene.collapsed)) {
-        if (documentable.has(id)) collapsed[documentId(id)] = value
-      }
+      // `Object.fromEntries`, NOT `collapsed[key] = value` on a plain object.
+      // `__proto__` matches DOCUMENT_ID_PATTERN, so it is a legal node id, and
+      // assigning it on a `{}` hits Object.prototype's accessor and is a silent
+      // no-op -- the entry would vanish from the export while the re-import
+      // still validated, which is the round trip lying rather than failing.
+      // `JSON.parse` and `Object.fromEntries` both create it as an OWN property,
+      // so the format handles it end to end. (`effectiveCollapsed` already uses
+      // `Object.hasOwn` for the same reason.)
+      const collapsed = Object.fromEntries(
+        Object.entries(scene.collapsed)
+          .filter(([id]) => documentable.has(id))
+          .map(([id, value]) => [documentId(id), value]),
+      )
       if (Object.keys(collapsed).length > 0) out.collapsed = collapsed
 
       const highlighted = scene.highlighted
