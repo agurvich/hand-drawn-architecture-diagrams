@@ -2,7 +2,7 @@
 
 **ID:** SPEC-009  
 **Status:** Draft  
-**Last Updated:** 2026-09-05 (rev 2 — post-review)  
+**Last Updated:** 2026-09-05 (rev 3 — post-review)  
 **Depends On:** SPEC-007, SPEC-008
 
 ## Overview
@@ -73,16 +73,29 @@ literal v1 documents in the repo, and FR-004 updates those.
       literal `"version": 1` **hard-coded and never referencing `DOCUMENT_VERSION`** — that literal
       is the entire point, and a fixture built from the constant is not a fixture. It covers
       nesting, collapse, connections, omitted-at-default fields and the id-pattern edges
-- [ ] Every corpus file imports, and the **resulting record set** is asserted — not merely that it
-      parsed. A parse that succeeds and produces different shapes is the failure this guards
-- [ ] A **v1** document carrying a `frames` key is rejected, naming the **version**, not the key
+- [ ] Every corpus file imports, and the **`fromDocument` record set** is asserted — not the parsed
+      document, whose `version` legitimately becomes 2. A parse that succeeds and produces different
+      shapes is the failure this guards. The test lives at `src/shared/document-v1.test.ts`
+- [ ] The corpus survives Phase 2 untouched and is **expected to go red in Phase 3**, when
+      `fromDocument`'s return grows a `frames` key. That is the corpus doing its job: the phase that
+      changes the shape updates the expectation, and no other phase may
+- [ ] A **v1** document carrying a `frames` key is rejected, naming the **version**, not the key —
+      by an **explicit check**, because the reorder alone silently ACCEPTS it and discards the
+      author's frames. After the reorder `version: 1` is supported, so the version gate passes; then
+      `frames` is a legal v2 key, so the key gate passes too. Measured on a build of this spec. The
+      check is its own step, before the upgrade: `version === 1 && 'frames' in raw`
 - [ ] **The version check moves ahead of the unknown-key check**, which is a reorder of two existing
       checks, not a description of today. Today unknown keys are rejected first, so a v1 document
       with `frames` would report `document.frames: unknown key` once `frames` joins the allowed set.
-      The criterion above cannot be met without the reorder, and `document.test.ts` pins both
-      messages, so both change
-- [ ] A version this build does not know — 3, 0, `"2"` — is rejected with a message naming both what
-      it got and **what is supported**, which is now a range rather than a single number
+      The criterion above cannot be met without the reorder, and **three** pinned assertions change
+      with it, not two: `document.test.ts`'s version and unknown-key messages, and
+      `DiagramIOPanel.test.tsx`, which pins `document.frames: unknown key` as its example of a
+      path-naming error and appears in no phase's file list otherwise
+- [ ] A version this build does not know — 3, 0, `"2"` — is rejected with
+      `document.version: expected 1 or 2, got 3`. The wording is pinned here rather than left open,
+      because SPEC-007 pinned every other message character-for-character and a gap reads as
+      oversight rather than latitude
+- [ ] The v1-with-frames rejection reads `document.version: frames requires version 2`
 - [ ] The upgrade is a pure function over the parsed document, unit-tested with no Editor
 
 ### FR-002: Frames in the schema, validated as strictly as everything else
@@ -131,9 +144,16 @@ document cannot carry: SPEC-008 deliberately keeps *stale* frames rather than de
 SPEC-007's `documentable` rule drops nodes parented into tldraw shapes and connections bound at one
 end. The rule that closes it is the one already in the codebase:
 
-> **A frame's references are filtered through the same `documentable` set the nodes and connections
-> are.** A reference the document cannot carry is dropped from the frame; the frame itself survives,
-> possibly naming nothing. A frame naming nothing is legal — SPEC-008 calls it empty, not stale.
+> **A frame's references are filtered against what the document ACTUALLY CARRIES** — its exported
+> nodes for `collapsed` keys, and its exported nodes *and connections* for `highlighted`. A reference
+> the document does not carry is dropped from the frame; the frame itself survives, possibly naming
+> nothing. A frame naming nothing is legal — SPEC-008 calls it empty, not stale.
+
+**Not "the `documentable` set", which is nodes only.** `documentableNodeIds` returns node ids;
+connections are filtered separately, inside `toDocument`'s own loop. Filtering `highlighted` through
+the node set drops **every** connection highlight, including valid ones — a silent data loss that
+every one of the four criteria below still passes, because all four are *drop* cases. The criterion
+that catches it is the fifth.
 
 #### Acceptance Criteria:
 
@@ -143,10 +163,15 @@ end. The rule that closes it is the one already in the codebase:
       with its own test, each fed straight back through `parseDocument`: a frame naming a node that
       no longer exists; a frame naming a node parented into a tldraw shape; a frame highlighting a
       half-bound connection; and a room of frames with no diagram at all
+- [ ] **A surviving CONNECTION highlight is kept.** The case the four above cannot see, and the one
+      a builder following "the documentable set" would silently break
 - [ ] **Export is deterministic in the presence of an index tie.** Frames sort by `(index, id)` under
       plain `<` — the same comparator nodes and connections use, and for the reason
       `decisions.md` → *Derived views are computed, never materialized* gives: ties break on a total
       order over data both clients already have. Asserted by exporting two frames that share an index
+- [ ] **`note`, `collapsed` and `highlighted` are omitted at their defaults** (`''`, `{}`, `[]`), one
+      rule for all three, matching the node's. Stated because it sets the baseline for every
+      byte-identity expectation below
 - [ ] Two exports of an unchanged room are byte-identical, frames included
 - [ ] Import **replaces** every frame in the room, asserted by enumerating the frame records before
       and after, not by counting
@@ -156,9 +181,15 @@ end. The rule that closes it is the one already in the codebase:
       `frameView.ts` mutations. Those are deliberately history-ignored so narration never interleaves
       with diagram edits; an import is a diagram edit, and this is the one place that exception is
       made. Stated because a builder reaching for the existing mutation would silently lose the undo
-- [ ] Indices are generated on import from the array position, deterministically and without a
-      `tldraw` import — `src/shared/document.ts` has none and SPEC-008 treats even `@tldraw/store` as
-      a fence worth a criterion to move
+- [ ] **Indices are minted by the CLIENT adapter, not by `fromDocument`.** `fromDocument` returns
+      frames in array order with no index at all; `documentIO.ts` assigns them with tldraw's own
+      index helpers as it creates the records. Stated this way because the obvious alternative --
+      generating them in `src/shared/document.ts`, which has no `tldraw` import -- produces a
+      DIFFERENT ordering alphabet from the one the client mints with, so a frame created after an
+      import interleaves wrongly. Measured: a naive `a${i+1}` also breaks outright at ten frames,
+      since `'a10' < 'a2'`
+- [ ] Array order in is array order out, asserted on **twelve** frames — the count at which a
+      plausible index scheme first scrambles and a three-frame test still passes
 - [ ] A round trip is exact: export, import, export again yields an identical document
 - [ ] The imported frames reach a second client, and both clients' frame records match
 
@@ -182,10 +213,11 @@ will write.
       that no ` ```json ` block contains `"frames"` — it is SPEC-007's "does not present a deferred
       feature as available" check. `frames` leaves that list; the other five keys stay, and the guard
       keeps earning its place
-- [ ] **No superseded version number survives anywhere in the guide** — prose and ` ```ts ` fragments
-      included, which the extraction test deliberately skips and which is therefore the only place
-      the old number can hide. Asserting merely that the guide "names the current version" would pass
-      on any coordinate in any example
+- [ ] **Every fenced block declares the current version** — ` ```json ` *and* ` ```ts `, the latter
+      being the one the extraction test deliberately skips and therefore the only place an old number
+      can hide. Scoped to fenced blocks on purpose: a guide satisfying FR-001 must tell authors their
+      v1 documents still work, so a sweep over PROSE would fire on correct writing. Asserting merely
+      that the guide "names the current version" would pass on any coordinate in any example
 
 ---
 
@@ -203,6 +235,25 @@ export interface DiagramDocument {
   nodes: DocumentNode[]
   connections: DocumentConnection[]
   frames: DocumentFrame[]
+}
+
+/**
+ * What `toDocument` consumes, as a FOURTH and OPTIONAL trailing parameter --
+ * optional because ~20 existing three-argument call sites would otherwise break,
+ * and a required parameter added for one caller is a change to every test that
+ * has nothing to do with frames.
+ *
+ * Not SPEC-008's `FrameRecord`: that extends `BaseRecord` from `@tldraw/store`,
+ * and `document.ts` deliberately imports no tldraw package at all.
+ */
+export interface ExportableFrame {
+  /** The raw `diagramFrame:...` id; the prefix is stripped into the document. */
+  id: string
+  name: string
+  note: string
+  collapsed: Record<string, boolean>
+  highlighted: string[]
+  index: string
 }
 
 export interface DocumentFrame {
@@ -246,6 +297,32 @@ function upgradeV1(document: Record<string, unknown>): Record<string, unknown>
 // VERSION rather than by key, once `frames` is a legal v2 key. Two currently
 // pinned messages change with it.
 export function parseDocument(input: string): ParseResult
+
+/** Exported, because FR-001 requires it unit-tested directly. */
+export function upgradeV1(document: Record<string, unknown>): Record<string, unknown>
+
+// Frames arrive as a TRAILING OPTIONAL fourth parameter.
+export function toDocument(
+  nodes: readonly ExportableNode[],
+  connections: readonly ExportableConnection[],
+  bindings: readonly BindingDescriptor[],
+  frames?: readonly ExportableFrame[],
+): DiagramDocument
+
+// fromDocument returns frames WITHOUT an index, in array order; the client
+// adapter mints indices (FR-003). Its return type gains a `frames` key -- a
+// change the v1 corpus test must expect, since it asserts on the record set
+// exactly. It goes red in the phase that adds the key, not the one that bumps
+// the version.
+export function fromDocument(
+  document: DiagramDocument,
+  pageId: string,
+): {
+  nodes: ExportableNode[]
+  connections: ExportableConnection[]
+  bindings: BindingDescriptor[]
+  frames: Omit<ExportableFrame, 'index'>[]
+}
 ```
 
 ```ts
@@ -283,7 +360,11 @@ src/
 docs/
 └── ai-authoring-guide.md           # a frames section and a worked example
 e2e/
-└── document-io.spec.ts             # + FR-003's frame criteria
+├── document-io.spec.ts             # + FR-003's frame criteria, AND its five hard-coded
+│                                   #   `version: 1` literals bumped -- none of them break,
+│                                   #   which is the problem: the import suite would
+│                                   #   silently become a v1 suite
+└── (src/client/panels/DiagramIOPanel.test.tsx pins a message that changes)
 ```
 
 ## Implementation Phases
