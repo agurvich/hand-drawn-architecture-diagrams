@@ -28,7 +28,13 @@ import { isShapeId, SHAPE_ID_PREFIX } from './shapes/hierarchy'
  * going through the barrel would be circular.
  */
 
-export const DOCUMENT_VERSION = 1
+export const DOCUMENT_VERSION = 2
+
+/**
+ * Every version this build can READ. There is no downgrade: a v1 document is
+ * upgraded on the way in and comes back as v2.
+ */
+export const SUPPORTED_DOCUMENT_VERSIONS = [1, 2] as const
 
 /**
  * Ids are ONE namespace across nodes and connections, because both mint
@@ -127,9 +133,30 @@ export interface BindingDescriptor {
   props: { terminal: ConnectionTerminal }
 }
 
+/**
+ * Checked against the RAW document, before any upgrade -- so this list is
+ * permanently the UNION of every version's keys, not the current version's. A
+ * key that is legal in v2 therefore passes the check on a v1 document too, and
+ * the only thing stopping a v1 document's `scenes` from being silently
+ * discarded is the explicit guard in `parseDocument`. A future v3 key needs its
+ * own guard for the same reason.
+ */
 const TOP_LEVEL_KEYS = ['version', 'nodes', 'connections']
 const NODE_KEYS = ['id', 'label', 'x', 'y', 'w', 'h', 'rotation', 'color', 'collapsed', 'parentId']
 const CONNECTION_KEYS = ['id', 'sourceId', 'targetId']
+
+/**
+ * A v1 document, as v2: the same document, plus no scenes.
+ *
+ * Trivial on purpose -- the thing worth testing is not this function, it is that
+ * the FROZEN v1 CORPUS still turns into an identical record set on the far side
+ * of it. See `document-v1.test.ts`.
+ *
+ * Pure, and exported so it can be tested with no Editor.
+ */
+export function upgradeV1(document: Record<string, unknown>): Record<string, unknown> {
+  return { ...document, version: 2, scenes: [] }
+}
 
 function fail(path: string, reason: string): ParseResult {
   return { ok: false, error: `${path}: ${reason}` }
@@ -176,23 +203,44 @@ export function parseDocument(input: string): ParseResult {
 
   if (!isPlainObject(raw)) return fail('document', 'must be a JSON object')
 
+  // VERSION FIRST, then the key check -- the reverse of what this did at v1, and
+  // the order is load-bearing. Once `scenes` is a legal v2 key, a v1 document
+  // carrying one would otherwise be reported as a KEY problem, when the author's
+  // actual mistake is the version. The guard below says so instead.
+  if (!('version' in raw)) return fail('document.version', 'missing')
+  if (
+    !SUPPORTED_DOCUMENT_VERSIONS.includes(
+      raw.version as (typeof SUPPORTED_DOCUMENT_VERSIONS)[number],
+    )
+  ) {
+    return fail(
+      'document.version',
+      `expected ${SUPPORTED_DOCUMENT_VERSIONS.join(' or ')}, got ${JSON.stringify(raw.version)}`,
+    )
+  }
+
+  // Its OWN step, before the upgrade. The reorder alone is not enough: after it,
+  // `version: 1` passes the version gate and `scenes` passes the key gate, so a
+  // v1 document carrying scenes would be quietly ACCEPTED and the author's
+  // scenes dropped on the floor.
+  if (raw.version === 1 && 'scenes' in raw) {
+    return fail('document.version', 'scenes requires version 2')
+  }
+
   const extraTop = unknownKey(raw, TOP_LEVEL_KEYS)
   if (extraTop !== null) return fail(`document.${extraTop}`, 'unknown key')
 
-  if (!('version' in raw)) return fail('document.version', 'missing')
-  if (raw.version !== DOCUMENT_VERSION) {
-    return fail(
-      'document.version',
-      `expected ${DOCUMENT_VERSION}, got ${JSON.stringify(raw.version)}`,
-    )
-  }
+  // A NEW binding, not a reassignment: `raw` is declared `unknown` and narrowed
+  // by `isPlainObject` above, and assigning to it would throw that narrowing
+  // away.
+  const doc: Record<string, unknown> = raw.version === 1 ? upgradeV1(raw) : raw
 
   // Optional on input, so a node-only document is valid; both are always present
   // on export. ABSENT, not nullish: `?? []` would coalesce an explicit
   // `"nodes": null` into an empty array and accept it, which is the author
   // writing something wrong and seeing an empty diagram rather than an error.
-  const rawNodes = 'nodes' in raw ? raw.nodes : []
-  const rawConnections = 'connections' in raw ? raw.connections : []
+  const rawNodes = 'nodes' in doc ? doc.nodes : []
+  const rawConnections = 'connections' in doc ? doc.connections : []
   if (!Array.isArray(rawNodes)) return fail('document.nodes', 'must be an array')
   if (!Array.isArray(rawConnections)) return fail('document.connections', 'must be an array')
 

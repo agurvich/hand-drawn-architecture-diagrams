@@ -121,9 +121,23 @@ describe('parseDocument — rejection, each naming its path', () => {
     expect(errorFrom(json({ nodes: [], connections: [] }))).toBe('document.version: missing')
   })
 
-  it('rejects an unknown version', () => {
-    expect(errorFrom(json({ version: 99, nodes: [] }))).toBe(
-      `document.version: expected ${DOCUMENT_VERSION}, got 99`,
+  // HARD-CODED, not built from SUPPORTED_DOCUMENT_VERSIONS: a pin that
+  // interpolates the implementation's own expression is not a pin. Changing the
+  // separator to ', ' would keep a derived assertion green.
+  it.each([
+    [3, 'document.version: expected 1 or 2, got 3'],
+    [0, 'document.version: expected 1 or 2, got 0'],
+    ['2', 'document.version: expected 1 or 2, got "2"'],
+  ])('rejects version %p', (version, message) => {
+    expect(errorFrom(json({ version, nodes: [] }))).toBe(message)
+  })
+
+  it('rejects a v1 document carrying scenes, naming the VERSION not the key', () => {
+    // After the reorder `version: 1` passes the version gate and `scenes` is a
+    // legal v2 key, so without its own guard this document is ACCEPTED and the
+    // author's scenes vanish.
+    expect(errorFrom(json({ version: 1, nodes: [], scenes: [] }))).toBe(
+      'document.version: scenes requires version 2',
     )
   })
 

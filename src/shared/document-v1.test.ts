@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { parseDocument, fromDocument } from './document'
+import { parseDocument, fromDocument, upgradeV1, DOCUMENT_VERSION } from './document'
 
 /**
  * THE FROZEN v1 CORPUS.
@@ -365,5 +365,29 @@ describe('the frozen v1 corpus', () => {
     const ids = records('id-edges.json').nodes.map((node) => node.id.slice('shape:'.length))
     expect(ids.map((id) => id.length)).toEqual([1, 128, 20])
     expect(ids).toContain('dot.dash-under_score')
+  })
+
+  it('parses to the CURRENT version, which is why the assertion is on records', () => {
+    const result = parseDocument(readFileSync(resolve(CORPUS, FILES[0]!), 'utf8'))
+    if (!result.ok) throw new Error('rejected')
+    expect(result.document.version).toBe(DOCUMENT_VERSION)
+  })
+})
+
+describe('upgradeV1', () => {
+  // Pure, so it is tested with no Editor and no store -- the point of exporting it.
+  it('adds an empty scenes array and moves the version, changing nothing else', () => {
+    expect(upgradeV1({ version: 1, nodes: [{ id: 'a' }], connections: [] })).toEqual({
+      version: 2,
+      nodes: [{ id: 'a' }],
+      connections: [],
+      scenes: [],
+    })
+  })
+
+  it('does not mutate its input', () => {
+    const before = { version: 1, nodes: [] }
+    upgradeV1(before)
+    expect(before).toEqual({ version: 1, nodes: [] })
   })
 })
