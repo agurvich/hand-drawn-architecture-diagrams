@@ -185,6 +185,32 @@ body {
  * crosses. The fallback covers the token being renamed rather than the variable
  * being wrong.
  */
+/*
+ * The actor label: who performs this connection.
+ *
+ * Same halo technique and the same reason as the count below it -- and the same
+ * trap: `--color-background` is defined NOWHERE, so a plain one leaves
+ * paint-order and stroke-width silently inert and the text painted bare over
+ * whatever line it crosses. The token name is tldraw's own, and the fallback
+ * covers it being renamed rather than the variable being wrong.
+ *
+ * Lighter and smaller than the count on purpose. The count is a warning that a
+ * line stands for several; the actor is an attribute of the one relationship.
+ */
+.diagram-connection__actor {
+  font:
+    500 12px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  fill: currentColor;
+  stroke: var(--tl-color-background, #fff);
+  stroke-width: 4px;
+  paint-order: stroke;
+  /* The label sits OVER the canvas. A tap near it must still reach the line, or
+     whatever is behind it. */
+  pointer-events: none;
+}
+
 .diagram-connection__count {
   font:
     600 14px/1 system-ui,
@@ -720,4 +746,53 @@ body {
   background: #fff;
   border: 1px solid #767676;
   border-radius: 8px;
+}
+
+/*
+ * The "performed by" control.
+ *
+ * TOP-CENTRE. tldraw owns the bottom-left (navigation), the bottom-right now
+ * holds the sketch toggle, and the bottom-left-of-centre holds the narration
+ * bar. The JSON launcher is top-centre too and they never coexist -- this
+ * appears only while a connection is selected, and selecting one closes
+ * nothing, so the offset keeps them clear of each other.
+ */
+.actor-control {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  transform: translateX(calc(-50% + 90px));
+  touch-action: manipulation;
+}
+.actor-control__label {
+  font:
+    600 13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  white-space: nowrap;
+}
+.actor-control__select {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  font:
+    13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #f7f7f7;
+  border: 1px solid #767676;
+  border-radius: 6px;
+  touch-action: manipulation;
 }

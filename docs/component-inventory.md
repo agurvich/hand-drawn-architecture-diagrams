@@ -42,4 +42,8 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `sketchMode` | `src/client/sketch/sketchMode.ts` | Per-viewer recognition toggle, off by default, history-ignored |
 | `SketchToggle` | `src/client/panels/SketchToggle.tsx` | The control, with the conversion live region |
 | e2e sketch helpers | `e2e/helpers.ts` | `penStroke`, `shapesByType`, `setSketchMode` |
+| `actor` binding | `src/shared/bindings/actor.ts` | The attribution binding, and `chosenActorBinding`'s smallest-id rule |
+| `actors` | `src/client/actors.ts` | `actorIdOf`, `attributeTo`, `clearActor` — the one place an attribution is made |
+| `ActorBindingUtil` | `src/client/bindings/ActorBindingUtil.ts` | Deliberately hookless: the absence of a delete hook is the behaviour |
+| `ActorControl` | `src/client/panels/ActorControl.tsx` | Performed-by, on the selected connection |
 

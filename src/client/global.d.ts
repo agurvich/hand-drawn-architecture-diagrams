@@ -12,6 +12,9 @@ declare global {
      * `stepScene`'s bounds guard is unreachable through the UI, because the
      * panel disables the buttons at exactly that boundary.
      */
+    __actors?: {
+      attributeTo: (editor: Editor, connectionId: TLShapeId, nodeId: TLShapeId) => boolean
+    }
     __scenes?: {
       viewScene: (editor: Editor, sceneId: SceneRecord['id'] | null) => void
       takeOffSceneAndToggle: (editor: Editor, shape: { id: TLShapeId }, effective: boolean) => void

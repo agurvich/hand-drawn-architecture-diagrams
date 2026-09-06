@@ -24,6 +24,14 @@ export interface ConnectionEndpoints {
   /** The bound node id per terminal; null when that terminal has no binding. */
   startNodeId: string | null
   endNodeId: string | null
+  /**
+   * The node this connection is attributed to, or null.
+   *
+   * PASSED IN, not looked up: this module has no store access and this spec does
+   * not give it any. `mergeIndex.ts` is the one place `ConnectionEndpoints` is
+   * built and the one place that can resolve a binding.
+   */
+  actorId: string | null
 }
 
 /** What the derivation concluded about one connection. */
@@ -34,6 +42,18 @@ export interface MergeEntry {
    * member of a merge group except the representative.
    */
   hidden: boolean
+  /**
+   * Who the drawn line can honestly say performs it, after resolution. Null when
+   * nothing is attributed, and null on a MERGED line whose members disagree --
+   * including "some attributed, some not". A merged line that picked its
+   * representative's actor would silently misattribute the others, which is the
+   * natural implementation and is why FR-004 asserts against it directly.
+   *
+   * Deliberately more permissive than the predecessor, which dropped the actor
+   * whenever more than one edge contributed, agreement or not: a merged line
+   * whose members all name the same actor can honestly say so.
+   */
+  actorId: string | null
   /**
    * The shapes the line is drawn against, after resolution. Null on a terminal
    * with no binding -- the shape's own start/end prop is used there, as SPEC-005
@@ -88,6 +108,19 @@ interface Member {
   endNodeId: string
   /** Did collapse actually move either endpoint? Rule 5's input. */
   resolved: boolean
+  actorId: string | null
+}
+
+/**
+ * The one actor a set of connections can honestly claim, or null.
+ *
+ * Null when they disagree, and null when ANY of them has no actor -- "some
+ * attributed, some not" is a disagreement, not a majority to be rounded off.
+ */
+function agreedActor(members: readonly { actorId: string | null }[]): string | null {
+  const first = members[0]?.actorId ?? null
+  if (first === null) return null
+  return members.every((m) => m.actorId === first) ? first : null
 }
 
 export function computeMergeIndex(
@@ -108,6 +141,7 @@ export function computeMergeIndex(
         startNodeId: resolveId(c.startNodeId, getShape),
         endNodeId: resolveId(c.endNodeId, getShape),
         count: 1,
+        actorId: c.actorId,
       })
       continue
     }
@@ -124,6 +158,7 @@ export function computeMergeIndex(
         startNodeId: start ? visibleStandInFor(start, getShape).id : c.startNodeId,
         endNodeId: end ? visibleStandInFor(end, getShape).id : c.endNodeId,
         count: 1,
+        actorId: c.actorId,
       })
       continue
     }
@@ -136,7 +171,13 @@ export function computeMergeIndex(
     // resolves equal at ANY collapse state, so an A->A hides even in a fully
     // expanded diagram. Nothing in the app can draw one; noted, not guarded.
     if (vs === vt) {
-      out.set(c.connectionId, { hidden: true, startNodeId: vs, endNodeId: vt, count: 1 })
+      out.set(c.connectionId, {
+        hidden: true,
+        startNodeId: vs,
+        endNodeId: vt,
+        count: 1,
+        actorId: c.actorId,
+      })
       continue
     }
 
@@ -148,6 +189,7 @@ export function computeMergeIndex(
       startNodeId: vs,
       endNodeId: vt,
       resolved: vs !== c.startNodeId || vt !== c.endNodeId,
+      actorId: c.actorId,
     }
     const group = groups.get(key)
     if (group) group.push(member)
@@ -171,6 +213,7 @@ export function computeMergeIndex(
           startNodeId: m.startNodeId,
           endNodeId: m.endNodeId,
           count: 1,
+          actorId: m.actorId,
         })
       }
       continue
@@ -183,12 +226,18 @@ export function computeMergeIndex(
     let representative = members[0]!
     for (const m of members) if (m.id < representative.id) representative = m
 
+    // The MERGED line's actor is the one they all agree on, or none. Not the
+    // representative's -- that is the natural implementation and it silently
+    // misattributes every other member of the group.
+    const merged = agreedActor(members)
+
     for (const m of members) {
       out.set(m.id, {
         hidden: m !== representative,
         startNodeId: m.startNodeId,
         endNodeId: m.endNodeId,
         count: m === representative ? members.length : 1,
+        actorId: m === representative ? merged : m.actorId,
       })
     }
   }

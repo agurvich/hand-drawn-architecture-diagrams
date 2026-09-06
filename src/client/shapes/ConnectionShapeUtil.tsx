@@ -11,7 +11,7 @@ import {
 } from 'tldraw'
 import { getMergeIndex } from '../mergeIndex'
 import { nodeAtPoint } from '../nodeAtPoint'
-import { highlightState } from '../sceneView'
+import { highlightState, sceneAwareGetShape } from '../sceneView'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -20,6 +20,7 @@ import {
   CONNECTION_BINDING_TYPE,
   type ConnectionShape,
   type ConnectionBinding,
+  visibleStandInFor,
   type ConnectionTerminal,
 } from '@shared/shapes'
 
@@ -94,6 +95,37 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     return getMergeIndex(this.editor).get(shape.id)?.count ?? 1
   }
 
+  /**
+   * The label of the node that performs this connection, or null.
+   *
+   * DERIVED, never copied. Renaming the actor updates every line attributed to
+   * it with no write to any connection -- `decisions.md` -> *Derived views are
+   * computed, never materialized*.
+   *
+   * Read from the MERGE INDEX rather than from the binding directly, which is
+   * what makes FR-004 fall out: a merged line whose members disagree already has
+   * `actorId: null` there, so there is no second place for the disagreement rule
+   * to be re-implemented differently.
+   *
+   * Resolved through `visibleStandInFor` and the SCENE-AWARE accessor. An actor
+   * inside a collapsed container is not on screen, and naming it would be naming
+   * something invisible -- the container standing in for it is what the reader
+   * can actually see. The scene half is a separate concern from the collapse
+   * half and the natural implementation gets only the first: SPEC-008's finding
+   * was that collapse is read in two places, and this label is the third
+   * consumer.
+   */
+  private actorLabel(shape: ConnectionShape): string | null {
+    const actorId = getMergeIndex(this.editor).get(shape.id)?.actorId ?? null
+    if (actorId === null) return null
+    const get = sceneAwareGetShape(this.editor)
+    const actor = get(actorId)
+    if (!actor) return null
+    const onScreen = visibleStandInFor(actor, get)
+    const label = (onScreen.props as { label?: unknown }).label
+    return typeof label === 'string' && label.length > 0 ? label : null
+  }
+
   /** Page-space endpoints, resolved through the merge index. */
   getTerminalsInPageSpace(shape: ConnectionShape): { start: Vec; end: Vec } {
     const shapePage = this.editor.getShapePageTransform(shape.id)
@@ -152,6 +184,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
     const count = this.mergeCount(shape)
+    const actor = this.actorLabel(shape)
     const { ids, dimming } = highlightState(this.editor)
     const accent = !dimming
       ? ''
@@ -193,6 +226,19 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             textAnchor="middle"
           >
             {`\u00d7${count}`}
+          </text>
+        )}
+        {actor !== null && (
+          // STACKED BELOW the count, not on top of it. Both want the midpoint,
+          // and a merged line whose members agree shows both at once.
+          <text
+            className="diagram-connection__actor"
+            data-testid="diagram-connection-actor"
+            x={(a.x + b.x) / 2}
+            y={(a.y + b.y) / 2 + 16}
+            textAnchor="middle"
+          >
+            {actor}
           </text>
         )}
       </svg>
