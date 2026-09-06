@@ -173,6 +173,7 @@ const EXPECTED = {
         },
       },
     ],
+    scenes: [],
   },
   'id-edges.json': {
     nodes: [
@@ -224,6 +225,7 @@ const EXPECTED = {
     ],
     connections: [],
     bindings: [],
+    scenes: [],
   },
   'minimal.json': {
     nodes: [
@@ -245,6 +247,7 @@ const EXPECTED = {
     ],
     connections: [],
     bindings: [],
+    scenes: [],
   },
   'nested-collapsed.json': {
     nodes: [
@@ -296,6 +299,7 @@ const EXPECTED = {
     ],
     connections: [],
     bindings: [],
+    scenes: [],
   },
 } as const
 

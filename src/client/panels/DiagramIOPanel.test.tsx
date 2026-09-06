@@ -75,10 +75,15 @@ describe('DiagramIOPanel — FR-004', () => {
   })
 
   it('names the offending path, so a big document can be corrected', () => {
+    // `scenes` was this test's made-up key until SPEC-009 made it a real one.
+    // The path-naming behaviour is what is being checked, so the key just has
+    // to be one the schema does not have -- and stay that way.
     open()
-    paste(JSON.stringify({ version: DOCUMENT_VERSION, nodes: [], connections: [], scenes: [] }))
+    paste(JSON.stringify({ version: DOCUMENT_VERSION, nodes: [], connections: [], edgeSets: [] }))
     fireEvent.click(screen.getByTestId('diagram-io-import'))
-    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent('document.scenes: unknown key')
+    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent(
+      'document.edgeSets: unknown key',
+    )
   })
 
   it('warns beside the JSON when the page holds shapes the document cannot carry', () => {

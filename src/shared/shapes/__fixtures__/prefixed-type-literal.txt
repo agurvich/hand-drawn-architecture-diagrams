@@ -1,0 +1,9 @@
+// A second home for the scene type string, wearing a colon so the plain
+// literal check walks past it. This is the exact shape the id-prefix work
+// would have taken if `SCENE_ID_PREFIX` had been written out by hand in
+// `document.ts` instead of imported from `scenes/sceneType.ts`.
+const SCENE_ID_PREFIX = 'diagramScene:'
+
+export function sceneDocumentId(id: string): string {
+  return id.startsWith(SCENE_ID_PREFIX) ? id.slice(SCENE_ID_PREFIX.length) : id
+}

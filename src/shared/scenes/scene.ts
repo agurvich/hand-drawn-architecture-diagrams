@@ -7,6 +7,9 @@ import type { BaseRecord, RecordId } from '@tldraw/store'
 import { T } from '@tldraw/validate'
 import { NODE_SHAPE_TYPE } from '../shapes/node'
 import type { GetShape, HierarchyShape } from '../shapes/hierarchy'
+import { SCENE_RECORD_TYPE } from './sceneType'
+
+export { SCENE_RECORD_TYPE, SCENE_ID_PREFIX } from './sceneType'
 
 /**
  * FRAMES: named, saved ways of LOOKING at the diagram.
@@ -25,7 +28,6 @@ import type { GetShape, HierarchyShape } from '../shapes/hierarchy'
  * `shared-imports.test.ts` records; `tldraw` itself stays forbidden.
  */
 
-export const SCENE_RECORD_TYPE = 'diagramScene'
 export const SCENE_VIEW_RECORD_TYPE = 'diagramSceneView'
 export const OFF_SCENE_RECORD_TYPE = 'diagramOffScene'
 
