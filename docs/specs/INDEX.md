@@ -14,6 +14,7 @@ to status only — no prose.
 | SPEC-007 | JSON export/import and the AI-authoring schema | Completed | SPEC-004, SPEC-005, SPEC-006 |
 | SPEC-008 | Frames and narration | In Progress | SPEC-004, SPEC-006, SPEC-007 |
 | SPEC-009 | Frames in the JSON document | Draft | SPEC-007, SPEC-008 |
+| SPEC-010 | Sketch to clean shape | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 
 ## Arcs (build order)
 
@@ -21,6 +22,17 @@ Group related specs and record the order to build them in. Keep this section: a 
 (`process.md` §4) always records its order here, even if you group nothing else.
 
 - **Canvas migration:** SPEC-001 → SPEC-002 → SPEC-003 → SPEC-004 → SPEC-005 → SPEC-006 → SPEC-007 → SPEC-008 → SPEC-009
+
+- **Drawing:** SPEC-010
+
+  Not part of the migration arc — nothing in the predecessor to port. Sketch-to-clean-shape is the
+  third of the three reasons `decisions.md` → *Canvas SDK: tldraw* gives for the rebuild, and the one
+  tldraw does not ship.
+
+  It needs **SPEC-006** for `nodeAtPoint`, and **SPEC-008** for the custom-record pattern its mode
+  uses and for the `@tldraw/store` allowlist widening that pattern required. It does **not** need the
+  document work, so it can be built before or after SPEC-009 — which is the whole reason it is a
+  separate arc rather than a tail on the migration one.
 
   The rebuild of `../architecture-diagrams` on tldraw. The order is deliberate and inverts the
   predecessor's handoff plan, which put multiplayer last: sync lands before the first custom shape so
