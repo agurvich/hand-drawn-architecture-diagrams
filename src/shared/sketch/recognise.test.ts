@@ -210,6 +210,17 @@ describe('isPurposeful — what lets a node-pair override a refusal', () => {
     expect(isPurposeful(routed)).toBe(true)
   })
 
+  it('REFUSES A BRACKET drawn round two things', () => {
+    // The reviewer's counterexample, and the one that matters: a bracket's arms
+    // are short and its spine long, so its total length is barely more than the
+    // straight run between its ends. It passes the ratio comfortably. What it
+    // does not do is set off towards where it ends up -- both arms point
+    // outward, perpendicular to that line.
+    const bracket = STROKES.find((s) => s.name === 'bracket-round-two-things')!
+    expect(recognise(bracket.points).kind).toBe('none')
+    expect(isPurposeful(bracket.points)).toBe(false)
+  })
+
   it('refuses the corpus scribble', () => {
     const scribble = STROKES.find((s) => s.name === 'refuse-scribble')!
     expect(isPurposeful(scribble.points)).toBe(false)
@@ -227,6 +238,30 @@ describe('isPurposeful — what lets a node-pair override a refusal', () => {
         { x: 3, y: 3 },
       ]),
     ).toBe(false)
+  })
+
+  it('accepts a routed connection whose FIRST move is towards the target', () => {
+    // Deliberately NOT the `line-routed-around-obstacle` fixture: that one is a
+    // C that comes back on itself, so its two ends are ~12 units apart and it
+    // genuinely goes nowhere. `isPurposeful` refuses it, correctly. The real
+    // routed case travels from one node to another around something in between.
+    const routed = [
+      [240, 310],
+      [330, 311],
+      [420, 309],
+      [422, 400],
+      [420, 480],
+      [520, 482],
+      [620, 479],
+      [700, 400],
+      [730, 310],
+    ].map(([x, y]) => ({ x: x!, y: y! }))
+    expect(isPurposeful(routed)).toBe(true)
+  })
+
+  it('refuses a C that comes back on itself, however direct its path', () => {
+    const c = STROKES.find((s) => s.name === 'line-routed-around-obstacle')!
+    expect(isPurposeful(c.points)).toBe(false)
   })
 
   it('accepts a plain straight line', () => {

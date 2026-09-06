@@ -132,6 +132,27 @@ export const CLOSING_TRAVEL_FRACTION = 0.6
  */
 export const MAX_PURPOSEFUL_PATH_FRACTION = 2.5
 
+/**
+ * How far along a stroke to look when asking which way it set off, and which
+ * way it came in, as a fraction of the straight run between its ends.
+ *
+ * Short enough to catch the departure before any detour, long enough not to be
+ * decided by a single jittery sample.
+ */
+export const HEADING_SAMPLE_FRACTION = 0.15
+
+/**
+ * Two corners closer together than this fraction of the shape's diagonal are
+ * ONE corner, and their turns are summed.
+ *
+ * A hand-drawn box has rounded corners, and a rounded corner is not a turn --
+ * it is three or four small turns spread over a short arc. Judged individually
+ * none of them is square and the mean error refuses the box; summed, they are
+ * the 90 degrees the person drew. Measured: a 200x120 rectangle with 20px
+ * corner radii was refused before this and is accepted after.
+ */
+export const CORNER_MERGE_FRACTION = 0.16
+
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
@@ -207,17 +228,40 @@ function turnAngle(a: Point, b: Point, c: Point): number {
  * Corners of a CLOSED path, treating it as a cycle so the start point is judged
  * like any other. Without that, a box started mid-edge reports a phantom corner
  * where the pen began -- which the corpus's `box-started-mid-edge` catches.
+ *
+ * Turns closer together than `CORNER_MERGE_FRACTION` of the diagonal are MERGED
+ * and their angles summed. That is what makes a rounded corner one corner: it is
+ * not a turn but three or four small ones spread over an arc, and judged
+ * individually not one of them is square.
  */
-function closedCorners(path: readonly Point[]): number[] {
+function closedCorners(path: readonly Point[], diagonal: number): number[] {
   const n = path.length
-  const angles: number[] = []
+  const turns: Array<{ at: Point; angle: number }> = []
   for (let i = 0; i < n; i++) {
     const a = path[(i - 1 + n) % n]!
     const b = path[i]!
     const c = path[(i + 1) % n]!
-    angles.push(turnAngle(a, b, c))
+    turns.push({ at: b, angle: turnAngle(a, b, c) })
   }
-  return angles
+
+  const merged: number[] = []
+  const mergeDistance = diagonal * CORNER_MERGE_FRACTION
+  let i = 0
+  while (i < turns.length) {
+    let sum = turns[i]!.angle
+    let j = i + 1
+    while (j < turns.length && distance(turns[j]!.at, turns[i]!.at) <= mergeDistance) {
+      sum += turns[j]!.angle
+      j++
+    }
+    merged.push(sum)
+    i = j
+  }
+  // The cycle wraps: a corner split across the start of the array is one corner.
+  if (merged.length > 1 && distance(turns[0]!.at, turns[turns.length - 1]!.at) <= mergeDistance) {
+    merged[0] = merged[0]! + merged.pop()!
+  }
+  return merged
 }
 
 /** Shoelace area of a closed polygon, always positive. */
@@ -291,7 +335,7 @@ export function recognise(points: readonly Point[]): Verdict {
   if (closed) {
     // Drop a duplicated closing point so the cycle is not judged twice.
     const cycle = distance(first, last) < SIMPLIFY_EPSILON ? path.slice(0, -1) : path
-    const angles = closedCorners(cycle)
+    const angles = closedCorners(cycle, diagonal)
     // A "corner" is a turn of more than 45 degrees. Below that a hand-drawn
     // edge is bending, not turning.
     const corners = angles.filter((a) => a > 45)
@@ -357,7 +401,45 @@ export function recognise(points: readonly Point[]): Verdict {
  */
 export function isPurposeful(points: readonly Point[]): boolean {
   if (points.length < 2) return false
-  const span = distance(points[0]!, points[points.length - 1]!)
+  const first = points[0]!
+  const last = points[points.length - 1]!
+  const span = distance(first, last)
   if (span < MIN_STROKE_EXTENT) return false
-  return pathLength(points) <= span * MAX_PURPOSEFUL_PATH_FRACTION
+  if (pathLength(points) > span * MAX_PURPOSEFUL_PATH_FRACTION) return false
+
+  /*
+   * IT ALSO HAS TO SET OFF TOWARDS WHERE IT ENDS UP.
+   *
+   * Length alone is not enough, and a reviewer drew the counterexample: a `[`
+   * bracket drawn round two nodes to group them. Its arms are short and its
+   * spine is long, so its total length is barely more than the straight run
+   * between its ends -- it passes the ratio comfortably -- and its two ends sit
+   * inside two different nodes. It became a connection, destroying the bracket.
+   * That is exactly the annotation-eating failure this predicate exists to stop,
+   * in the costume the code comments already warned about.
+   *
+   * A bracket sets off AWAY from where it is going: both arms point outward,
+   * perpendicular to the line between its ends. A connection routed around an
+   * obstacle sets off TOWARDS its target and detours on the way. That is the
+   * difference, and it is not visible in the shape -- the two are the same
+   * shape rotated.
+   *
+   * The cost is honest: a route whose very first move is perpendicular or
+   * backwards is refused. That is the safe direction to be wrong in. A refused
+   * connection leaves your stroke exactly where you drew it; a false positive
+   * eats it.
+   */
+  const axis = { x: (last.x - first.x) / span, y: (last.y - first.y) / span }
+  const reach = span * HEADING_SAMPLE_FRACTION
+
+  const departure = points.find((p) => distance(p, first) >= reach) ?? last
+  const arrival = [...points].reverse().find((p) => distance(p, last) >= reach) ?? first
+
+  const heads = (from: Point, to: Point) => {
+    const d = distance(from, to)
+    if (d === 0) return 0
+    return ((to.x - from.x) / d) * axis.x + ((to.y - from.y) / d) * axis.y
+  }
+
+  return heads(first, departure) > 0 && heads(arrival, last) > 0
 }

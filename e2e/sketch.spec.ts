@@ -332,6 +332,33 @@ test.describe('SPEC-010 FR-002 — a sketched box becomes a node', () => {
     expect(await shapesByType(page)).toEqual({ draw: 1 })
   })
 
+  test('a box with ROUNDED CORNERS is still a box', async ({ page }) => {
+    // How most people draw a box quickly. A rounded corner is three or four
+    // small turns over an arc, and judged individually none of them is square.
+    await openRoom(page, roomId('sk28'))
+    await setSketchMode(page, true)
+    await penStroke(page, [
+      [300, 272],
+      [303, 261],
+      [311, 253],
+      [322, 250],
+      [498, 250],
+      [509, 253],
+      [517, 261],
+      [520, 272],
+      [520, 368],
+      [517, 379],
+      [509, 387],
+      [498, 390],
+      [322, 390],
+      [311, 387],
+      [303, 379],
+      [300, 368],
+      [300, 272],
+    ])
+    expect(await shapesByType(page)).toEqual({ diagramNode: 1 })
+  })
+
   test('a scribble is left alone', async ({ page }) => {
     await openRoom(page, roomId('sk10'))
     await setSketchMode(page, true)
@@ -489,6 +516,25 @@ test.describe('SPEC-010 FR-003 — a sketched line becomes a connection', () => 
       [640, 280],
       [500, 360],
       [730, 310],
+    ])
+    expect(await shapesByType(page)).toEqual({ diagramNode: 2, draw: 1 })
+  })
+
+  test('A BRACKET ROUND TWO NODES is not a connection', async ({ page }) => {
+    // The failure this whole feature exists to prevent, found by a reviewer
+    // drawing it: a `[` drawn to group two boxes has both ends inside nodes and
+    // is barely longer than the straight run between them, so it passed every
+    // test the override had -- and the bracket was destroyed.
+    await openRoom(page, roomId('sk27'))
+    await addNode(page, 'A', { x: 200, y: 150, w: 160, h: 100 })
+    await addNode(page, 'B', { x: 200, y: 320, w: 160, h: 100 })
+    await setSketchMode(page, true)
+    await penStroke(page, [
+      [210, 160],
+      [170, 160],
+      [170, 285],
+      [170, 410],
+      [210, 410],
     ])
     expect(await shapesByType(page)).toEqual({ diagramNode: 2, draw: 1 })
   })

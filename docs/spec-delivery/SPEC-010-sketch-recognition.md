@@ -63,6 +63,8 @@ rather than confirmed:
 | The page `parentId` omitted on the no-container path | the collapsed-container test |
 | `MIN_BOX_FILL` relaxed | the pentagon tests |
 | The state text left in the accessible name | the WCAG 2.5.3 test |
+| The departure/arrival heading check removed | the bracket test |
+| Corner merging removed, or widened to 0.5 | the rounded-corner test / nine tests |
 | The `isPurposeful` gate removed | the scribble-across-two-nodes test |
 | The node-pair override removed | the routed-connection test |
 | The mode defaulting to on | four tests |
@@ -83,6 +85,25 @@ and tldraw's own new-shape heuristic then adopted it into the sibling. A 200×12
 child of a 120×80 one, with the wrong collapse, merge and export behaviour following from it. It
 now takes the innermost node whose bounds *contain* the box, which is the question actually being
 asked, and the no-container path names the page explicitly so the heuristic cannot re-adopt it.
+
+**Two defects a reviewer found by DRAWING, after every test was green:**
+
+*A bracket drawn round two nodes became a connection, destroying the bracket.* The exact failure the
+feature exists to prevent, in the costume the code comments had already warned about. A `[` has short
+arms and a long spine, so its total length is barely more than the straight run between its ends — it
+passed `isPurposeful`'s ratio comfortably — and its two ends sit inside two different nodes, so the
+override fired. Length alone was never enough: a bracket and a routed connection are the *same shape
+rotated*, and no test of the shape can separate them. What separates them is that a bracket sets off
+**away** from where it ends up, and a routed connection sets off **towards** its target and detours
+on the way. `isPurposeful` now checks the departure and arrival headings against the line between the
+ends. The cost is stated rather than hidden: a route whose very first move is perpendicular or
+backwards is refused — and that is the safe direction to be wrong in, because a refused connection
+leaves your stroke where you drew it.
+
+*A box with rounded corners was refused* — a 200×120 rectangle with 20px radii, which is how most
+people draw a box quickly. A rounded corner is not a turn; it is three or four small turns spread
+over an arc, and judged individually not one of them is square. Corners within
+`CORNER_MERGE_FRACTION` of the diagonal are now merged and their angles summed.
 
 **Two defects the e2e found, not confirmed:**
 

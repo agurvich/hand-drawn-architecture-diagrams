@@ -321,6 +321,65 @@ const GESTURES: Array<{
       [520, 300],
     ],
   },
+  {
+    name: 'box-rounded-corners',
+    expect: 'box',
+    why:
+      'A 220x140 rectangle with 22px corner radii -- how most people draw a box ' +
+      'quickly by hand. A rounded corner is not one turn, it is three or four ' +
+      'small ones spread over an arc, and judged individually none of them is ' +
+      'square. This was refused until corners within CORNER_MERGE_FRACTION of ' +
+      'each other were summed into one.',
+    path: [
+      [300, 272],
+      [301, 266],
+      [303, 261],
+      [306, 256],
+      [311, 253],
+      [316, 251],
+      [322, 250],
+      [498, 250],
+      [504, 251],
+      [509, 253],
+      [514, 256],
+      [517, 261],
+      [519, 266],
+      [520, 272],
+      [520, 368],
+      [519, 374],
+      [517, 379],
+      [514, 384],
+      [509, 387],
+      [504, 389],
+      [498, 390],
+      [322, 390],
+      [316, 389],
+      [311, 387],
+      [306, 384],
+      [303, 379],
+      [301, 374],
+      [300, 368],
+      [300, 272],
+    ],
+  },
+  {
+    name: 'bracket-round-two-things',
+    expect: 'none',
+    why:
+      'A square bracket drawn to group two things. Its arms are short and its ' +
+      'spine long, so its LENGTH is barely more than the straight run between ' +
+      'its ends -- it passes the purposeful ratio comfortably -- and if its two ' +
+      'ends land in two different nodes the client would convert it. A reviewer ' +
+      'drew this and watched the bracket become a connection. It sets off AWAY ' +
+      'from where it ends up, which is what a routed connection never does.',
+    path: [
+      [210, 160],
+      [170, 160],
+      [170, 285],
+      [170, 410],
+      [210, 410],
+    ],
+  },
   // --- boxes ---
   {
     name: 'box-clockwise',
