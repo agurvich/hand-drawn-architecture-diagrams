@@ -13,7 +13,7 @@ to status only — no prose.
 | SPEC-006 | Merging connections into a collapsed container | Completed | SPEC-004, SPEC-005 |
 | SPEC-007 | JSON export/import and the AI-authoring schema | Completed | SPEC-004, SPEC-005, SPEC-006 |
 | SPEC-008 | Frames and narration | In Progress | SPEC-004, SPEC-006, SPEC-007 |
-| SPEC-009 | Frames in the JSON document | Planned | SPEC-007, SPEC-008 |
+| SPEC-009 | Frames in the JSON document | Draft | SPEC-007, SPEC-008 |
 
 ## Arcs (build order)
 
@@ -27,11 +27,9 @@ Group related specs and record the order to build them in. Keep this section: a 
   the client/worker schema duality is proven on a trivial shape rather than retrofitted across a
   finished shape library (`decisions.md` → *Multiplayer lands before the first custom shape*).
 
-  SPEC-001 through SPEC-007 are built and SPEC-008 is authored. SPEC-009 is **planned, not
-  written** — the shape of each is not knowable until the one before it lands, and a spec authored
-  against an unproven foundation is rewritten rather than built:
+  SPEC-001 through SPEC-007 are built; SPEC-008 and SPEC-009 are authored. The order is not
+  negotiable — the shape of each was not knowable until the one before it landed, and a spec authored
+  against an unproven foundation is rewritten rather than built.
 
-  - SPEC-009 — Frames in the JSON document. SPEC-007's document is `version: 1` and rejects unknown
-    keys, so carrying frames means a version 2 and a migration that keeps v1 documents importable.
-    Split out of SPEC-008 rather than grown into it: frames are useful before they are portable, and
-    a document version bump is a different subject from the lens.
+  SPEC-009 closes the arc: a document that carries its narration as well as its diagram, which is
+  what lets a model be asked for a walkthrough rather than a picture.
