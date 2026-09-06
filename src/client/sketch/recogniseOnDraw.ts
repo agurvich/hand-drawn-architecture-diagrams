@@ -50,10 +50,16 @@ function announce(message: string) {
 function pagePoints(editor: Editor, shape: TLDrawShape): Point[] {
   const transform = editor.getShapePageTransform(shape.id)
   if (!transform) return []
+  // scaleX/scaleY BEFORE the page transform. A draw shape records its points
+  // unscaled and carries the resize in its props, exactly as tldraw's own
+  // `getGeometry` does -- the page transform has no scale component, so it
+  // cannot stand in for them. Unreachable through the completion edge today,
+  // since a fresh stroke is unscaled; here so it stays right if that changes.
+  const { scaleX = 1, scaleY = 1 } = shape.props as { scaleX?: number; scaleY?: number }
   return shape.props.segments
     .flatMap((segment) => b64Vecs.decodePoints(segment.path))
     .map((p) => {
-      const page = transform.applyToPoint({ x: p.x, y: p.y })
+      const page = transform.applyToPoint({ x: p.x * scaleX, y: p.y * scaleY })
       return { x: page.x, y: page.y }
     })
 }
@@ -61,33 +67,40 @@ function pagePoints(editor: Editor, shape: TLDrawShape): Point[] {
 /**
  * The node a converted box should be parented to, or the page.
  *
- * An EXPANDED container containing the whole stroke adopts it. A collapsed one
- * does not: it refuses children while folded, and a node parented into it would
- * vanish the moment it was created.
+ * THE INNERMOST NODE WHOSE BOUNDS CONTAIN THE WHOLE BOX. Not a hit-test at the
+ * four corners: `nodeAtPoint` returns the TOPMOST shape, so a box drawn inside a
+ * container but overlapping a sibling already in it got a different answer at
+ * one corner, and the whole thing fell through to "no container". tldraw's own
+ * new-shape heuristic then adopted it into the sibling -- a 204x124 node created
+ * as a child of a 120x80 one. Wrong parent, wrong collapse, wrong merge, wrong
+ * export, from the ordinary case of a container that already holds something.
+ *
+ * Containment is also the question actually being asked. "Is this box inside
+ * that one" is about bounds, and overlapping a neighbour has nothing to do with
+ * it.
  */
 function containerFor(editor: Editor, min: Point, max: Point): TLShape | undefined {
-  const corners: Point[] = [
-    { x: min.x, y: min.y },
-    { x: max.x, y: min.y },
-    { x: min.x, y: max.y },
-    { x: max.x, y: max.y },
-  ]
-  let candidate: TLShape | undefined
-  for (const corner of corners) {
-    const under = nodeAtPoint(editor, corner)
-    // Every corner must land in the SAME container, or the box is not inside it.
-    if (!under) return undefined
-    if (candidate && under.id !== candidate.id) return undefined
-    candidate = under
+  let best: { shape: TLShape; area: number } | undefined
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== NODE_SHAPE_TYPE) continue
+    if (editor.isShapeHidden(shape.id)) continue
+    const b = editor.getShapePageBounds(shape.id)
+    if (!b) continue
+    if (b.minX > min.x || b.minY > min.y || b.maxX < max.x || b.maxY < max.y) continue
+    // INNERMOST: with nested containers, the smallest one that still contains
+    // the box is the one you drew inside.
+    const area = b.width * b.height
+    if (!best || area < best.area) best = { shape, area }
   }
-  if (!candidate) return undefined
+  if (!best) return undefined
+
   // EFFECTIVE collapse, the same rule `canReceiveNewChildrenOfType` uses for a
   // dropped node -- a container folded only by a SCENE hides its children just
   // as thoroughly as one folded by its own prop, so it must refuse here too.
   // Reusing that rule is what keeps the two paths from disagreeing.
   const { scene, offScene } = sceneState(editor)
-  const collapsed = (candidate.props as { collapsed?: unknown }).collapsed === true
-  return effectiveCollapsed(candidate.id, collapsed, scene, offScene) ? undefined : candidate
+  const collapsed = (best.shape.props as { collapsed?: unknown }).collapsed === true
+  return effectiveCollapsed(best.shape.id, collapsed, scene, offScene) ? undefined : best.shape
 }
 
 /**
@@ -174,9 +187,14 @@ export function convertStroke(editor: Editor, shape: TLDrawShape): boolean {
         props: { ...nodeShapeDefaultProps, w: max.x - min.x, h: max.y - min.y },
       })
     } else {
+      // parentId NAMED, not omitted. Without it tldraw picks a parent by
+      // scanning for any shape that accepts children and contains the origin --
+      // so a box `containerFor` deliberately refused (a collapsed container, or
+      // one it is only overlapping) gets adopted anyway, by a different rule.
       editor.createShape({
         id: nodeId,
         type: NODE_SHAPE_TYPE,
+        parentId: editor.getCurrentPageId(),
         x: min.x,
         y: min.y,
         props: { ...nodeShapeDefaultProps, w: max.x - min.x, h: max.y - min.y },
@@ -195,12 +213,17 @@ export function convertStroke(editor: Editor, shape: TLDrawShape): boolean {
  * Returns a disposer.
  */
 export function registerSketchRecognition(editor: Editor): () => void {
-  // RE-ENTRANCY GUARD: deleting the draw shape and creating the node both fire
-  // change handlers, and the create fires this one again.
-  let converting = false
-
+  /*
+   * NO RE-ENTRANCY FLAG. There was one; it never fired. The handler runs inside
+   * the store's atomic flush, so a nested `editor.run` queues its events for the
+   * NEXT iteration of the flush loop -- by which time `convertStroke` has
+   * returned and any flag would have been reset. What actually stops recursion
+   * is the type check below: the conversion creates a `diagramNode` and a
+   * `diagramConnection`, never a `draw`, and deleting the stroke raises an
+   * after-DELETE rather than an after-change. Removing the flag changed no test,
+   * which is how it was found.
+   */
   return editor.sideEffects.registerAfterChangeHandler('shape', (prev, next, source) => {
-    if (converting) return
     /*
      * ONLY STROKES THIS CLIENT DREW. Without this the mode is per-viewer in name
      * only: a stroke arriving over the wire is a shape change like any other, so
@@ -218,11 +241,18 @@ export function registerSketchRecognition(editor: Editor): () => void {
     if (before.props.isComplete || !after.props.isComplete) return
     if (!sketchModeOn(editor)) return
 
-    converting = true
+    /*
+     * A throw here would escape into the draw tool's own operation. `recognise`
+     * is total for any finite input -- and for NaN and Infinity, which `bounds`
+     * absorbs -- so this is defensive, not load-bearing. But FR-001 makes
+     * refusal a first-class VERDICT rather than an error, and the adapter owes
+     * the same contract: a stroke that cannot be converted is left alone, never
+     * dropped on the floor mid-gesture.
+     */
     try {
       convertStroke(editor, after)
-    } finally {
-      converting = false
+    } catch (error) {
+      console.error('sketch recognition failed; the stroke was left alone', error)
     }
   })
 }

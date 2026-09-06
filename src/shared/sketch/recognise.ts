@@ -68,18 +68,39 @@ export const CORNER_TOLERANCE = 1
 /**
  * How square a box's corners must be, on average, in degrees away from 90.
  *
- * The corner COUNT alone admits any closed quadrilateral, so the corpus's
- * `refuse-bad-box` -- a genuine attempt at a rectangle, drawn far too loosely --
- * passes it. This is what refuses that one.
+ * What this actually refuses, measured by relaxing it one constant at a time:
+ * `refuse-spiral` and `refuse-triangle`. (An earlier comment here credited it
+ * with `refuse-bad-box`, which is in fact refused on its corner COUNT -- the
+ * sort of claim that is only ever checked by relaxing the number and seeing
+ * what moves.)
  */
 export const MAX_MEAN_CORNER_ERROR = 22
+
+/**
+ * How much of its own bounding box a closed stroke must fill to be a rectangle.
+ *
+ * This is the test that knows a rectangle from any other quadrilateral-ish
+ * closed shape, and the corner count and squareness tests cannot do it: a
+ * regular PENTAGON turns 72 degrees at each corner, which is 18 away from
+ * square and inside MAX_MEAN_CORNER_ERROR, and CORNER_TOLERANCE admits five
+ * corners because real hand-drawn boxes sometimes simplify to five. So a
+ * pentagon -- a house, an arrow head, a cloud outline -- passed every other
+ * test and became a node.
+ *
+ * A rectangle fills its bounding box completely; a pentagon fills about 0.73 of
+ * it, a triangle about 0.5. 0.82 leaves room for a hand-drawn box with bowed
+ * edges and rounded corners without admitting a shape that is a different shape.
+ */
+export const MIN_BOX_FILL = 0.82
 
 /**
  * How straight a line must be: the greatest distance any point strays from the
  * straight run between the ends, as a fraction of that run's length.
  *
- * This is the whole line test. `refuse-squiggly-underline` is long and roughly
- * horizontal, so nothing about its extent gives it away -- only its deviation.
+ * Measured: relaxing this frees `refuse-bowed-line` and nothing else. (An
+ * earlier comment credited it with `refuse-squiggly-underline`, which is in fact
+ * refused for doubling back -- MAX_LINE_BACKTRACK_FRACTION's pin, not this
+ * one's.)
  */
 export const MAX_LINE_DEVIATION_FRACTION = 0.12
 
@@ -199,6 +220,17 @@ function closedCorners(path: readonly Point[]): number[] {
   return angles
 }
 
+/** Shoelace area of a closed polygon, always positive. */
+function polygonArea(points: readonly Point[]): number {
+  let twice = 0
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i]!
+    const b = points[(i + 1) % points.length]!
+    twice += a.x * b.y - b.x * a.y
+  }
+  return Math.abs(twice) / 2
+}
+
 function pathLength(points: readonly Point[]): number {
   let total = 0
   for (let i = 1; i < points.length; i++) total += distance(points[i - 1]!, points[i]!)
@@ -280,6 +312,12 @@ export function recognise(points: readonly Point[]): Verdict {
       if (meanError > MAX_MEAN_CORNER_ERROR) {
         return { kind: 'none', because: 'closed, but not a rectangle' }
       }
+    }
+    // FILLS ITS BOUNDING BOX. The corner tests above admit any closed shape with
+    // roughly four square-ish turns, and a pentagon clears both of them.
+    const fill = polygonArea(cycle) / Math.max(width * height, 1)
+    if (fill < MIN_BOX_FILL) {
+      return { kind: 'none', because: 'closed and square-ish, but not a rectangle' }
     }
     if (width < MIN_BOX_EXTENT || height < MIN_BOX_EXTENT) {
       return { kind: 'none', because: 'too small to be a usable node' }

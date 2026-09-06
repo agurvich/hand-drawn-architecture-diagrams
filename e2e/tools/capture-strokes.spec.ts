@@ -39,6 +39,48 @@ interface Stroke {
   via: 'cdp-pen'
 }
 
+/**
+ * A deterministic jitter source. Seeded, so a re-capture reproduces the corpus
+ * exactly -- a random one would make every re-run a silent re-tuning.
+ */
+function noise(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0
+    return state / 0x100000000 - 0.5
+  }
+}
+
+/**
+ * Turn the waypoints of a gesture into a DENSE, WOBBLY path -- roughly one
+ * sample every 4px, each nudged by up to ~1.4px.
+ *
+ * Without this the harness dispatches one pointer event per authored waypoint,
+ * tldraw has nothing to smooth, and the fixture that comes back is the authored
+ * polyline with a different origin. That is a real failure mode: it was the
+ * first thing a reviewer checked, and the fixtures were byte-identical to the
+ * paths in this file. A corpus like that tests the encoder, not the recogniser.
+ *
+ * The jitter is the honest part of the substitute for a human hand. What CDP
+ * still cannot give us is pressure and true timing, which is why every fixture
+ * carries `via: 'cdp-pen'`.
+ */
+function densify(path: Array<[number, number]>, seed: number): Array<[number, number]> {
+  const wobble = noise(seed)
+  const out: Array<[number, number]> = []
+  for (let i = 1; i < path.length; i++) {
+    const [x0, y0] = path[i - 1]!
+    const [x1, y1] = path[i]!
+    const steps = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 4))
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps
+      out.push([x0 + (x1 - x0) * t + wobble() * 2.8, y0 + (y1 - y0) * t + wobble() * 2.8])
+    }
+  }
+  out.push(path[path.length - 1]!)
+  return out
+}
+
 /** Draw a path with pen-typed pointer events and return the decoded points. */
 async function draw(page: Page, path: Array<[number, number]>) {
   const cdp = await page.context().newCDPSession(page)
@@ -414,13 +456,15 @@ const GESTURES: Array<{
   },
   {
     name: 'line-routed-around-obstacle',
-    expect: 'box',
+    expect: 'none',
     why:
-      'RIGHT, DOWN, RIGHT -- three corners, and its ends can fall close enough that the pure ' +
-      'classifier calls it a box. That is CORRECT for a node-blind function. The client adapter ' +
-      'overrides it when both ends resolve to two different nodes, which is FR-003 and is why the ' +
-      'rule is outcome-shaped rather than order-shaped. This fixture exists to pin the pure ' +
-      'verdict so the override has something to override.',
+      'RIGHT, DOWN, RIGHT. The pure classifier REFUSES it, and that is correct: ' +
+      'it is a C-shaped path that does not fill its own bounding box, and the ' +
+      'classifier cannot see that both its ends land in nodes. The client adapter ' +
+      'is what converts it, on the strength of those two endpoints plus ' +
+      'isPurposeful -- which is why FR-003 says the rule is outcome-shaped rather ' +
+      'than order-shaped. This fixture pins the pure refusal so the override has ' +
+      'something to override.',
     path: [
       [250, 300],
       [320, 301],
@@ -438,6 +482,23 @@ const GESTURES: Array<{
       [262, 301],
     ],
   },
+  {
+    name: 'refuse-pentagon',
+    expect: 'none',
+    why:
+      'Closed, five corners of about 72 degrees -- inside CORNER_TOLERANCE and ' +
+      'inside MAX_MEAN_CORNER_ERROR, so every corner test passes it. Only the ' +
+      'bounding-box FILL refuses it: a rectangle fills its box, a pentagon fills ' +
+      'about three quarters. A house, an arrow head or a cloud outline is this shape.',
+    path: [
+      [400, 240],
+      [495, 309],
+      [459, 421],
+      [341, 421],
+      [305, 309],
+      [400, 240],
+    ],
+  },
 ]
 
 test('capture the stroke corpus', async ({ page }) => {
@@ -445,8 +506,8 @@ test('capture the stroke corpus', async ({ page }) => {
   await openRoom(page, roomId('capture'))
   mkdirSync(OUT, { recursive: true })
 
-  for (const gesture of GESTURES) {
-    const points = await draw(page, gesture.path)
+  for (const [index, gesture] of GESTURES.entries()) {
+    const points = await draw(page, densify(gesture.path, index + 1))
     expect(points.length, `${gesture.name} produced no points`).toBeGreaterThan(2)
     const stroke: Stroke = {
       name: gesture.name,

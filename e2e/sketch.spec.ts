@@ -71,7 +71,19 @@ test.describe('SPEC-010 FR-004 — it never eats an annotation', () => {
     await expect(pageB.getByTestId('sketch-toggle')).toHaveAttribute('aria-pressed', 'false')
 
     await penStroke(pageB, BOX)
+
+    // WAIT FOR THE ROUND TRIP, or this asserts before the failure could arrive.
+    // The path that must not happen is B draws -> A receives -> A (enabled)
+    // converts -> the node syncs back to B, and that is three hops. Asserting
+    // 120ms after the stroke made this test incapable of failing: a reviewer
+    // removed the guard it exists to protect and it stayed green.
+    // A's own view is the barrier -- once A has the stroke, A has had its
+    // chance to convert it.
+    await expect.poll(() => shapesByType(pageA), { timeout: 15_000 }).toEqual({ draw: 1 })
+    await pageA.waitForTimeout(500)
+
     expect(await shapesByType(pageB)).toEqual({ draw: 1 })
+    expect(await shapesByType(pageA)).toEqual({ draw: 1 })
 
     await a.close()
     await b.close()
@@ -199,6 +211,80 @@ test.describe('SPEC-010 FR-002 — a sketched box becomes a node', () => {
     // x/y as already parent-local, so getting it wrong misplaces the box by the
     // parent's offset -- 200,150 here.
     expect(Math.abs(child!.pageX - 400)).toBeLessThan(60)
+  })
+
+  test('a box that CLIPS A SIBLING still lands in the container, not in the sibling', async ({
+    page,
+  }) => {
+    // The ordinary case of a container that already holds something. A
+    // four-corner hit test answers with the TOPMOST shape, so one corner over
+    // the sibling used to make the whole thing fall through to "no container"
+    // -- and tldraw's own new-shape heuristic then adopted the box into the
+    // sibling. A 200x120 node created as a child of a 120x80 one.
+    await openRoom(page, roomId('sk23'))
+    const parent = await addNode(page, 'Parent', { x: 200, y: 150, w: 700, h: 500 })
+    const sibling = await addNode(page, 'Sibling', {
+      x: 220,
+      y: 180,
+      w: 120,
+      h: 80,
+      parentId: parent,
+    })
+    await setSketchMode(page, true)
+    // Overlaps the sibling's bottom-right corner, well inside the parent.
+    await penStroke(page, [
+      [400, 320],
+      [500, 318],
+      [600, 320],
+      [602, 380],
+      [600, 440],
+      [500, 442],
+      [400, 440],
+      [398, 380],
+      [401, 322],
+    ])
+
+    const parented = await page.evaluate(
+      ({ parentId, siblingId }) => {
+        const ed = window.__editor!
+        const node = ed
+          .getCurrentPageShapes()
+          .find((s) => s.type === 'diagramNode' && s.id !== parentId && s.id !== siblingId)
+        return node ? (node.parentId as string) : null
+      },
+      { parentId: parent, siblingId: sibling },
+    )
+    expect(parented).toBe(parent)
+  })
+
+  test('the INNERMOST containing node adopts a box, not the outermost', async ({ page }) => {
+    await openRoom(page, roomId('sk24'))
+    const outer = await addNode(page, 'Outer', { x: 100, y: 100, w: 800, h: 600 })
+    const inner = await addNode(page, 'Inner', { x: 150, y: 150, w: 500, h: 400, parentId: outer })
+    await setSketchMode(page, true)
+    await penStroke(page, [
+      [400, 320],
+      [500, 318],
+      [600, 320],
+      [602, 380],
+      [600, 440],
+      [500, 442],
+      [400, 440],
+      [398, 380],
+      [401, 322],
+    ])
+
+    const parented = await page.evaluate(
+      ({ outerId, innerId }) => {
+        const ed = window.__editor!
+        const node = ed
+          .getCurrentPageShapes()
+          .find((s) => s.type === 'diagramNode' && s.id !== outerId && s.id !== innerId)
+        return node ? (node.parentId as string) : null
+      },
+      { outerId: outer, innerId: inner },
+    )
+    expect(parented).toBe(inner)
   })
 
   test('a box drawn over a COLLAPSED container does not become its child', async ({ page }) => {
@@ -458,6 +544,39 @@ test.describe('SPEC-010 FR-005 — the control', () => {
     await expect(button).toHaveAttribute('aria-label', /turn sketches into shapes/i)
     await button.click()
     await expect(button).toHaveAttribute('aria-label', /stop turning sketches into shapes/i)
+  })
+
+  test('its accessible name is not polluted by the state text', async ({ page }) => {
+    // WCAG 2.5.3. The visible "On"/"Off" duplicates what aria-pressed already
+    // says, and leaving it in the accessible name puts words there that are not
+    // in the label a voice-control user reads out -- which breaks the exact user
+    // the naming criterion is for.
+    await openRoom(page, roomId('sk26'))
+    const name = await page.evaluate(() => {
+      const button = document.querySelector('[data-testid="sketch-toggle"]')!
+      const hidden = [...button.querySelectorAll('[aria-hidden="true"]')].map(
+        (el) => el.textContent,
+      )
+      return { label: button.getAttribute('aria-label'), hidden }
+    })
+    expect(name.label).not.toMatch(/\b(on|off)\b/i)
+    expect(name.hidden.join('')).toContain('Off')
+  })
+
+  test('a pentagon is not a node', async ({ page }) => {
+    // Five corners of about 72 degrees passes every corner test; only the
+    // bounding-box fill refuses it. A house, an arrow head, a cloud outline.
+    await openRoom(page, roomId('sk25'))
+    await setSketchMode(page, true)
+    await penStroke(page, [
+      [400, 240],
+      [495, 309],
+      [459, 421],
+      [341, 421],
+      [305, 309],
+      [400, 240],
+    ])
+    expect(await shapesByType(page)).toEqual({ draw: 1 })
   })
 
   test('is reachable and operable from the keyboard', async ({ page }) => {

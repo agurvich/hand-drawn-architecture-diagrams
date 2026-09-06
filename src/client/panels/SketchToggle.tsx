@@ -10,11 +10,14 @@ interface SketchToggleProps {
 /**
  * Turn sketch recognition on and off.
  *
- * A switch rather than a button, because the state IS the meaning: a control
- * that silently rewrites what you draw has to say which way it is set without
- * being pressed to find out. `aria-pressed` carries that to assistive tech, and
- * the label changes with it so a voice-control user can ask for the thing they
- * want rather than the thing it is called.
+ * A TOGGLE BUTTON -- a `<button>` carrying `aria-pressed` -- because the state IS
+ * the meaning: a control that silently rewrites what you draw has to say which
+ * way it is set without being pressed to find out.
+ *
+ * The visible "On"/"Off" is `aria-hidden`, and deliberately so. It duplicates
+ * what `aria-pressed` already announces, and left visible to AT it would put
+ * text in the accessible name that is not in the label a voice-control user
+ * reads -- WCAG 2.5.3, which is the exact user this control's naming is for.
  *
  * @example
  * <SketchToggle editor={editor} />
@@ -39,7 +42,9 @@ export function SketchToggle({ editor }: SketchToggleProps) {
         onClick={() => setSketchMode(editor, !on)}
       >
         <span aria-hidden="true">✎→▢</span>
-        <span className="sketch-toggle__state">{on ? 'On' : 'Off'}</span>
+        <span className="sketch-toggle__state" aria-hidden="true">
+          {on ? 'On' : 'Off'}
+        </span>
       </button>
       {/*
        * The canvas changing under you with no visible cause is exactly what a
