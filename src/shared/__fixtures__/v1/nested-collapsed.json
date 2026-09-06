@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "nodes": [
+    { "id": "outer", "label": "Outer", "x": 0, "y": 0, "w": 600, "h": 400 },
+    {
+      "id": "middle",
+      "label": "Middle",
+      "x": 40,
+      "y": 60,
+      "w": 400,
+      "h": 260,
+      "parentId": "outer",
+      "collapsed": true
+    },
+    { "id": "inner", "label": "Inner", "x": 30, "y": 50, "w": 180, "h": 100, "parentId": "middle" }
+  ]
+}

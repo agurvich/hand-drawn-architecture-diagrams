@@ -6,3 +6,4 @@ playwright-report
 *.local
 .DS_Store
 *.tsbuildinfo
+__reviewscratch__/

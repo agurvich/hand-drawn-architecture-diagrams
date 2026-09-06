@@ -1,0 +1,4 @@
+{
+  "version": 1,
+  "nodes": [{ "id": "solo", "label": "Solo", "x": 0, "y": 0, "w": 200, "h": 120 }]
+}
