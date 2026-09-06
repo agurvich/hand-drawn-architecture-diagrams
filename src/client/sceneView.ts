@@ -350,19 +350,59 @@ export function stepScene(editor: Editor, delta: -1 | 1): void {
  * What the active scene singles out, and whether anything is singled out at all.
  *
  * `ids` is empty when no scene is active, when the scene highlights nothing, or
- * when nothing it names still resolves -- and in every one of those cases
- * `dimming` is false, so a diagram is never dimmed with nothing lit. That last
- * case matters: a scene outlives the shapes it points at, and a page where
+ * when nothing it names is VISIBLE -- and in every one of those cases `dimming`
+ * is false, so a diagram is never dimmed with nothing lit. A page where
  * everything is faded and nothing is accented reads as broken rather than
  * focused.
+ *
+ * VISIBLE, not merely resolvable, and the difference is two clicks: a scene can
+ * fold the container its own highlighted node lives in, and a reader can collapse
+ * that container themselves through the off-scene gesture FR-004 exists to allow.
+ * The shape still resolves in both cases -- it is hidden, not deleted -- so an
+ * existence check leaves the page uniformly grey with nothing lit, which is the
+ * exact state this function is here to prevent. `isShapeHidden` is the same
+ * predicate `visibility.ts` culls with, and it already accounts for the scene's
+ * own lens and for merging.
+ *
+ * Behind a `computed` for the reason `scenesInOrder` is: this runs inside the
+ * tracked render scope of EVERY node and connection, and `editor.getShape`
+ * subscribes to the record's atom. Unguarded, each of N shapes takes a
+ * dependency on every highlighted shape's full record, so dragging one node
+ * re-renders all N on every pointer frame -- measured at 40 renders of an
+ * unrelated node across a 20-step drag. The `isEqual` also stops the fresh
+ * `new Set` from failing `Object.is` on every read.
  */
-export function highlightState(editor: Editor): {
+export interface HighlightState {
   ids: ReadonlySet<string>
   dimming: boolean
-} {
-  const { scene } = sceneState(editor)
-  if (!scene || scene.highlighted.length === 0) return { ids: EMPTY, dimming: false }
-  const live = scene.highlighted.filter((id) => editor.getShape(id as TLShape['id']) !== undefined)
-  if (live.length === 0) return { ids: EMPTY, dimming: false }
-  return { ids: new Set(live), dimming: true }
+}
+
+const highlights = new WeakMap<Editor, Computed<HighlightState>>()
+
+function sameHighlight(a: HighlightState, b: HighlightState): boolean {
+  if (a.dimming !== b.dimming || a.ids.size !== b.ids.size) return false
+  for (const id of a.ids) if (!b.ids.has(id)) return false
+  return true
+}
+
+export function highlightState(editor: Editor): HighlightState {
+  let state = highlights.get(editor)
+  if (!state) {
+    state = computed(
+      'highlight state',
+      () => {
+        const { scene } = sceneState(editor)
+        if (!scene || scene.highlighted.length === 0) return { ids: EMPTY, dimming: false }
+        const live = scene.highlighted.filter((id) => {
+          const shapeId = id as TLShape['id']
+          return editor.getShape(shapeId) !== undefined && !editor.isShapeHidden(shapeId)
+        })
+        if (live.length === 0) return { ids: EMPTY, dimming: false }
+        return { ids: new Set(live), dimming: true }
+      },
+      { isEqual: sameHighlight },
+    )
+    highlights.set(editor, state)
+  }
+  return state.get()
 }

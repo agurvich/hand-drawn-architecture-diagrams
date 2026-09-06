@@ -131,11 +131,11 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
                     aria-current={scene.id === active?.id ? 'true' : undefined}
                     onClick={() => viewScene(editor, scene.id)}
                   >
-                    {scene.name}
+                    <span className="narration__name">{scene.name}</span>
                     {staleIds.has(scene.id as string) && (
                       <span className="narration__stale" data-testid="narration-stale">
-                        {' '}
-                        — nothing it names is still here
+                        <span aria-hidden="true">⚠</span>
+                        <span className="narration__sr"> — nothing it names is still here</span>
                       </span>
                     )}
                   </button>
@@ -275,6 +275,12 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
         )}
       </p>
 
+      {active && active.note !== '' && (
+        <p className="narration__note" data-testid="narration-note">
+          {active.note}
+        </p>
+      )}
+
       <div className="narration__bar">
         <button
           type="button"
@@ -294,9 +300,21 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
           aria-expanded={open}
           onClick={() => setOpen((was) => !was)}
         >
-          {active
-            ? `${position + 1}/${scenes.length} ${active.name}${staleIds.has(active.id as string) ? ' ⚠' : ''}`
-            : 'Scenes'}
+          {active ? (
+            <>
+              <span className="narration__name">
+                {position + 1}/{scenes.length} {active.name}
+              </span>
+              {staleIds.has(active.id as string) && (
+                <span className="narration__stale">
+                  <span aria-hidden="true"> ⚠</span>
+                  <span className="narration__sr"> — nothing it names is still here</span>
+                </span>
+              )}
+            </>
+          ) : (
+            'Scenes'
+          )}
         </button>
         <button
           type="button"
@@ -309,12 +327,6 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
           ›
         </button>
       </div>
-
-      {active && active.note !== '' && (
-        <p className="narration__note" data-testid="narration-note">
-          {active.note}
-        </p>
-      )}
     </div>
   )
 }

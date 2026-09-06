@@ -431,8 +431,9 @@ body {
   width: 220px;
   max-width: 220px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .narration__note,
@@ -517,11 +518,15 @@ body {
 .narration__select {
   flex: 1;
   /* A long name grew its row from 44px to 424px, stranding the reorder and
-     delete buttons beside a wall of text. */
+     delete buttons beside a wall of text. The clamp is here; the ELLIPSIS is on
+     the name span, because a marker inside a truncating box is truncated with
+     it -- a 200-char name pushed the stale warning to x=1524 in a row ending at
+     x=213, so the scene read as working. */
+  display: flex;
+  align-items: center;
+  gap: 4px;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-height: 44px;
   padding: 0 10px;
   font:
@@ -541,9 +546,28 @@ body {
   background: #e8f0fe;
 }
 
+.narration__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .narration__stale {
+  /* Never shrinks: the point of the marker is that it survives a long name. */
+  flex: 0 0 auto;
   font-weight: 400;
   color: #8a5a00;
+}
+/* Visible to a screen reader, not to the eye. The bar and the list both mark a
+   stale scene with a glyph; a glyph alone is a meaning carried by nothing but
+   its appearance. */
+.narration__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .narration__label {
@@ -606,17 +630,26 @@ body {
  *
  * Both, deliberately. A ring alone is easy to miss on a busy diagram; dimming
  * alone leaves the reader hunting for what is still sharp. `highlightState`
- * refuses to dim when nothing resolves, so a page is never all-faded with
- * nothing lit.
+ * refuses to dim when nothing it names is VISIBLE, so a page is never all-faded
+ * with nothing lit.
  */
 .diagram-node--highlighted {
   outline: 3px solid #1a5fb4;
   outline-offset: 2px;
 }
 
+/*
+ * 70%, not 35%. A dimmed node is still diagram content and still fully in the
+ * accessibility tree -- de-emphasis, not decoration -- so it owes the same
+ * contrast every other label does. The label is #2e2e2e, MEASURED off the
+ * rendered node rather than read off the stylesheet: at 35% it composites over
+ * white to 2.27:1, under the 4.5:1 floor in best-practices/accessibility.md,
+ * and 60% only reaches 3.86:1. 70% is 5.20:1. The e2e computes this from the
+ * live element, so the number cannot drift away from the rule it satisfies.
+ */
 .diagram-node--dimmed,
 .diagram-connection--dimmed {
-  opacity: 35%;
+  opacity: 70%;
 }
 
 .diagram-connection--highlighted {
