@@ -24,6 +24,10 @@ const TYPE_LITERALS = [
   "'diagramConnection'",
   "'connectionEndpoint'",
   "'diagramScene'",
+  // The PREFIXED form too. The check looks for the closing quote, so
+  // `'diagramScene:'` slips past `"'diagramScene'"` on the colon -- a second
+  // home for the type string, hidden behind one character.
+  "'diagramScene:'",
   "'diagramSceneView'",
   "'diagramOffScene'",
 ]
@@ -41,6 +45,7 @@ const TYPE_DEFINITION_MODULES = [
   resolve(SHARED_DIR, 'shapes/connection.ts'),
   resolve(SHARED_DIR, 'bindings/connection.ts'),
   resolve(SHARED_DIR, 'scenes/scene.ts'),
+  resolve(SHARED_DIR, 'scenes/sceneType.ts'),
 ]
 
 /** Source files under `root`, excluding tests and fixtures. */
@@ -98,6 +103,21 @@ describe('FR-001 — one definition, two consumers', () => {
       },
     ]
     expect(filesDeclaringShapeTypeLiteral(planted)).toEqual(['src/shared/Planted.ts'])
+  })
+
+  it('THE CHECK BITES ON THE PREFIXED FORM, which one character used to hide', () => {
+    // `'diagramScene:'` does not contain `'diagramScene'` -- the closing quote
+    // is a colon -- so before the prefixed literal joined the list, a hand-
+    // written id prefix was a second home for the type string that this gate
+    // walked straight past. That is the failure the gate exists to stop, so it
+    // owes a fixture rather than a claim.
+    const planted = [
+      {
+        path: 'src/shared/PlantedPrefix.ts',
+        text: readFileSync(join(FIXTURES, 'prefixed-type-literal.txt'), 'utf8'),
+      },
+    ]
+    expect(filesDeclaringShapeTypeLiteral(planted)).toEqual(['src/shared/PlantedPrefix.ts'])
   })
 
   it('the definition modules are exempt by FULL PATH, and every one still exists', () => {

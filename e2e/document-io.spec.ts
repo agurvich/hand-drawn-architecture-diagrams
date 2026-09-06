@@ -10,12 +10,16 @@ import {
   pageRecords,
   exportedJson,
   pasteDocument,
+  pasteDocumentAndConfirm,
+  sceneRecords,
+  viewScene,
+  addScene,
   connectionCount,
   roomId,
 } from './helpers'
 
 const MINIMAL = JSON.stringify({
-  version: 1,
+  version: 2,
   nodes: [
     { id: 'a', label: 'A', x: 100, y: 100, w: 200, h: 120 },
     { id: 'b', label: 'B', x: 500, y: 100, w: 200, h: 120 },
@@ -118,10 +122,10 @@ test.describe('SPEC-007 FR-002 — export produces a stable, valid document', ()
     ]
     await openRoom(page, roomId('io5'))
 
-    await pasteDocument(page, JSON.stringify({ version: 1, nodes }))
+    await pasteDocument(page, JSON.stringify({ version: 2, nodes }))
     const first = await exportedJson(page)
 
-    await pasteDocument(page, JSON.stringify({ version: 1, nodes: [...nodes].reverse() }))
+    await pasteDocument(page, JSON.stringify({ version: 2, nodes: [...nodes].reverse() }))
     const second = await exportedJson(page)
 
     expect(second).toBe(first)
@@ -158,7 +162,7 @@ test.describe('SPEC-007 FR-003 — import replaces the page', () => {
     await pasteDocument(
       page,
       JSON.stringify({
-        version: 1,
+        version: 2,
         nodes: [{ id: 'web-server', label: 'Web', x: 0, y: 0, w: 200, h: 120 }],
       }),
     )
@@ -246,7 +250,7 @@ test.describe('SPEC-007 FR-003 — import replaces the page', () => {
     await addNode(page, 'Keep', { x: 50, y: 50 })
     const before = await pageRecords(page)
 
-    await pasteDocument(page, '{ "version": 1, "nodes": [ { "id": "a" } ] }')
+    await pasteDocument(page, '{ "version": 2, "nodes": [ { "id": "a" } ] }')
     await expect(page.getByTestId('diagram-io-error')).toContainText('nodes[0].label')
     expect(await pageRecords(page)).toEqual(before)
   })
@@ -387,5 +391,203 @@ test.describe('SPEC-007 FR-004 — the manual path, which is the only one on an 
       expect(box!.width).toBeGreaterThanOrEqual(44)
       expect(box!.height).toBeGreaterThanOrEqual(44)
     }
+  })
+})
+
+test.describe('SPEC-009 — scenes in the document', () => {
+  const WITH_SCENES = JSON.stringify({
+    version: 2,
+    nodes: [
+      { id: 'a', label: 'A', x: 100, y: 100, w: 200, h: 120 },
+      { id: 'b', label: 'B', x: 500, y: 100, w: 200, h: 120 },
+    ],
+    connections: [{ id: 'a-b', sourceId: 'a', targetId: 'b' }],
+    scenes: [
+      { id: 'one', name: 'Outline', note: 'Start here.', collapsed: { a: true } },
+      { id: 'two', name: 'Detail', highlighted: ['a-b'] },
+    ],
+  })
+
+  test('a v1 document still imports, and means what it always meant', async ({ page }) => {
+    // The version bump's whole risk. Documents exist in chats and in repos; a
+    // format that breaks them is worse than one that never grew.
+    await openRoom(page, roomId('sc1'))
+    await pasteDocument(
+      page,
+      JSON.stringify({
+        version: 1,
+        nodes: [{ id: 'a', label: 'A', x: 0, y: 0, w: 200, h: 120 }],
+        connections: [],
+      }),
+    )
+    expect((await exported(page)).nodes).toHaveLength(1)
+    expect((await exported(page)).version).toBe(2)
+  })
+
+  test('a v1 document carrying scenes is refused by VERSION, not by key', async ({ page }) => {
+    await openRoom(page, roomId('sc2'))
+    await pasteDocument(page, JSON.stringify({ version: 1, nodes: [], scenes: [] }))
+    await expect(page.getByTestId('diagram-io-error')).toContainText(
+      'document.version: scenes requires version 2',
+    )
+  })
+
+  test('scenes survive a round trip and reach a second client', async ({ browser }) => {
+    const room = roomId('sc3')
+    const p1 = await newParticipant(browser)
+    const p2 = await newParticipant(browser)
+    await openRoom(p1.page, room)
+    await openRoom(p2.page, room)
+
+    await pasteDocument(p1.page, WITH_SCENES)
+
+    await expect
+      .poll(() => sceneRecords(p2.page).then((s) => s.map((x) => x.name)), { timeout: 15_000 })
+      .toEqual(['Outline', 'Detail'])
+    expect(await sceneRecords(p2.page)).toEqual(await sceneRecords(p1.page))
+
+    await p1.ctx.close()
+    await p2.ctx.close()
+  })
+
+  test('import REPLACES the room scenes, enumerated not counted', async ({ page }) => {
+    await openRoom(page, roomId('sc4'))
+    const a = await addNode(page, 'A', { x: 0, y: 0, w: 200, h: 120 })
+    await addScene(page, 'Mine', { [a]: true }, { index: 'a1' })
+    await addScene(page, 'Also mine', {}, { index: 'a2' })
+    expect((await sceneRecords(page)).map((s) => s.name)).toEqual(['Mine', 'Also mine'])
+
+    // Two scenes exist, so the gate opens -- and the helper that does not
+    // confirm would leave the import undone and every assertion below vacuous.
+    await pasteDocumentAndConfirm(page, WITH_SCENES)
+
+    const after = await sceneRecords(page)
+    expect(after.map((s) => s.name)).toEqual(['Outline', 'Detail'])
+    expect(after.map((s) => s.id)).not.toContain('Mine')
+    expect(after[0]!.note).toBe('Start here.')
+    expect(after[0]!.collapsed).toEqual({ 'shape:a': true })
+    expect(after[1]!.highlighted).toEqual(['shape:a-b'])
+  })
+
+  test('ONE undo brings the old scenes back with the old diagram', async ({ page }) => {
+    await openRoom(page, roomId('sc5'))
+    const a = await addNode(page, 'A', { x: 0, y: 0, w: 200, h: 120 })
+    await addScene(page, 'Mine', { [a]: true }, { index: 'a1' })
+    const before = await sceneRecords(page)
+    const shapesBefore = await pageRecords(page)
+
+    await pasteDocumentAndConfirm(page, WITH_SCENES)
+    expect((await sceneRecords(page)).map((s) => s.name)).toEqual(['Outline', 'Detail'])
+
+    await page.evaluate(() => {
+      window.__editor!.undo()
+    })
+    expect(await sceneRecords(page)).toEqual(before)
+    expect(await pageRecords(page)).toEqual(shapesBefore)
+  })
+
+  test('array order in is array order out, on twelve scenes', async ({ page }) => {
+    // Twelve, not three: the count at which a plausible index scheme first
+    // scrambles, since 'a10' < 'a2'.
+    await openRoom(page, roomId('sc6'))
+    const names = Array.from({ length: 12 }, (_, i) => `Scene ${i + 1}`)
+    await pasteDocument(
+      page,
+      JSON.stringify({
+        version: 2,
+        scenes: names.map((name, i) => ({ id: `s${i + 1}`, name })),
+      }),
+    )
+    expect((await sceneRecords(page)).map((s) => s.name)).toEqual(names)
+    expect((await exported(page)).scenes.map((s) => s.name)).toEqual(names)
+  })
+
+  test('a scene captured AFTER an import sorts last, not into the middle', async ({ page }) => {
+    // The reason indices are minted with tldraw's own helpers rather than a
+    // hand-rolled scheme: a different alphabet interleaves wrongly.
+    await openRoom(page, roomId('sc7'))
+    await pasteDocument(
+      page,
+      JSON.stringify({
+        version: 2,
+        scenes: Array.from({ length: 12 }, (_, i) => ({ id: `s${i + 1}`, name: `Scene ${i + 1}` })),
+      }),
+    )
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    const names = (await sceneRecords(page)).map((s) => s.name)
+    expect(names).toHaveLength(13)
+    expect(names.at(-1)).toBe('Scene 13')
+  })
+
+  test('export, import, export again is identical', async ({ page }) => {
+    await openRoom(page, roomId('sc8'))
+    await pasteDocument(page, WITH_SCENES)
+    const first = await exportedJson(page)
+    await pasteDocumentAndConfirm(page, first)
+    expect(await exportedJson(page)).toBe(first)
+  })
+
+  test('two exports of an unchanged room are byte-identical', async ({ page }) => {
+    await openRoom(page, roomId('sc9'))
+    await pasteDocument(page, WITH_SCENES)
+    expect(await exportedJson(page)).toBe(await exportedJson(page))
+  })
+
+  test('a scene naming an undocumentable shape exports something that re-imports', async ({
+    page,
+  }) => {
+    // A scene outlives what it names, and the export must never emit a document
+    // its own validator would reject.
+    await openRoom(page, roomId('sc10'))
+    const a = await addNode(page, 'A', { x: 0, y: 0, w: 200, h: 120 })
+    const half = await addHalfConnection(page, a)
+    await addScene(page, 'Points at both', { [a]: true }, { highlighted: [half, 'shape:ghost'] })
+
+    const json = await exportedJson(page)
+    const doc = JSON.parse(json) as { scenes: Array<Record<string, unknown>> }
+    expect(doc.scenes[0]!.highlighted).toBeUndefined()
+    expect(doc.scenes[0]!.collapsed).toEqual({ [a.slice('shape:'.length)]: true })
+
+    await pasteDocumentAndConfirm(page, json)
+    await expect(page.getByTestId('diagram-io-error')).toHaveCount(0)
+  })
+
+  test('the off-scene set does not survive an import', async ({ page }) => {
+    // An import preserves author-chosen ids, so a node the viewer had folded
+    // off-scene would keep overriding the imported scene -- for them alone.
+    await openRoom(page, roomId('sc11'))
+    const a = await addNode(page, 'A', { x: 0, y: 0, w: 400, h: 300 })
+    await addNode(page, 'child', { x: 20, y: 40, w: 120, h: 80, parentId: a })
+    const scene = await addScene(page, 'Folded', { [a]: true }, { index: 'a1' })
+    await viewScene(page, scene)
+    await page.evaluate(
+      (id) => window.__scenes!.takeOffSceneAndToggle(window.__editor!, { id: id as never }, true),
+      a,
+    )
+
+    await pasteDocumentAndConfirm(
+      page,
+      JSON.stringify({
+        version: 2,
+        nodes: [
+          { id: 'a', label: 'A', x: 0, y: 0, w: 400, h: 300 },
+          { id: 'child', label: 'child', x: 20, y: 40, w: 120, h: 80, parentId: 'a' },
+        ],
+        scenes: [{ id: 'folded', name: 'Folded', collapsed: { a: true } }],
+      }),
+    )
+
+    // Activating the imported scene puts the room in the state a viewer would
+    // actually be in when the stale set would bite. The assertion itself is on
+    // the RECORD's existence, which is what the import removes -- `viewScene`
+    // only empties `nodeIds`, so the two are distinguishable.
+    const imported = (await sceneRecords(page))[0]!.id
+    await viewScene(page, imported)
+    expect(
+      await page.evaluate(() =>
+        window.__editor!.store.allRecords().some((r) => r.typeName === 'diagramOffScene'),
+      ),
+    ).toBe(false)
   })
 })

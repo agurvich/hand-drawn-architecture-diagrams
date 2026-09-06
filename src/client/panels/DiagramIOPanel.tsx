@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useValue, type Editor } from 'tldraw'
 import { parseDocument, type DiagramDocument } from '@shared/shapes'
-import { exportDocument, importDocument, undocumentableShapeCount } from '../documentIO'
+import {
+  exportDocument,
+  importDocument,
+  replacedSceneCount,
+  undocumentableShapeCount,
+} from '../documentIO'
 
 interface DiagramIOPanelProps {
   /** The mounted editor, or null before `onMount` has run. */
@@ -46,6 +51,11 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
     () => (open && editor ? JSON.stringify(exportDocument(editor), null, 2) : ''),
     [open, editor],
   )
+  const replacedScenes = useValue(
+    'replaced scenes',
+    () => (open && editor ? replacedSceneCount(editor) : 0),
+    [open, editor],
+  )
   const undocumentable = useValue(
     'undocumentable shapes',
     () => (open && editor ? undocumentableShapeCount(editor) : 0),
@@ -83,6 +93,10 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
     hadPending.current = pending !== null
   }, [pending])
 
+  // How many scenes the pending document carries, so the dialog can tell
+  // "replaced by these" apart from "deleted, and nothing takes their place".
+  const incomingScenes = pending?.scenes.length ?? 0
+
   const runImport = (document: DiagramDocument) => {
     if (!editor) return
     importDocument(editor, document)
@@ -104,7 +118,9 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
       return
     }
     setError(null)
-    if (undocumentable > 0) setPending(result.document)
+    // Scenes count too. They are not page shapes, so `undocumentable` is blind
+    // to them, and an import replaces every one.
+    if (undocumentable > 0 || replacedScenes > 0) setPending(result.document)
     else runImport(result.document)
   }
 
@@ -226,9 +242,30 @@ export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
           data-testid="diagram-io-confirm"
         >
           <p id={`${headingId}-confirm`}>
-            Importing replaces the whole page. {undocumentable} shape
-            {undocumentable === 1 ? '' : 's'} — drawings, notes and anything else the JSON cannot
-            describe — will be deleted. One undo brings {undocumentable === 1 ? 'it' : 'them'} back.
+            Importing replaces {undocumentable > 0 ? 'the whole page' : 'this room\u2019s scenes'}.{' '}
+            {undocumentable > 0 && (
+              <>
+                {undocumentable} shape{undocumentable === 1 ? '' : 's'} — drawings, notes and
+                anything else the JSON cannot describe — will be deleted.{' '}
+              </>
+            )}
+            {replacedScenes > 0 &&
+              (incomingScenes > 0 ? (
+                <>
+                  {replacedScenes} scene{replacedScenes === 1 ? '' : 's'} in this room will be
+                  replaced by the document&rsquo;s {incomingScenes}.{' '}
+                </>
+              ) : (
+                <>
+                  {/* The destructive case, and it used to read identically to
+                      the harmless one. Every document written before SPEC-009
+                      has no scenes key -- and the guide promises those still
+                      import -- so this is the common path, not the exotic one. */}
+                  {replacedScenes} scene{replacedScenes === 1 ? '' : 's'} in this room will be{' '}
+                  <strong>deleted</strong>; this document has none.{' '}
+                </>
+              ))}
+            One undo brings everything back.
           </p>
           <button
             type="button"

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "x",
+      "label": "one char",
+      "x": 0,
+      "y": 0,
+      "w": 100,
+      "h": 100
+    },
+    {
+      "id": "Loooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooog",
+      "label": "128 chars",
+      "x": 200,
+      "y": 0,
+      "w": 100,
+      "h": 100
+    },
+    {
+      "id": "dot.dash-under_score",
+      "label": "punctuation",
+      "x": 400,
+      "y": 0,
+      "w": 100,
+      "h": 100
+    }
+  ]
+}

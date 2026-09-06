@@ -260,7 +260,7 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
         role="status"
         data-testid="narration-off-scene"
       >
-        {offScene && (
+        {offScene && active && (
           <>
             You have changed something this scene sets.{' '}
             <button

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { parseDocument } from './document'
+import { parseDocument, DOCUMENT_VERSION } from './document'
 import { jsonBlocks } from './guideExamples'
 
 /**
@@ -47,10 +47,42 @@ describe('the authoring guide', () => {
     ).toBe(true)
   })
 
+  it('carries a worked example WITH scenes, and it is a real walkthrough', () => {
+    // Not merely "a scenes key parses": the scenes worth writing change what is
+    // folded, so a guide whose example scenes are interchangeable teaches the
+    // wrong thing.
+    const withScenes = blocks
+      .map((block) => parseDocument(block))
+      .filter((r) => r.ok)
+      .filter((r) => r.document.scenes.length > 0)
+    expect(withScenes.length).toBeGreaterThan(0)
+    const example = withScenes[0]!.document
+    expect(example.scenes.length).toBeGreaterThanOrEqual(3)
+    const folds = example.scenes.map((scene) => JSON.stringify(scene.collapsed ?? {}))
+    expect(new Set(folds).size).toBeGreaterThan(1)
+    expect(example.scenes.some((scene) => (scene.highlighted ?? []).length > 0)).toBe(true)
+  })
+
+  it('EVERY fenced block declares the current version, ```ts included', () => {
+    // Scoped to fenced blocks on purpose: the prose has to be free to say that
+    // v1 documents still import, and a sweep over prose would fire on correct
+    // writing. The ```ts block is the point -- `jsonBlocks` skips it, so it is
+    // the one place an old number survives every other check.
+    const fenced = [...markdown.matchAll(/```[a-z]*\n([\s\S]*?)```/g)].map((m) => m[1]!)
+    expect(fenced.length).toBeGreaterThan(0)
+    for (const block of fenced) {
+      for (const match of block.matchAll(/version"?\s*:\s*(\d+)/g)) {
+        expect(Number(match[1])).toBe(DOCUMENT_VERSION)
+      }
+    }
+  })
+
   it('does not present a deferred feature as available', () => {
     // Named in prose as unavailable is fine; used in an example is not.
     for (const block of blocks) {
-      for (const key of ['scenes', 'edgeSets', 'metadata', 'icon', 'isActor', 'autoLayout']) {
+      // NARROWED, not deleted: `scenes` shipped in SPEC-009 and left this list.
+      // The other five have not, and the guard still earns its place.
+      for (const key of ['edgeSets', 'metadata', 'icon', 'isActor', 'autoLayout']) {
         expect(block).not.toContain(`"${key}"`)
       }
     }
@@ -59,6 +91,10 @@ describe('the authoring guide', () => {
   it('documents every schema field and no field the schema lacks', () => {
     const fields = ['id', 'label', 'x', 'y', 'w', 'h', 'rotation', 'color', 'collapsed', 'parentId']
     for (const field of fields) expect(markdown).toContain(field)
+    // The scene's fields too -- an undocumented key is a key no model writes.
+    for (const field of ['scenes', 'name', 'note', 'highlighted']) {
+      expect(markdown).toContain(field)
+    }
     for (const absent of ['sourceHandle', 'actorId']) {
       // Present only in the "what this tool does not have" list, never as a field.
       expect(markdown.includes(absent)).toBe(true)

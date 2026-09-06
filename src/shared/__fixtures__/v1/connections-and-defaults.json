@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "nodes": [
+    { "id": "a", "label": "A", "x": 0, "y": 0, "w": 200, "h": 120 },
+    { "id": "b", "label": "B", "x": 400, "y": 0, "w": 200, "h": 120, "color": "#ff8800" },
+    { "id": "c", "label": "C", "x": 800, "y": 0, "w": 200, "h": 120, "rotation": 0.5 }
+  ],
+  "connections": [
+    { "id": "a-b", "sourceId": "a", "targetId": "b" },
+    { "id": "b-c", "sourceId": "b", "targetId": "c" }
+  ]
+}

@@ -6,6 +6,7 @@ import {
 } from './shapes/connection'
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
 import { isShapeId, SHAPE_ID_PREFIX } from './shapes/hierarchy'
+import { SCENE_ID_PREFIX } from './scenes/sceneType'
 
 /**
  * The diagram DOCUMENT: a plain JSON representation of a diagram, copyable out,
@@ -28,7 +29,13 @@ import { isShapeId, SHAPE_ID_PREFIX } from './shapes/hierarchy'
  * going through the barrel would be circular.
  */
 
-export const DOCUMENT_VERSION = 1
+export const DOCUMENT_VERSION = 2
+
+/**
+ * Every version this build can READ. There is no downgrade: a v1 document is
+ * upgraded on the way in and comes back as v2.
+ */
+export const SUPPORTED_DOCUMENT_VERSIONS = [1, 2] as const
 
 /**
  * Ids are ONE namespace across nodes and connections, because both mint
@@ -72,10 +79,55 @@ export interface DocumentConnection {
   targetId: string
 }
 
+/**
+ * What `toDocument` consumes for a scene.
+ *
+ * Deliberately NOT SPEC-008's `SceneRecord`: that extends `BaseRecord` from
+ * `@tldraw/store`, and this module imports no tldraw package at all.
+ */
+export interface ExportableScene {
+  /** The raw `diagramScene:...` id; the prefix is stripped into the document. */
+  id: string
+  name: string
+  note: string
+  collapsed: Record<string, boolean>
+  highlighted: string[]
+  index: string
+}
+
+/**
+ * A scene as a document carries it: what SPEC-008's record carries, minus the
+ * machinery.
+ *
+ * SCENE IDS ARE THEIR OWN NAMESPACE. Nodes and connections share one because
+ * both mint `shape:<id>`, so a collision there is one record overwriting
+ * another. A scene mints `diagramScene:<id>` -- a different record type in a
+ * different id space -- so a scene called `auth` beside a node called `auth`
+ * overwrites nothing. Sharing the namespace anyway would buy tidiness and cost
+ * correctness: a room can legitimately hold both today, and an export that then
+ * refused its own room would break the property this module exists to hold.
+ *
+ * NO `index`. The record carries a fractional sort key; a document carries an
+ * array, and an array is already ordered. Carrying both would give the format
+ * two places to disagree.
+ */
+export interface DocumentScene {
+  /** Unique among SCENES. May equal a node or connection id -- see above. */
+  id: string
+  name: string
+  /** Optional; defaults to ''. */
+  note?: string
+  /** Node ids that read as folded (or explicitly open) while this scene is active. */
+  collapsed?: Record<string, boolean>
+  /** Node or connection ids to accent. */
+  highlighted?: string[]
+}
+
 export interface DiagramDocument {
   version: number
   nodes: DocumentNode[]
   connections: DocumentConnection[]
+  scenes: DocumentScene[]
 }
 
 /** Total: the whole document or a message. Never a partial result. */
@@ -127,9 +179,31 @@ export interface BindingDescriptor {
   props: { terminal: ConnectionTerminal }
 }
 
-const TOP_LEVEL_KEYS = ['version', 'nodes', 'connections']
+/**
+ * Checked against the RAW document, before any upgrade -- so this list is
+ * permanently the UNION of every version's keys, not the current version's. A
+ * key that is legal in v2 therefore passes the check on a v1 document too, and
+ * the only thing stopping a v1 document's `scenes` from being silently
+ * discarded is the explicit guard in `parseDocument`. A future v3 key needs its
+ * own guard for the same reason.
+ */
+const TOP_LEVEL_KEYS = ['version', 'nodes', 'connections', 'scenes']
 const NODE_KEYS = ['id', 'label', 'x', 'y', 'w', 'h', 'rotation', 'color', 'collapsed', 'parentId']
 const CONNECTION_KEYS = ['id', 'sourceId', 'targetId']
+const SCENE_KEYS = ['id', 'name', 'note', 'collapsed', 'highlighted']
+
+/**
+ * A v1 document, as v2: the same document, plus no scenes.
+ *
+ * Trivial on purpose -- the thing worth testing is not this function, it is that
+ * the FROZEN v1 CORPUS still turns into an identical record set on the far side
+ * of it. See `document-v1.test.ts`.
+ *
+ * Pure, and exported so it can be tested with no Editor.
+ */
+export function upgradeV1(document: Record<string, unknown>): Record<string, unknown> {
+  return { ...document, version: 2, scenes: [] }
+}
 
 function fail(path: string, reason: string): ParseResult {
   return { ok: false, error: `${path}: ${reason}` }
@@ -176,25 +250,48 @@ export function parseDocument(input: string): ParseResult {
 
   if (!isPlainObject(raw)) return fail('document', 'must be a JSON object')
 
+  // VERSION FIRST, then the key check -- the reverse of what this did at v1, and
+  // the order is load-bearing. Once `scenes` is a legal v2 key, a v1 document
+  // carrying one would otherwise be reported as a KEY problem, when the author's
+  // actual mistake is the version. The guard below says so instead.
+  if (!('version' in raw)) return fail('document.version', 'missing')
+  if (
+    !SUPPORTED_DOCUMENT_VERSIONS.includes(
+      raw.version as (typeof SUPPORTED_DOCUMENT_VERSIONS)[number],
+    )
+  ) {
+    return fail(
+      'document.version',
+      `expected ${SUPPORTED_DOCUMENT_VERSIONS.join(' or ')}, got ${JSON.stringify(raw.version)}`,
+    )
+  }
+
+  // Its OWN step, before the upgrade. The reorder alone is not enough: after it,
+  // `version: 1` passes the version gate and `scenes` passes the key gate, so a
+  // v1 document carrying scenes would be quietly ACCEPTED and the author's
+  // scenes dropped on the floor.
+  if (raw.version === 1 && 'scenes' in raw) {
+    return fail('document.version', 'scenes requires version 2')
+  }
+
   const extraTop = unknownKey(raw, TOP_LEVEL_KEYS)
   if (extraTop !== null) return fail(`document.${extraTop}`, 'unknown key')
 
-  if (!('version' in raw)) return fail('document.version', 'missing')
-  if (raw.version !== DOCUMENT_VERSION) {
-    return fail(
-      'document.version',
-      `expected ${DOCUMENT_VERSION}, got ${JSON.stringify(raw.version)}`,
-    )
-  }
+  // A NEW binding, not a reassignment: `raw` is declared `unknown` and narrowed
+  // by `isPlainObject` above, and assigning to it would throw that narrowing
+  // away.
+  const doc: Record<string, unknown> = raw.version === 1 ? upgradeV1(raw) : raw
 
   // Optional on input, so a node-only document is valid; both are always present
   // on export. ABSENT, not nullish: `?? []` would coalesce an explicit
   // `"nodes": null` into an empty array and accept it, which is the author
   // writing something wrong and seeing an empty diagram rather than an error.
-  const rawNodes = 'nodes' in raw ? raw.nodes : []
-  const rawConnections = 'connections' in raw ? raw.connections : []
+  const rawNodes = 'nodes' in doc ? doc.nodes : []
+  const rawConnections = 'connections' in doc ? doc.connections : []
+  const rawScenes = 'scenes' in doc ? doc.scenes : []
   if (!Array.isArray(rawNodes)) return fail('document.nodes', 'must be an array')
   if (!Array.isArray(rawConnections)) return fail('document.connections', 'must be an array')
+  if (!Array.isArray(rawScenes)) return fail('document.scenes', 'must be an array')
 
   const nodes: DocumentNode[] = []
   for (let i = 0; i < rawNodes.length; i++) {
@@ -319,7 +416,72 @@ export function parseDocument(input: string): ParseResult {
   const cyclePath = findCycle(nodes)
   if (cyclePath !== null) return fail(cyclePath, 'parentId cycle')
 
-  return { ok: true, document: { version: DOCUMENT_VERSION, nodes, connections } }
+  // Scenes last: every reference below is checked against `seen`, which the
+  // passes above have already filled with what this document actually carries.
+  const scenes: DocumentScene[] = []
+  const sceneIds = new Set<string>()
+  for (let i = 0; i < rawScenes.length; i++) {
+    const path = `scenes[${i}]`
+    const entry: unknown = rawScenes[i]
+    if (!isPlainObject(entry)) return fail(path, 'must be an object')
+
+    const extra = unknownKey(entry, SCENE_KEYS)
+    if (extra !== null) return fail(`${path}.${extra}`, 'unknown key')
+
+    if (typeof entry.id !== 'string') return fail(`${path}.id`, 'must be a string')
+    if (!DOCUMENT_ID_PATTERN.test(entry.id)) {
+      return fail(`${path}.id`, `must match ${String(DOCUMENT_ID_PATTERN)}`)
+    }
+    // Unique among SCENES ONLY. A scene id equal to a node or connection id is
+    // fine -- different record type, different id space.
+    if (sceneIds.has(entry.id)) {
+      return fail(`${path}.id`, `duplicate id ${JSON.stringify(entry.id)}`)
+    }
+    sceneIds.add(entry.id)
+
+    if (typeof entry.name !== 'string') return fail(`${path}.name`, 'must be a string')
+
+    const scene: DocumentScene = { id: entry.id, name: entry.name }
+
+    if (entry.note !== undefined) {
+      if (typeof entry.note !== 'string') return fail(`${path}.note`, 'must be a string')
+      scene.note = entry.note
+    }
+
+    if (entry.collapsed !== undefined) {
+      if (!isPlainObject(entry.collapsed)) return fail(`${path}.collapsed`, 'must be an object')
+      for (const [key, value] of Object.entries(entry.collapsed)) {
+        const at = `${path}.collapsed[${JSON.stringify(key)}]`
+        // Two errors, because they are two different authoring mistakes.
+        const kind = seen.get(key)
+        if (kind === undefined) return fail(at, `no node with id ${JSON.stringify(key)}`)
+        if (kind === 'connection') {
+          return fail(at, 'names a connection, which cannot be collapsed')
+        }
+        if (typeof value !== 'boolean') return fail(at, 'must be a boolean')
+      }
+      scene.collapsed = entry.collapsed as Record<string, boolean>
+    }
+
+    if (entry.highlighted !== undefined) {
+      if (!Array.isArray(entry.highlighted)) {
+        return fail(`${path}.highlighted`, 'must be an array')
+      }
+      for (let j = 0; j < entry.highlighted.length; j++) {
+        const at = `${path}.highlighted[${j}]`
+        const id: unknown = entry.highlighted[j]
+        if (typeof id !== 'string') return fail(at, 'must be a string')
+        // A node OR a connection: accenting a line is as meaningful as
+        // accenting a box.
+        if (!seen.has(id)) return fail(at, `no node or connection with id ${JSON.stringify(id)}`)
+      }
+      scene.highlighted = entry.highlighted as string[]
+    }
+
+    scenes.push(scene)
+  }
+
+  return { ok: true, document: { version: DOCUMENT_VERSION, nodes, connections, scenes } }
 }
 
 /**
@@ -427,6 +589,9 @@ export function toDocument(
   nodes: readonly ExportableNode[],
   connections: readonly ExportableConnection[],
   bindings: readonly BindingDescriptor[],
+  // TRAILING and OPTIONAL: two dozen existing three-argument call sites would
+  // otherwise all have to change for one caller that has scenes.
+  scenes: readonly ExportableScene[] = [],
 ): DiagramDocument {
   const documentable = documentableNodeIds(nodes)
 
@@ -463,6 +628,11 @@ export function toDocument(
   }
 
   const documentConnections: DocumentConnection[] = []
+  // Raw ids of the connections that actually made it into the document. Built
+  // HERE rather than by scanning `documentConnections` afterwards: that scan is
+  // O(C^2), which is the same defect the binding join above already carries a
+  // measurement about, and the linearity test catches it -- 4978ms at 16,000.
+  const exportedConnectionIds = new Set<string>()
   for (const connection of connections) {
     // PER TERMINAL, never by binding count. Nothing at the record level forbids
     // two bindings on the same terminal -- two clients re-aiming the same end
@@ -480,16 +650,70 @@ export function toDocument(
       sourceId: documentId(source.toId),
       targetId: documentId(target.toId),
     })
+    exportedConnectionIds.add(connection.id)
   }
 
   // Plain `<`, matching merge.ts's representative rule and for the same reason:
   // localeCompare disagrees with it on the mixed-case ids the pattern permits.
   const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
+  /*
+   * A scene's references are filtered against WHAT THIS DOCUMENT ACTUALLY
+   * CARRIES, which is the rule that keeps export from emitting something
+   * parseDocument would reject. A scene can legitimately name things the
+   * document cannot: SPEC-008 keeps stale scenes rather than deleting them, and
+   * the `documentable` rule above drops nodes parented into tldraw shapes and
+   * connections bound at only one end.
+   *
+   * The sets are RAW `shape:` ids, because that is what a scene stores --
+   * `collapsed` keys and `highlighted` entries both come from shape ids. The
+   * document's own ids are stripped. Compare across the two and EVERY reference
+   * is dropped while every drop-case test still passes.
+   *
+   * And `highlighted` is filtered against nodes AND connections, not against
+   * `documentable`, which is nodes only: a connection highlight is meaningful,
+   * and filtering it through the node set would silently drop all of them.
+   */
+  const documentScenes: DocumentScene[] = [...scenes]
+    .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : a.id < b.id ? -1 : 1))
+    .map((scene) => {
+      const out: DocumentScene = {
+        id: scene.id.startsWith(SCENE_ID_PREFIX)
+          ? scene.id.slice(SCENE_ID_PREFIX.length)
+          : scene.id,
+        name: scene.name,
+      }
+      // One omit-at-default rule for all three, matching the node's.
+      if (scene.note !== '') out.note = scene.note
+
+      // `Object.fromEntries`, NOT `collapsed[key] = value` on a plain object.
+      // `__proto__` matches DOCUMENT_ID_PATTERN, so it is a legal node id, and
+      // assigning it on a `{}` hits Object.prototype's accessor and is a silent
+      // no-op -- the entry would vanish from the export while the re-import
+      // still validated, which is the round trip lying rather than failing.
+      // `JSON.parse` and `Object.fromEntries` both create it as an OWN property,
+      // so the format handles it end to end. (`effectiveCollapsed` already uses
+      // `Object.hasOwn` for the same reason.)
+      const collapsed = Object.fromEntries(
+        Object.entries(scene.collapsed)
+          .filter(([id]) => documentable.has(id))
+          .map(([id, value]) => [documentId(id), value]),
+      )
+      if (Object.keys(collapsed).length > 0) out.collapsed = collapsed
+
+      const highlighted = scene.highlighted
+        .filter((id) => documentable.has(id) || exportedConnectionIds.has(id))
+        .map(documentId)
+      if (highlighted.length > 0) out.highlighted = highlighted
+
+      return out
+    })
+
   return {
     version: DOCUMENT_VERSION,
     nodes: documentNodes.sort(byId),
     connections: documentConnections.sort(byId),
+    scenes: documentScenes,
   }
 }
 
@@ -513,6 +737,14 @@ export function fromDocument(
   nodes: ExportableNode[]
   connections: ExportableConnection[]
   bindings: BindingDescriptor[]
+  /**
+   * In ARRAY ORDER and WITHOUT an index. The client adapter mints the indices
+   * with tldraw's own helpers as it creates the records -- doing it here would
+   * produce a different ordering alphabet from the one `captureScene` mints
+   * with, so a scene created after an import would interleave wrongly. (And the
+   * naive `a${i + 1}` breaks outright at ten, since `'a10' < 'a2'`.)
+   */
+  scenes: Omit<ExportableScene, 'index'>[]
 } {
   const shapeId = (id: string) => `${SHAPE_ID_PREFIX}${id}`
   const byId = new Map(document.nodes.map((node) => [node.id, node]))
@@ -573,7 +805,17 @@ export function fromDocument(
     },
   ])
 
-  return { nodes, connections, bindings }
+  const scenes = document.scenes.map((scene) => ({
+    id: `${SCENE_ID_PREFIX}${scene.id}`,
+    name: scene.name,
+    note: scene.note ?? '',
+    collapsed: Object.fromEntries(
+      Object.entries(scene.collapsed ?? {}).map(([id, value]) => [shapeId(id), value]),
+    ),
+    highlighted: (scene.highlighted ?? []).map(shapeId),
+  }))
+
+  return { nodes, connections, bindings, scenes }
 }
 
 /** The shape types a document can describe, for callers splitting a page. */

@@ -23,11 +23,15 @@ that a whiteboard does not.
 
 ```ts
 interface DiagramDocument {
-  version: 1
+  version: 2
   nodes?: DocumentNode[] // defaults to []
   connections?: DocumentConnection[] // defaults to []
+  scenes?: DocumentScene[] // defaults to []
 }
 ```
+
+Version 1 documents — the same thing without `scenes` — still import unchanged. You do not need to
+update anything you wrote before; write `2` for anything new.
 
 That is the entire document. There is no view state, no layout object, and no other top-level key —
 **an unknown key is an error**, not something ignored.
@@ -155,7 +159,7 @@ collapsed, so the diagram opens as "client → platform → database" and expand
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "nodes": [
     { "id": "client", "label": "Mobile client", "x": 80, "y": 260, "w": 200, "h": 120 },
     {
@@ -192,7 +196,7 @@ A minimal document, for reference:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "nodes": [
     { "id": "a", "label": "Service A", "x": 100, "y": 100, "w": 200, "h": 120 },
     { "id": "b", "label": "Service B", "x": 500, "y": 100, "w": 200, "h": 120 }
@@ -201,15 +205,111 @@ A minimal document, for reference:
 }
 ```
 
+## Scenes: turning a diagram into a walkthrough
+
+A diagram says what the system is. A **sequence of scenes** says how to explain it. Each scene is a
+named way of LOOKING at the same diagram — which containers read as folded, and what is accented —
+so a reader can step from "here is the shape of it" to "here is where the request actually goes"
+without anything moving.
+
+```ts
+interface DocumentScene {
+  id: string // unique among SCENES; may equal a node or connection id
+  name: string
+  note?: string // defaults to ''
+  collapsed?: Record<string, boolean> // node ids -> folded or explicitly open
+  highlighted?: string[] // node OR connection ids to accent
+}
+```
+
+**A scene is a lens, not an edit.** Stepping through scenes never changes the diagram: it does not
+move a node, does not delete anything, and does not alter what anyone else sees. So do not write a
+scene expecting it to *set* something up — write it to describe a way of looking at what is already
+there.
+
+**The scenes worth writing are the ones that change what is folded.** A scene that folds nothing and
+highlights nothing is just the diagram again. Fold the parts that are not the point yet, and open the
+one that is.
+
+`collapsed` names nodes only — a connection cannot be folded, and naming one is an error rather than
+a no-op. `highlighted` takes either, because accenting a line is as useful as accenting a box.
+Every id must exist in the same document; a dangling reference is refused rather than ignored.
+
+One thing it does not catch: **folding a node with no children does nothing**, silently. It is not an
+error, because that node may gain children later and the entry should still mean something then. So
+name the containers you actually want folded rather than listing every node.
+
+Scenes are ordered by their position in the array. There is no index field: a list is already
+ordered, and carrying both would give the format two places to disagree.
+
+**Importing REPLACES the room's scenes**, exactly as it replaces the diagram. A document is the whole
+artifact, so pasting a revised one revises the whole thing — the app asks first when there are
+scenes to lose.
+
+```json
+{
+  "version": 2,
+  "nodes": [
+    { "id": "client", "label": "Mobile client", "x": 80, "y": 260, "w": 200, "h": 120 },
+    {
+      "id": "platform",
+      "label": "Order platform",
+      "x": 420,
+      "y": 80,
+      "w": 360,
+      "h": 480,
+      "collapsed": true
+    },
+    { "id": "gateway", "label": "API gateway", "x": 40, "y": 60, "w": 280, "h": 110, "parentId": "platform" },
+    { "id": "orders", "label": "Orders service", "x": 40, "y": 210, "w": 280, "h": 110, "parentId": "platform" },
+    { "id": "db", "label": "Postgres", "x": 920, "y": 260, "w": 200, "h": 120 }
+  ],
+  "connections": [
+    { "id": "client-gateway", "sourceId": "client", "targetId": "gateway" },
+    { "id": "gateway-orders", "sourceId": "gateway", "targetId": "orders" },
+    { "id": "orders-db", "sourceId": "orders", "targetId": "db" }
+  ],
+  "scenes": [
+    {
+      "id": "shape",
+      "name": "The shape of it",
+      "note": "Three boxes. A client talks to a platform, the platform talks to a database.",
+      "collapsed": { "platform": true }
+    },
+    {
+      "id": "inside",
+      "name": "Inside the platform",
+      "note": "Open it up: the gateway takes the request and the orders service does the work.",
+      "collapsed": { "platform": false },
+      "highlighted": ["gateway", "orders"]
+    },
+    {
+      "id": "the-write",
+      "name": "Where the write happens",
+      "note": "One line matters here.",
+      "collapsed": { "platform": false },
+      "highlighted": ["orders-db"]
+    }
+  ]
+}
+```
+
+Read in order, that is a three-beat explanation: the outline, the interior, then the single edge the
+conversation was actually about. Nothing in the diagram changed between beats.
+
 ## What a round trip does not carry
 
-Export is faithful except in two ways, both deliberate:
+Export is faithful except in three ways, all deliberate:
 
 - **Z-order.** Nodes that overlap may come back in a different stacking order. Avoid relying on
   overlap to mean anything.
 - **Array order.** Export sorts `nodes` and `connections` by id, so a document you wrote in a
   meaningful order comes back alphabetised. It is the same diagram; do not read the order as
-  intent.
+  intent. `scenes` is the exception — that order is yours, and it survives.
+- **A scene's references to things the document cannot carry.** A scene can name a shape drawn by
+  hand, or one that has since been deleted; those entries are dropped from the exported scene while
+  the scene itself survives, possibly naming nothing. Nothing warns you, because the alternative is
+  an export that refuses its own room.
 
 Anything you drew by hand in the app — pencil strokes, text, notes, tldraw's own shapes — is **not**
 part of the document and is not exported. Importing replaces the whole page, so the app warns you and
@@ -220,9 +320,9 @@ asks before discarding that work.
 Do not write these; they are rejected as unknown keys, and inventing them will get your document
 refused rather than partially applied:
 
-`scenes`, `edgeSets`, `metadata`, `icon`, `isActor`, `actorId`, `sourceHandle`, `targetHandle`,
-`autoLayout`, `colorPalette`, `stickyNotes`.
+`edgeSets`, `metadata`, `icon`, `isActor`, `actorId`, `sourceHandle`, `targetHandle`, `autoLayout`,
+`colorPalette`, `stickyNotes`.
 
-Narrated scenes, edge sets, actor/action attribution and icons are all things this tool may grow
-later. Today it has nodes, nesting, collapse and connections — which is enough to say most of what an
-architecture diagram needs to say.
+Edge sets, actor/action attribution and icons are all things this tool may grow later. Today it has
+nodes, nesting, collapse, connections and scenes — which is enough to say most of what an
+architecture diagram needs to say, and to walk someone through it.

@@ -7,11 +7,13 @@ import { DOCUMENT_VERSION } from '@shared/shapes'
 const exportDocument = vi.fn()
 const importDocument = vi.fn()
 const undocumentableShapeCount = vi.fn()
+const replacedSceneCount = vi.fn()
 
 vi.mock('../documentIO', () => ({
   exportDocument: (...args: unknown[]) => exportDocument(...args) as unknown,
   importDocument: (...args: unknown[]) => importDocument(...args) as unknown,
   undocumentableShapeCount: (...args: unknown[]) => undocumentableShapeCount(...args) as unknown,
+  replacedSceneCount: (...args: unknown[]) => replacedSceneCount(...args) as unknown,
 }))
 
 const editor = {} as Editor
@@ -32,8 +34,14 @@ function paste(text: string) {
 }
 
 beforeEach(() => {
-  exportDocument.mockReturnValue({ version: DOCUMENT_VERSION, nodes: [], connections: [] })
+  exportDocument.mockReturnValue({
+    version: DOCUMENT_VERSION,
+    nodes: [],
+    connections: [],
+    scenes: [],
+  })
   undocumentableShapeCount.mockReturnValue(0)
+  replacedSceneCount.mockReturnValue(0)
 })
 
 afterEach(() => {
@@ -44,7 +52,12 @@ describe('DiagramIOPanel — FR-004', () => {
   it('shows the current diagram as JSON, with no clipboard API involved', () => {
     open()
     const box = screen.getByTestId('diagram-io-export') as HTMLTextAreaElement
-    expect(JSON.parse(box.value)).toEqual({ version: DOCUMENT_VERSION, nodes: [], connections: [] })
+    expect(JSON.parse(box.value)).toEqual({
+      version: DOCUMENT_VERSION,
+      nodes: [],
+      connections: [],
+      scenes: [],
+    })
     expect(box.readOnly).toBe(true)
   })
 
@@ -75,10 +88,15 @@ describe('DiagramIOPanel — FR-004', () => {
   })
 
   it('names the offending path, so a big document can be corrected', () => {
+    // `scenes` was this test's made-up key until SPEC-009 made it a real one.
+    // The path-naming behaviour is what is being checked, so the key just has
+    // to be one the schema does not have -- and stay that way.
     open()
-    paste(JSON.stringify({ version: DOCUMENT_VERSION, nodes: [], connections: [], scenes: [] }))
+    paste(JSON.stringify({ version: DOCUMENT_VERSION, nodes: [], connections: [], edgeSets: [] }))
     fireEvent.click(screen.getByTestId('diagram-io-import'))
-    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent('document.scenes: unknown key')
+    expect(screen.getByTestId('diagram-io-error')).toHaveTextContent(
+      'document.edgeSets: unknown key',
+    )
   })
 
   it('warns beside the JSON when the page holds shapes the document cannot carry', () => {
@@ -185,5 +203,67 @@ describe('DiagramIOPanel — FR-003, the confirmation gate', () => {
 
     fireEvent.click(screen.getByTestId('diagram-io-confirm-no'))
     expect(document.activeElement).toBe(screen.getByTestId('diagram-io-import'))
+  })
+
+  it('CONFIRMS when the room has scenes, even with nothing undocumentable', () => {
+    // Scenes are not page shapes, so `undocumentableShapeCount` cannot see them.
+    // Without its own count, a room of six hand-authored scenes was replaced in
+    // silence -- the case a shape-only gate is structurally blind to.
+    replacedSceneCount.mockReturnValue(6)
+    open()
+    paste(VALID)
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    const confirm = screen.getByTestId('diagram-io-confirm')
+    expect(confirm).toHaveTextContent(/6 scenes/)
+    // Not "the whole page" when no page shape is at risk -- and no raw HTML
+    // entity, which a string literal in JSX renders verbatim.
+    expect(confirm.textContent).toContain('Importing replaces this room\u2019s scenes.')
+    expect(confirm.textContent).not.toContain('&rsquo;')
+    expect(importDocument).not.toHaveBeenCalled()
+  })
+
+  it('says DELETED, not replaced, when the document carries no scenes', () => {
+    // The destructive case read identically to the harmless one. Every document
+    // written before SPEC-009 has no `scenes` key -- and the guide promises
+    // those still import -- so this is the common path.
+    replacedSceneCount.mockReturnValue(50)
+    open()
+    paste(VALID) // VALID has no scenes key
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    const confirm = screen.getByTestId('diagram-io-confirm')
+    expect(confirm).toHaveTextContent(/50 scenes in this room will be deleted/)
+    expect(confirm).toHaveTextContent(/this document has none/)
+  })
+
+  it('says REPLACED when the document brings scenes of its own', () => {
+    replacedSceneCount.mockReturnValue(2)
+    open()
+    paste(
+      JSON.stringify({
+        version: DOCUMENT_VERSION,
+        nodes: [],
+        connections: [],
+        scenes: [
+          { id: 'x', name: 'X' },
+          { id: 'y', name: 'Y' },
+          { id: 'z', name: 'Z' },
+        ],
+      }),
+    )
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    expect(screen.getByTestId('diagram-io-confirm')).toHaveTextContent(
+      /2 scenes in this room will be replaced by the document\u2019s 3/,
+    )
+  })
+
+  it('says how many of EACH would go when both are at risk', () => {
+    undocumentableShapeCount.mockReturnValue(3)
+    replacedSceneCount.mockReturnValue(1)
+    open()
+    paste(VALID)
+    fireEvent.click(screen.getByTestId('diagram-io-import'))
+    const confirm = screen.getByTestId('diagram-io-confirm')
+    expect(confirm).toHaveTextContent(/3 shapes/)
+    expect(confirm).toHaveTextContent(/1 scene /)
   })
 })

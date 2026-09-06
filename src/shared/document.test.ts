@@ -9,6 +9,7 @@ import {
   type ExportableNode,
   type ExportableConnection,
   type BindingDescriptor,
+  type ExportableScene,
 } from './document'
 import { NODE_SHAPE_TYPE, nodeShapeDefaultProps } from './shapes/node'
 import { CONNECTION_SHAPE_TYPE, connectionShapeDefaultProps } from './shapes/connection'
@@ -62,6 +63,18 @@ function exportableConnection(id: string): ExportableConnection {
   }
 }
 
+function exportableScene(id: string, over: Partial<ExportableScene> = {}): ExportableScene {
+  return {
+    id: `diagramScene:${id}`,
+    name: id,
+    note: '',
+    collapsed: {},
+    highlighted: [],
+    index: 'a1',
+    ...over,
+  }
+}
+
 function binding(from: string, to: string, terminal: ConnectionTerminal): BindingDescriptor {
   return {
     type: CONNECTION_BINDING_TYPE,
@@ -76,7 +89,7 @@ describe('parseDocument — acceptance', () => {
     const result = parseDocument(doc())
     expect(result).toEqual({
       ok: true,
-      document: { version: DOCUMENT_VERSION, nodes: [], connections: [] },
+      document: { version: DOCUMENT_VERSION, nodes: [], connections: [], scenes: [] },
     })
   })
 
@@ -121,15 +134,41 @@ describe('parseDocument — rejection, each naming its path', () => {
     expect(errorFrom(json({ nodes: [], connections: [] }))).toBe('document.version: missing')
   })
 
-  it('rejects an unknown version', () => {
-    expect(errorFrom(json({ version: 99, nodes: [] }))).toBe(
-      `document.version: expected ${DOCUMENT_VERSION}, got 99`,
+  // HARD-CODED, not built from SUPPORTED_DOCUMENT_VERSIONS: a pin that
+  // interpolates the implementation's own expression is not a pin. Changing the
+  // separator to ', ' would keep a derived assertion green.
+  it.each([
+    [3, 'document.version: expected 1 or 2, got 3'],
+    [0, 'document.version: expected 1 or 2, got 0'],
+    ['2', 'document.version: expected 1 or 2, got "2"'],
+  ])('rejects version %p', (version, message) => {
+    expect(errorFrom(json({ version, nodes: [] }))).toBe(message)
+  })
+
+  it('reports the VERSION before an unknown key, which is the whole reorder', () => {
+    // The only assertion that pins the order at HEAD. The other version tests
+    // pass documents with no unknown key, so they would stay green with the
+    // checks in either order -- and the mutation that used to prove this went
+    // inert the moment `scenes` became a legal top-level key.
+    expect(errorFrom(json({ version: 9, bogus: 1 }))).toBe(
+      'document.version: expected 1 or 2, got 9',
+    )
+  })
+
+  it('rejects a v1 document carrying scenes, naming the VERSION not the key', () => {
+    // After the reorder `version: 1` passes the version gate and `scenes` is a
+    // legal v2 key, so without its own guard this document is ACCEPTED and the
+    // author's scenes vanish.
+    expect(errorFrom(json({ version: 1, nodes: [], scenes: [] }))).toBe(
+      'document.version: scenes requires version 2',
     )
   })
 
   it('rejects an unknown key at the top level', () => {
-    expect(errorFrom(json({ version: DOCUMENT_VERSION, scenes: [] }))).toBe(
-      'document.scenes: unknown key',
+    // `scenes` used to be this test's unknown key. It is a real key now, so the
+    // check needs one that is still made up -- and it needs to STAY made up.
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, edgeSets: [] }))).toBe(
+      'document.edgeSets: unknown key',
     )
   })
 
@@ -750,5 +789,271 @@ describe('the shape types a document can describe', () => {
     // deliberate decision about whether the document covers it, and this is
     // where that decision gets made rather than forgotten.
     expect([...DOCUMENTABLE_SHAPE_TYPES]).toEqual([NODE_SHAPE_TYPE, CONNECTION_SHAPE_TYPE])
+  })
+})
+
+describe('scenes in a document', () => {
+  const withDiagram = (scenes: unknown[]) =>
+    json({
+      version: DOCUMENT_VERSION,
+      nodes: [node('a'), node('b')],
+      connections: [{ id: 'k', sourceId: 'a', targetId: 'b' }],
+      scenes,
+    })
+
+  it('defaults to [] so a scene-less document is valid', () => {
+    const result = parseDocument(doc())
+    expect(result.ok && result.document.scenes).toEqual([])
+  })
+
+  it('rejects an explicit null rather than coalescing it to empty', () => {
+    // The bug `nodes` and `connections` already carry a comment about: `?? []`
+    // would accept this and show the author an empty result instead of an error.
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, scenes: null }))).toBe(
+      'document.scenes: must be an array',
+    )
+  })
+
+  it('carries name, note, collapsed and highlighted through', () => {
+    const result = parseDocument(
+      withDiagram([
+        {
+          id: 's1',
+          name: 'Overview',
+          note: 'Start here.',
+          collapsed: { a: true },
+          highlighted: ['k'],
+        },
+      ]),
+    )
+    expect(result.ok && result.document.scenes).toEqual([
+      {
+        id: 's1',
+        name: 'Overview',
+        note: 'Start here.',
+        collapsed: { a: true },
+        highlighted: ['k'],
+      },
+    ])
+  })
+
+  it('ACCEPTS a scene id equal to a node or connection id', () => {
+    // Scenes mint `diagramScene:<id>`, a different record type in a different id
+    // space, so nothing is overwritten. The reverse rule would make a room that
+    // legitimately holds both unexportable.
+    const result = parseDocument(withDiagram([{ id: 'a', name: 'same as a node' }]))
+    expect(result.ok).toBe(true)
+  })
+
+  it.each([
+    [{ id: 's', name: 'x', bogus: 1 }, 'scenes[0].bogus: unknown key'],
+    [{ name: 'x' }, 'scenes[0].id: must be a string'],
+    [
+      { id: 's has spaces', name: 'x' },
+      `scenes[0].id: must match ${String(/^[A-Za-z0-9_.-]{1,128}$/)}`,
+    ],
+    [{ id: 's' }, 'scenes[0].name: must be a string'],
+    [{ id: 's', name: 1 }, 'scenes[0].name: must be a string'],
+    [{ id: 's', name: 'x', note: 1 }, 'scenes[0].note: must be a string'],
+    [{ id: 's', name: 'x', collapsed: [] }, 'scenes[0].collapsed: must be an object'],
+    [
+      { id: 's', name: 'x', collapsed: { a: 'yes' } },
+      'scenes[0].collapsed["a"]: must be a boolean',
+    ],
+    [{ id: 's', name: 'x', highlighted: {} }, 'scenes[0].highlighted: must be an array'],
+    [{ id: 's', name: 'x', highlighted: [1] }, 'scenes[0].highlighted[0]: must be a string'],
+  ])('rejects %j', (scene, message) => {
+    expect(errorFrom(withDiagram([scene]))).toBe(message)
+  })
+
+  it('rejects a duplicate scene id, naming its path', () => {
+    expect(
+      errorFrom(
+        withDiagram([
+          { id: 's', name: 'one' },
+          { id: 's', name: 'two' },
+        ]),
+      ),
+    ).toBe('scenes[1].id: duplicate id "s"')
+  })
+
+  it('gives a collapsed key that names NOTHING its own error', () => {
+    expect(errorFrom(withDiagram([{ id: 's', name: 'x', collapsed: { nope: true } }]))).toBe(
+      'scenes[0].collapsed["nope"]: no node with id "nope"',
+    )
+  })
+
+  it('gives a collapsed key that names a CONNECTION a different error', () => {
+    // Two different authoring mistakes, so two different messages: one is a
+    // typo, the other is a misunderstanding of what collapsing means.
+    expect(errorFrom(withDiagram([{ id: 's', name: 'x', collapsed: { k: true } }]))).toBe(
+      'scenes[0].collapsed["k"]: names a connection, which cannot be collapsed',
+    )
+  })
+
+  it('rejects a dangling highlight, naming its path', () => {
+    expect(errorFrom(withDiagram([{ id: 's', name: 'x', highlighted: ['ghost'] }]))).toBe(
+      'scenes[0].highlighted[0]: no node or connection with id "ghost"',
+    )
+  })
+
+  it('accepts a highlight naming a CONNECTION, not only a node', () => {
+    const result = parseDocument(withDiagram([{ id: 's', name: 'x', highlighted: ['k', 'a'] }]))
+    expect(result.ok && result.document.scenes[0]!.highlighted).toEqual(['k', 'a'])
+  })
+})
+
+describe('toDocument — scenes', () => {
+  const nodes = [exportableNode('a'), exportableNode('b')]
+  const conns = [exportableConnection('k')]
+  const binds = [binding('k', 'a', 'start'), binding('k', 'b', 'end')]
+
+  it('strips the diagramScene: prefix and omits the three defaults', () => {
+    const out = toDocument(nodes, conns, binds, [exportableScene('s1')])
+    expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
+  })
+
+  it('keeps a surviving CONNECTION highlight', () => {
+    // The case the drop-cases cannot see, and the one a builder filtering
+    // `highlighted` through the node set would silently break -- every drop
+    // test still passes while every connection highlight vanishes.
+    const out = toDocument(nodes, conns, binds, [
+      exportableScene('s1', { highlighted: ['shape:k', 'shape:a'] }),
+    ])
+    expect(out.scenes[0]!.highlighted).toEqual(['k', 'a'])
+  })
+
+  it('drops references the document does not carry, and still validates', () => {
+    const out = toDocument(nodes, conns, binds, [
+      exportableScene('s1', {
+        collapsed: { 'shape:a': true, 'shape:ghost': true },
+        highlighted: ['shape:ghost', 'shape:b'],
+      }),
+    ])
+    expect(out.scenes[0]!.collapsed).toEqual({ a: true })
+    expect(out.scenes[0]!.highlighted).toEqual(['b'])
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('keeps a scene that ends up naming NOTHING, and still validates', () => {
+    const out = toDocument(nodes, conns, binds, [
+      exportableScene('s1', { collapsed: { 'shape:ghost': true }, highlighted: ['shape:ghost'] }),
+    ])
+    expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('exports a room of scenes with NO diagram at all, and still validates', () => {
+    const out = toDocument([], [], [], [exportableScene('s1', { collapsed: { 'shape:a': true } })])
+    expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('drops a reference to a node parented into a tldraw shape', () => {
+    // The fourth drop case, and the only one whose node still EXISTS -- it is
+    // simply undescribable, because the document cannot express a parent it has
+    // no record of.
+    const parented = [exportableNode('a'), exportableNode('b', { parentId: 'shape:someFrame' })]
+    const out = toDocument(
+      parented,
+      [],
+      [],
+      [exportableScene('s1', { collapsed: { 'shape:b': true }, highlighted: ['shape:b'] })],
+    )
+    expect(out.nodes.map((n) => n.id)).toEqual(['a'])
+    expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('keeps a collapsed key called __proto__, which is a legal node id', () => {
+    // It matches DOCUMENT_ID_PATTERN, so an author or a model can write it --
+    // and assigning it on a plain `{}` is a silent no-op, so the entry would
+    // vanish from the export while the re-import still validated. The round
+    // trip lying is worse than the round trip failing.
+    const nodes = [exportableNode('__proto__'), exportableNode('ok')]
+    const out = toDocument(
+      nodes,
+      [],
+      [],
+      [exportableScene('s1', { collapsed: { 'shape:__proto__': true, 'shape:ok': false } })],
+    )
+    expect(Object.keys(out.scenes[0]!.collapsed!).sort()).toEqual(['__proto__', 'ok'])
+    const reparsed = parseDocument(json(out))
+    expect(reparsed.ok && Object.hasOwn(reparsed.document.scenes[0]!.collapsed!, '__proto__')).toBe(
+      true,
+    )
+  })
+
+  it('drops a highlight on a half-bound connection', () => {
+    const half = [binding('k', 'a', 'start')]
+    const out = toDocument(nodes, conns, half, [
+      exportableScene('s1', { highlighted: ['shape:k'] }),
+    ])
+    expect(out.connections).toEqual([])
+    expect(out.scenes).toEqual([{ id: 's1', name: 's1' }])
+  })
+
+  it('breaks an index TIE on id, under plain <', () => {
+    // Passed in REVERSE id order deliberately: Array.sort is stable, so without
+    // the tiebreak the result is input order and the mutation would not bite.
+    const out = toDocument(nodes, conns, binds, [
+      exportableScene('zz', { index: 'a1' }),
+      exportableScene('aa', { index: 'a1' }),
+    ])
+    expect(out.scenes.map((s) => s.id)).toEqual(['aa', 'zz'])
+  })
+
+  it('sorts by index before id', () => {
+    const out = toDocument(nodes, conns, binds, [
+      exportableScene('aa', { index: 'a2' }),
+      exportableScene('zz', { index: 'a1' }),
+    ])
+    expect(out.scenes.map((s) => s.id)).toEqual(['zz', 'aa'])
+  })
+})
+
+describe('fromDocument — scenes', () => {
+  it('returns scenes in ARRAY order, prefixed, with no index', () => {
+    const parsed = parseDocument(
+      json({
+        version: DOCUMENT_VERSION,
+        nodes: [node('a')],
+        connections: [],
+        scenes: [
+          { id: 'second', name: 'Second', collapsed: { a: true } },
+          { id: 'first', name: 'First', highlighted: ['a'] },
+        ],
+      }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    expect(fromDocument(parsed.document, PAGE).scenes).toEqual([
+      {
+        id: 'diagramScene:second',
+        name: 'Second',
+        note: '',
+        collapsed: { 'shape:a': true },
+        highlighted: [],
+      },
+      {
+        id: 'diagramScene:first',
+        name: 'First',
+        note: '',
+        collapsed: {},
+        highlighted: ['shape:a'],
+      },
+    ])
+  })
+
+  it('array order in is array order out, on twelve scenes', () => {
+    // Twelve, not three: the count at which a plausible index scheme first
+    // scrambles, since 'a10' < 'a2'.
+    const ids = Array.from({ length: 12 }, (_, i) => `s${i + 1}`)
+    const parsed = parseDocument(
+      json({ version: DOCUMENT_VERSION, scenes: ids.map((id) => ({ id, name: id })) }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    expect(fromDocument(parsed.document, PAGE).scenes.map((s) => s.id)).toEqual(
+      ids.map((id) => `diagramScene:${id}`),
+    )
   })
 })
