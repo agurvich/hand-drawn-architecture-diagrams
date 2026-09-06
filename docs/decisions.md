@@ -33,6 +33,7 @@ until the first real decision lands.
 - [Hobby licence accepted for now; commercial use is unresolved](#hobby-licence-accepted-for-now-commercial-use-is-unresolved)
 - [Secondary features deferred pending real use](#secondary-features-deferred-pending-real-use)
 - [Derived views are computed, never materialized](#derived-views-are-computed-never-materialized)
+- [Scope says who sees a record; history is decided per write](#scope-says-who-sees-a-record-history-is-decided-per-write)
 
 ---
 
@@ -176,3 +177,25 @@ insertion order or a timestamp.
 **Rejected: materialize on collapse, delete on expand.** Faster to render and trivially wrong under
 two clients. **Rejected: elect a representative by creation order.** Two clients can create
 concurrently, so "first" is not a value both agree on.
+
+### Scope says who sees a record; history is decided per write
+
+**Settled 2026-09-05 (SPEC-008).** Two questions that look like one: *who can see this record* is
+answered by its scope, and *is changing it undoable* is answered at each write site. tldraw's history
+interceptor has **no scope filter** — it records every `source: 'user'` change, session-scoped
+records included — so a record that never leaves the client still lands on the shared undo stack
+unless each write says otherwise.
+
+Measured rather than reasoned: merely *viewing* a scene fused onto the reader's previous edit, so one
+undo threw them off it; and once a related toggle was recorded, undo walked them backwards through
+the narration.
+
+**The consequence is a rule about record shape.** Two fields needing opposite history treatment
+cannot share a record, because a recorded diff carries the whole record. `createCustomRecordType`
+drops `ephemeralKeys`, so a field-level exemption is not available either. SPEC-008 splits
+`activeSceneId` (never undoable) from the off-scene set (undoable, atomically with the shape prop it
+accompanies) into two session records, and the boundary between them is exactly the boundary between
+`history: 'ignore'` and recorded.
+
+**Do NOT** assume session scope implies "not undoable", and **do not** put two fields in one record
+before checking they want the same answer.

@@ -1,7 +1,7 @@
 # Spec: Scenes and narration
 
 **ID:** SPEC-008  
-**Status:** In Progress  
+**Status:** Completed  
 **Last Updated:** 2026-09-05 (rev 3 — post-review)  
 **Depends On:** SPEC-004, SPEC-006, SPEC-007
 
@@ -44,6 +44,12 @@ The load-bearing decision, settled with the user on 2026-09-05: **a scene is a l
 #### Description:
 
 A scene is not a shape. It has no geometry and nothing hit-tests it; forcing it into the shape model would mean a shape whose whole job is to not be on the canvas. tldraw 5 takes **custom record types** — `createTLSchema({ records })` on the worker, `useSync({ records })` on the client — so this is the same client/worker duality shapes and bindings already have, and it follows the same rules.
+
+> **Superseded during the build (2026-09-05).** The shape below is **three** records, not two: the
+> off-scene set is its own session record. `activeSceneId` must never be undoable and the off-scene
+> set must be undoable atomically with the shape prop it accompanies, and a recorded diff carries the
+> whole record — so they cannot share one. Full reasoning:
+> `decisions.md` → *Scope says who sees a record; history is decided per write*.
 
 Two record types, at two scopes:
 

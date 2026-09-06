@@ -4,7 +4,7 @@ import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
-import { takeOffSceneAndToggle, viewScene } from './sceneView'
+import { stepScene, takeOffSceneAndToggle, viewScene } from './sceneView'
 import {
   bindingUtils,
   components,
@@ -16,6 +16,7 @@ import {
 import { shouldHide } from './visibility'
 import { unvalidatedSchemaIfRequested } from './devOnly'
 import { DiagramIOPanel } from './panels/DiagramIOPanel'
+import { NarrationPanel } from './panels/NarrationPanel'
 import 'tldraw/tldraw.css'
 
 /**
@@ -129,6 +130,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
           the canvas component tree fights the canvas's own pointer and keyboard
           handling, which this panel needs none of. */}
       <DiagramIOPanel editor={editor} />
+      <NarrationPanel editor={editor} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect
@@ -140,10 +142,10 @@ export function Room({ roomId }: { roomId: RoomId }) {
 
 function handleMount(editor: Editor) {
   window.__editor = editor
-  // Exposed for e2e until PR 2 gives narration a surface. Same reasoning as
-  // __editor above: the alternative is a test that writes records directly and
-  // therefore never exercises the history rules these functions exist for.
-  window.__scenes = { viewScene, takeOffSceneAndToggle } as Window['__scenes']
+  // Exposed for e2e. `stepScene` in particular cannot be reached through the UI
+  // at its own boundary -- the panel disables the buttons there -- so its guard
+  // is asserted directly, and making it wrap otherwise left every test green.
+  window.__scenes = { viewScene, takeOffSceneAndToggle, stepScene }
   // Returned disposer is run by tldraw when the editor unmounts.
   return stripHiddenFromSelection(editor)
 }

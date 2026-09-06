@@ -1,6 +1,19 @@
-import type { Editor, TLShape } from 'tldraw'
+import {
+  computed,
+  createCustomRecordId,
+  getIndexAbove,
+  getIndexBetween,
+  uniqueId,
+  ZERO_INDEX_KEY,
+  type Computed,
+  type Editor,
+  type IndexKey,
+  type TLShape,
+} from 'tldraw'
 import {
   withEffectiveCollapsed,
+  effectiveCollapsed,
+  SCENE_RECORD_TYPE,
   SCENE_VIEW_SINGLETON_ID,
   OFF_SCENE_SINGLETON_ID,
   OFF_SCENE_RECORD_TYPE,
@@ -157,4 +170,239 @@ export function takeOffSceneAndToggle(
       },
     ])
   })
+}
+
+/**
+ * Every scene in the room, in order.
+ *
+ * Behind a `computed` with an `isEqual`, keyed on the editor, exactly as
+ * `mergeIndex` is. `store.allRecords()` reads every value atom in the store, so
+ * an unguarded call makes the panel depend on the camera and on every shape --
+ * and the fresh array it returns fails `Object.is` every time, so React
+ * re-renders on every pointer frame of a drag.
+ */
+const orders = new WeakMap<Editor, Computed<SceneRecord[]>>()
+
+function sameOrder(a: SceneRecord[], b: SceneRecord[]): boolean {
+  return a.length === b.length && a.every((scene, i) => scene === b[i])
+}
+
+export function scenesInOrder(editor: Editor): SceneRecord[] {
+  let order = orders.get(editor)
+  if (!order) {
+    order = computed(
+      'scenes in order',
+      () =>
+        editor.store
+          .allRecords()
+          .filter((r): r is SceneRecord => r.typeName === SCENE_RECORD_TYPE)
+          .sort((a, b) => (a.index < b.index ? -1 : a.index > b.index ? 1 : a.id < b.id ? -1 : 1)),
+      { isEqual: sameOrder },
+    )
+    orders.set(editor, order)
+  }
+  return order.get()
+}
+
+/**
+ * The current effective view, as a scene's `collapsed` map.
+ *
+ * Extracted so `recaptureScene` does not have to create a scene and delete it
+ * again: that committed a document-scoped record in its own transaction, so a
+ * throw in the second one leaked a duplicate scene to everyone in the room, and
+ * between the two the temporary scene was genuinely visible and syncable.
+ *
+ * The population is every node that HAS CHILDREN right now: "container" is not a
+ * type here -- every node carries `collapsed` -- so the set has to be named. A
+ * node with no children is not recorded, and therefore falls back to its own
+ * prop if it later gains some.
+ */
+export function captureCollapsedMap(editor: Editor): Record<string, boolean> {
+  const { scene, offScene } = sceneState(editor)
+  const collapsed: Record<string, boolean> = {}
+  for (const shape of editor.getCurrentPageShapes()) {
+    if (shape.type !== NODE_SHAPE_TYPE) continue
+    if (editor.getSortedChildIdsForParent(shape.id).length === 0) continue
+    const own = (shape.props as { collapsed: boolean }).collapsed
+    collapsed[shape.id] = effectiveCollapsed(shape.id, own, scene, offScene)
+  }
+  return collapsed
+}
+
+/**
+ * Capture the CURRENT EFFECTIVE VIEW as a new scene, and activate it.
+ *
+ * "Effective" means what is on screen, off-scene overrides included -- not what
+ * the props say. The population is every node that HAS CHILDREN right now:
+ * "container" is not a type here, every node carries `collapsed`, so the set has
+ * to be named. A node with no children is not recorded, and therefore falls back
+ * to its own prop if it later gains some.
+ *
+ * History ignored, like every scene edit. Document-scoped records share the
+ * diagram's undo stack, so without this, drawing a node after capturing and
+ * pressing undo twice deletes the scene -- for everyone in the room.
+ */
+export function captureScene(editor: Editor, name: string): SceneRecord['id'] {
+  const collapsed = captureCollapsedMap(editor)
+  const last = scenesInOrder(editor).at(-1)
+  const id = createCustomRecordId(SCENE_RECORD_TYPE, uniqueId()) as SceneRecord['id']
+  editor.run(
+    () => {
+      editor.store.put([
+        {
+          typeName: SCENE_RECORD_TYPE,
+          id,
+          name,
+          note: '',
+          collapsed,
+          // The selection is the highlight: no new control, and it is a gesture
+          // the reader already performs before talking about something.
+          highlighted: editor.getSelectedShapeIds().map((s) => s as string),
+          index: last ? getIndexAbove(last.index as IndexKey) : (ZERO_INDEX_KEY as string),
+        },
+      ])
+    },
+    { history: 'ignore' },
+  )
+  // Activating also clears offScene, which is viewScene's job.
+  viewScene(editor, id)
+  return id
+}
+
+/**
+ * Overwrite a scene's captured view, keeping its id, name, note and position.
+ *
+ * One write. An earlier version captured a temporary scene and deleted it, which
+ * committed a synced record in its own transaction -- a leak on any throw, and
+ * visible to every client in between.
+ */
+export function recaptureScene(editor: Editor, sceneId: SceneRecord['id']): void {
+  const existing = editor.store.get(sceneId)
+  if (!existing) return
+  const collapsed = captureCollapsedMap(editor)
+  const highlighted = editor.getSelectedShapeIds().map((s) => s as string)
+  editor.run(() => editor.store.put([{ ...existing, collapsed, highlighted }]), {
+    history: 'ignore',
+  })
+  viewScene(editor, sceneId)
+}
+
+/** Rename a scene, or rewrite its note. */
+export function updateScene(
+  editor: Editor,
+  sceneId: SceneRecord['id'],
+  patch: Partial<Pick<SceneRecord, 'name' | 'note'>>,
+): void {
+  const existing = editor.store.get(sceneId)
+  if (!existing) return
+  editor.run(() => editor.store.put([{ ...existing, ...patch }]), { history: 'ignore' })
+}
+
+/** Delete a scene. The confirmation is the panel's; this is the write. */
+export function deleteScene(editor: Editor, sceneId: SceneRecord['id']): void {
+  const active = editor.store.get(SCENE_VIEW_SINGLETON_ID)?.activeSceneId ?? null
+  editor.run(() => editor.store.remove([sceneId]), { history: 'ignore' })
+  if (active === sceneId) viewScene(editor, null)
+}
+
+/**
+ * Move a scene one place earlier or later.
+ *
+ * ONE record, with a fractional index between its new neighbours. Re-indexing the
+ * whole list writes N records from a fixed sequence, so two clients reordering at
+ * once merge halves of two different orders per-record and land on neither
+ * person's intent -- and a concurrent capture can mint a duplicate index, after
+ * which the order is decided by an id tiebreak nobody asked for. Fractional
+ * indexing is the total order over data both clients already have, which is what
+ * `decisions.md` requires of a tie.
+ */
+export function moveScene(editor: Editor, sceneId: SceneRecord['id'], delta: -1 | 1): void {
+  const order = scenesInOrder(editor)
+  const from = order.findIndex((s) => s.id === sceneId)
+  const to = from + delta
+  if (from < 0 || to < 0 || to >= order.length) return
+
+  const without = order.filter((s) => s.id !== sceneId)
+  const before = without[to - 1]
+  const after = without[to]
+  const index = getIndexBetween(
+    before?.index as IndexKey | undefined,
+    after?.index as IndexKey | undefined,
+  )
+  editor.run(() => editor.store.put([{ ...order[from]!, index: index as string }]), {
+    history: 'ignore',
+  })
+}
+
+/** Step through the order. Stops at the ends rather than wrapping. */
+export function stepScene(editor: Editor, delta: -1 | 1): void {
+  const order = scenesInOrder(editor)
+  if (order.length === 0) return
+  const active = editor.store.get(SCENE_VIEW_SINGLETON_ID)?.activeSceneId ?? null
+  const current = order.findIndex((s) => s.id === active)
+  // From nowhere, forward starts at the first scene and back at the last.
+  const next = current < 0 ? (delta === 1 ? 0 : order.length - 1) : current + delta
+  if (next < 0 || next >= order.length) return
+  viewScene(editor, order[next]!.id)
+}
+
+/**
+ * What the active scene singles out, and whether anything is singled out at all.
+ *
+ * `ids` is empty when no scene is active, when the scene highlights nothing, or
+ * when nothing it names is VISIBLE -- and in every one of those cases `dimming`
+ * is false, so a diagram is never dimmed with nothing lit. A page where
+ * everything is faded and nothing is accented reads as broken rather than
+ * focused.
+ *
+ * VISIBLE, not merely resolvable, and the difference is two clicks: a scene can
+ * fold the container its own highlighted node lives in, and a reader can collapse
+ * that container themselves through the off-scene gesture FR-004 exists to allow.
+ * The shape still resolves in both cases -- it is hidden, not deleted -- so an
+ * existence check leaves the page uniformly grey with nothing lit, which is the
+ * exact state this function is here to prevent. `isShapeHidden` is the same
+ * predicate `visibility.ts` culls with, and it already accounts for the scene's
+ * own lens and for merging.
+ *
+ * Behind a `computed` for the reason `scenesInOrder` is: this runs inside the
+ * tracked render scope of EVERY node and connection, and `editor.getShape`
+ * subscribes to the record's atom. Unguarded, each of N shapes takes a
+ * dependency on every highlighted shape's full record, so dragging one node
+ * re-renders all N on every pointer frame -- measured at 40 renders of an
+ * unrelated node across a 20-step drag. The `isEqual` also stops the fresh
+ * `new Set` from failing `Object.is` on every read.
+ */
+export interface HighlightState {
+  ids: ReadonlySet<string>
+  dimming: boolean
+}
+
+const highlights = new WeakMap<Editor, Computed<HighlightState>>()
+
+function sameHighlight(a: HighlightState, b: HighlightState): boolean {
+  if (a.dimming !== b.dimming || a.ids.size !== b.ids.size) return false
+  for (const id of a.ids) if (!b.ids.has(id)) return false
+  return true
+}
+
+export function highlightState(editor: Editor): HighlightState {
+  let state = highlights.get(editor)
+  if (!state) {
+    state = computed(
+      'highlight state',
+      () => {
+        const { scene } = sceneState(editor)
+        if (!scene || scene.highlighted.length === 0) return { ids: EMPTY, dimming: false }
+        const live = scene.highlighted.filter((id) => {
+          const shapeId = id as TLShape['id']
+          return editor.getShape(shapeId) !== undefined && !editor.isShapeHidden(shapeId)
+        })
+        if (live.length === 0) return { ids: EMPTY, dimming: false }
+        return { ids: new Set(live), dimming: true }
+      },
+      { isEqual: sameHighlight },
+    )
+    highlights.set(editor, state)
+  }
+  return state.get()
 }

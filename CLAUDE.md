@@ -110,6 +110,9 @@ is refused — each one was a way past the checks.
 - **Derived views are computed, never materialized** — a view that is a pure function of records is
   recomputed per client, not written back; two clients materializing one both write, and neither
   cleans up. Ties break on a total order over data both already have, never on creation order.
+- **Scope says who sees a record; history is decided per write** — tldraw records session-scoped
+  changes on the shared undo stack too, so two fields wanting opposite undo behaviour cannot share
+  one record.
 
 ### Licensing
 
