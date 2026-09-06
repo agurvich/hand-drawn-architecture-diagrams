@@ -95,16 +95,48 @@ test.describe('SPEC-013 FR-001 — a node adopts what you draw inside it', () =>
     expect(await parentOf(page, id)).not.toBe(node)
   })
 
-  test('a CONNECTION is never adopted, however it is drawn', async ({ page }) => {
+  test('a CONNECTION is never adopted, even created INSIDE a node', async ({ page }) => {
+    /*
+     * CREATED AT A POINT INSIDE THE NODE, which is the whole test. `addConnection`
+     * creates its shape at (0,0) -- outside every node in any fixture -- so the
+     * parent scan never reaches the guard, and a version of this test using it
+     * stayed green with `type === CONNECTION_SHAPE_TYPE` deleted. Measured
+     * across the full 238-test suite.
+     */
     await openRoom(page, roomId('nc6'))
     const outer = await addNode(page, 'Outer', { x: 150, y: 150, w: 700, h: 450 })
     const a = await addNode(page, 'A', { x: 40, y: 40, w: 140, h: 90, parentId: outer })
     const b = await addNode(page, 'B', { x: 400, y: 250, w: 140, h: 90, parentId: outer })
-    const k = await addConnection(page, a, b)
-    // Parented to the PAGE by design: SPEC-006's merge derivation depends on it.
-    expect(await parentOf(page, k)).toBe(
-      await page.evaluate(() => window.__editor!.getCurrentPageId() as string),
+    const pageId = await page.evaluate(() => window.__editor!.getCurrentPageId() as string)
+
+    const k = await page.evaluate(
+      ({ a, b }) => {
+        const ed = window.__editor!
+        const id = `shape:${Math.random().toString(36).slice(2, 12)}`
+        ed.run(() => {
+          // Deep inside `outer`, so tldraw's parent scan genuinely offers the
+          // node as a candidate and the guard has to refuse it.
+          ed.createShape({ id: id as never, type: 'diagramConnection', x: 400, y: 350 })
+          for (const [terminal, toId] of [
+            ['start', a],
+            ['end', b],
+          ] as const) {
+            ed.createBinding({
+              id: `binding:${Math.random().toString(36).slice(2, 12)}` as never,
+              type: 'connectionEndpoint',
+              fromId: id as never,
+              toId: toId as never,
+              props: { terminal },
+            })
+          }
+        })
+        return id
+      },
+      { a, b },
     )
+
+    // Parented to the PAGE by design: SPEC-006's merge derivation depends on it.
+    expect(await parentOf(page, k)).toBe(pageId)
   })
 })
 
@@ -264,7 +296,90 @@ test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
     await page.waitForTimeout(250)
 
     expect(await parentOf(page, content)).toBe(pageId)
-    void node
+  })
+
+  test('content dragged INTO another node is adopted by it', async ({ page }) => {
+    await openRoom(page, roomId('nc13b'))
+    const from = await addNode(page, 'From', { x: 150, y: 150, w: 300, h: 220 })
+    const to = await addNode(page, 'To', { x: 620, y: 400, w: 300, h: 220 })
+    const content = await addTldrawShape(page, 'geo', { x: 220, y: 220 }, 100)
+    expect(await parentOf(page, content)).toBe(from)
+
+    const at = await page.evaluate((id) => {
+      const ed = window.__editor!
+      ed.setCurrentTool('select')
+      ed.setSelectedShapes([id as never])
+      const b = ed.getShapePageBounds(id as never)!
+      const p = ed.pageToScreen({ x: b.midX, y: b.midY })
+      return { x: p.x, y: p.y }
+    }, content)
+    const into = await page.evaluate((id) => {
+      const b = window.__editor!.getShapePageBounds(id as never)!
+      const p = window.__editor!.pageToScreen({ x: b.midX, y: b.midY })
+      return { x: p.x, y: p.y }
+    }, to)
+    await page.waitForTimeout(150)
+
+    await page.mouse.move(at.x, at.y)
+    await page.mouse.down()
+    await page.mouse.move(into.x, into.y, { steps: 20 })
+    await page.mouse.up()
+    await page.waitForTimeout(300)
+
+    expect(await parentOf(page, content)).toBe(to)
+  })
+
+  test('a box with content can still be SELECTED and RENAMED', async ({ page }) => {
+    // A review reported this as broken -- clicking a box that holds content
+    // selecting nothing, double-click not opening the label. It does not
+    // reproduce: both work, on the box's centre, with and without content. The
+    // test is here so it stays that way, because losing it would make a box you
+    // wrote one word in unusable.
+    await openRoom(page, roomId('nc13c'))
+    const box = await addNode(page, 'HasContent', { x: 550, y: 150, w: 300, h: 200 })
+    await addTldrawShape(page, 'geo', { x: 600, y: 200 }, 60)
+
+    const centre = await page.evaluate((id) => {
+      const ed = window.__editor!
+      ed.setCurrentTool('select')
+      ed.selectNone()
+      const b = ed.getShapePageBounds(id as never)!
+      const p = ed.pageToScreen({ x: b.midX, y: b.midY })
+      return { x: p.x, y: p.y }
+    }, box)
+
+    await page.mouse.click(centre.x, centre.y)
+    await page.waitForTimeout(200)
+    expect(
+      await page.evaluate(() => window.__editor!.getSelectedShapeIds() as unknown as string[]),
+    ).toEqual([box])
+
+    await page.mouse.dblclick(centre.x, centre.y)
+    await page.waitForTimeout(300)
+    expect(await page.evaluate(() => window.__editor!.getEditingShapeId() as string)).toBe(box)
+  })
+
+  test('the hidden count is about STRUCTURE, not about your handwriting', async ({ page }) => {
+    // "3 hidden" beside a folded box is a claim about nesting. Counting content
+    // made a box you scribbled one note in sprout a collapse control and
+    // announce "1 hidden", which is a sentence that is not true. A box holding
+    // only content has no control at all -- there is no structure to fold.
+    await openRoom(page, roomId('nc13d'))
+    const onlyContent = await addNode(page, 'Notes', { x: 150, y: 150, w: 300, h: 220 })
+    const c1 = await addTldrawShape(page, 'geo', { x: 200, y: 200 }, 60)
+    const c2 = await addTldrawShape(page, 'geo', { x: 300, y: 200 }, 60)
+    expect(await parentOf(page, c1)).toBe(onlyContent)
+    expect(await parentOf(page, c2)).toBe(onlyContent)
+
+    // No collapse control at all: there is nothing structural to fold.
+    await expect(page.getByTestId('diagram-node-toggle')).toHaveCount(0)
+
+    // A box with a real child node still counts it, and still ignores content.
+    const structural = await addNode(page, 'Platform', { x: 600, y: 150, w: 320, h: 240 })
+    await addNode(page, 'Inner', { x: 20, y: 20, w: 120, h: 80, parentId: structural })
+    await addTldrawShape(page, 'geo', { x: 780, y: 300 }, 60)
+    await setCollapsed(page, structural, true)
+    await expect(page.getByTestId('diagram-node-count')).toHaveText('1 hidden')
   })
 })
 
@@ -346,7 +461,6 @@ test.describe('SPEC-013 FR-004 — the system says what happens to content', () 
     await openRoom(page, roomId('nc17'))
     const node = await addNode(page, 'Box', { x: 250, y: 200, w: 400, h: 300 })
     await addTldrawShape(page, 'geo', { x: 350, y: 300 })
-    void node
 
     await page.getByTestId('diagram-io-open').click()
     await expect(page.getByTestId('diagram-io-undocumentable')).toContainText(/1 shape/)

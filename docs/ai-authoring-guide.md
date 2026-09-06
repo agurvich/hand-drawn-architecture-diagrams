@@ -315,6 +315,12 @@ Anything you drew by hand in the app — pencil strokes, text, notes, tldraw's o
 part of the document and is not exported. Importing replaces the whole page, so the app warns you and
 asks before discarding that work.
 
+**Being *inside* a node does not change that.** Writing inside a box makes it content of that box —
+it moves, folds and is deleted with the box — but it is still hand-drawn work, and the format has no
+way to describe a pen stroke. A node exports as its id, label, position, size and parent; whatever is
+drawn inside it does not travel with it. The app's warning counts that content, so the number it
+shows includes what is inside your boxes as well as what is loose on the page.
+
 ## What this tool does not have
 
 Do not write these; they are rejected as unknown keys, and inventing them will get your document

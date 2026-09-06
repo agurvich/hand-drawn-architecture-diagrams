@@ -462,17 +462,6 @@ export async function setSketchMode(page: Page, on: boolean) {
   await expect(button).toHaveAttribute('aria-pressed', String(on))
 }
 
-/**
- * Draw a stroke starting inside a shape, with real pen input.
- *
- * Where the pen goes DOWN is what decides the parent -- tldraw picks it at
- * creation from the shape's origin -- so a helper that started anywhere else
- * would be testing a different rule.
- */
-export async function penStrokeFrom(page: Page, path: Array<[number, number]>) {
-  await penStroke(page, path)
-}
-
 /** A shape's parent id, or null when the shape is not there (yet). */
 export async function parentOf(page: Page, id: string): Promise<string | null> {
   return page.evaluate(

@@ -104,11 +104,13 @@ promise can silently fail, so each is asserted.
       cannot fail against this diff; the parenting is the part that could
 - [ ] **Resizing a node leaves its content exactly where it is**, at the size it was — asserted on
       the content's page bounds **and its `parentId`**, through the real resize handle.
-      Both halves, because they fail differently and the position half alone certifies the bug:
-      tldraw's resize completes with `kickoutOccludedShapes`, which reparents a child no longer
-      overlapping its parent to the page — and reparenting **preserves page position**. So content
-      orphaned by a shrink passes a bounds-only assertion. Include the case where the node is made
-      *smaller than its content*, which is where both failures live
+      Both halves, because they fail differently and the position half alone proves nothing:
+      reparenting **preserves page position**, so a bounds-only assertion passes either way.
+- [ ] **Shrinking a node CLEAR OF its content returns that content to the page** — the stated price
+      of content being hand-draggable (settled 2026-09-06). tldraw's kickout cannot tell an explicit
+      drag from an automatic one, so allowing the first allows the second. Rev 2 of this spec
+      asserted the opposite here; it was corrected after the build measured it, rather than left to
+      contradict what ships
 - [ ] **A nested NODE also stays put on resize**, asserted the same way. This is the SPEC-004
       behaviour change above, and it is a criterion rather than a note because a future reader will
       otherwise read it as a regression

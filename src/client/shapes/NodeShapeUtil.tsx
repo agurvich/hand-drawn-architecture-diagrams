@@ -162,8 +162,23 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
 
   override component(shape: NodeShape) {
     const isEditing = this.editor.getEditingShapeId() === shape.id
+    /*
+     * NODES ONLY. SPEC-013 lets a box hold hand-drawn content, and this count is
+     * a claim about STRUCTURE -- "3 hidden" beside a folded box means three
+     * things nested inside it, not three pen strokes. Counting content made a
+     * box you had scribbled one note in sprout a collapse control and announce
+     * "1 hidden", which is a sentence about nesting that is not true.
+     *
+     * Consequence, chosen rather than inherited: a box containing ONLY writing
+     * has no collapse control at all -- there is no structure to fold. Folding
+     * one that does have structure still hides its writing along with
+     * everything else, because hiding walks ancestry and does not care what it
+     * finds.
+     */
     const childCount = descendantCount(shape.id, (id) =>
-      this.editor.getSortedChildIdsForParent(id as NodeShape['id']),
+      this.editor
+        .getSortedChildIdsForParent(id as NodeShape['id'])
+        .filter((childId) => this.editor.getShape(childId)?.type === NODE_SHAPE_TYPE),
     )
     const hasChildren = childCount > 0
     // The EFFECTIVE state, not the raw prop. A scene is a lens over collapse, so
