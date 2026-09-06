@@ -10,6 +10,7 @@ import {
   connectionBindingProps,
   connectionBindingMigrations,
 } from '../bindings/connection'
+import { ACTOR_BINDING_TYPE, actorBindingProps, actorBindingMigrations } from '../bindings/actor'
 
 export * from './node'
 export * from './hierarchy'
@@ -17,6 +18,7 @@ export * from './connection'
 export * from './merge'
 export * from '../document'
 export * from '../bindings/connection'
+export * from '../bindings/actor'
 
 /**
  * The registry both runtimes consume. The client maps these to ShapeUtils; the
@@ -39,6 +41,10 @@ export const customBindingSchemas = {
   [CONNECTION_BINDING_TYPE]: {
     props: connectionBindingProps,
     migrations: connectionBindingMigrations,
+  },
+  [ACTOR_BINDING_TYPE]: {
+    props: actorBindingProps,
+    migrations: actorBindingMigrations,
   },
 } as const
 

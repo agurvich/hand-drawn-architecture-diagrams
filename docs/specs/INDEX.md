@@ -15,7 +15,7 @@ to status only — no prose.
 | SPEC-008 | Scenes and narration | Completed | SPEC-004, SPEC-006, SPEC-007 |
 | SPEC-009 | Scenes in the JSON document | Completed | SPEC-007, SPEC-008 |
 | SPEC-010 | Sketch to clean shape | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
-| SPEC-011 | Actors on connections | Draft | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
+| SPEC-011 | Actors on connections | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-012 | Actors in the JSON document | Planned | SPEC-009, SPEC-011 |
 | SPEC-013 | Hand-drawn content inside a node | Draft | SPEC-004, SPEC-006, SPEC-008, SPEC-010 |
 

@@ -23,6 +23,7 @@ const TYPE_LITERALS = [
   "'diagramNode'",
   "'diagramConnection'",
   "'connectionEndpoint'",
+  "'connectionActor'",
   "'diagramScene'",
   // The PREFIXED form too. The check looks for the closing quote, so
   // `'diagramScene:'` slips past `"'diagramScene'"` on the colon -- a second
@@ -45,6 +46,7 @@ const TYPE_DEFINITION_MODULES = [
   resolve(SHARED_DIR, 'shapes/node.ts'),
   resolve(SHARED_DIR, 'shapes/connection.ts'),
   resolve(SHARED_DIR, 'bindings/connection.ts'),
+  resolve(SHARED_DIR, 'bindings/actor.ts'),
   resolve(SHARED_DIR, 'scenes/scene.ts'),
   resolve(SHARED_DIR, 'scenes/sceneType.ts'),
   resolve(SHARED_DIR, 'sketch/mode.ts'),

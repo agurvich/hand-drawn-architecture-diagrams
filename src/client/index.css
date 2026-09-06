@@ -185,6 +185,45 @@ body {
  * crosses. The fallback covers the token being renamed rather than the variable
  * being wrong.
  */
+/*
+ * The actor label: who performs this connection.
+ *
+ * Same halo technique and the same reason as the count below it -- and the same
+ * trap: `--color-background` is defined NOWHERE, so a plain one leaves
+ * paint-order and stroke-width silently inert and the text painted bare over
+ * whatever line it crosses. The token name is tldraw's own, and the fallback
+ * covers it being renamed rather than the variable being wrong.
+ *
+ * Lighter and smaller than the count on purpose. The count is a warning that a
+ * line stands for several; the actor is an attribute of the one relationship.
+ */
+/*
+ * The node performing whatever connection is selected.
+ *
+ * A DASHED ring, deliberately not the solid one a scene highlight uses and not
+ * tldraw's own selection ring: three different meanings on the same canvas need
+ * three different marks, and "this is the actor" is the transient one -- it
+ * lasts exactly as long as the selection.
+ */
+.diagram-node--performs {
+  outline: 3px dashed #8a5a00;
+  outline-offset: 2px;
+}
+
+.diagram-connection__actor {
+  font:
+    500 12px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  fill: currentColor;
+  stroke: var(--tl-color-background, #fff);
+  stroke-width: 4px;
+  paint-order: stroke;
+  /* The label sits OVER the canvas. A tap near it must still reach the line, or
+     whatever is behind it. */
+  pointer-events: none;
+}
+
 .diagram-connection__count {
   font:
     600 14px/1 system-ui,
@@ -720,4 +759,63 @@ body {
   background: #fff;
   border: 1px solid #767676;
   border-radius: 8px;
+}
+
+/*
+ * The "performed by" control.
+ *
+ * BELOW the top strip, not beside the JSON launcher. The first version sat
+ * top-centre with an offset and a comment claiming the two "never coexist" --
+ * which was simply false: only the EXPANDED json panel is conditional, and the
+ * launcher button is always mounted. Measured at 1024x768 the control's box
+ * contained the launcher entirely, and being mounted later it painted over it,
+ * so export/import was unreachable whenever a connection was selected. The
+ * third time this corner has been fought over in this file, which is why the
+ * e2e now asserts on OVERLAP rather than on coordinates.
+ *
+ * Centred with `inset-inline` rather than a translate: a translate moves the box
+ * AFTER max-width has been resolved, so at 375px the old one pushed 41px of
+ * itself off-screen where nothing could scroll to it -- WCAG 1.4.10.
+ */
+.actor-control {
+  position: absolute;
+  top: 60px;
+  right: 8px;
+  left: 8px;
+  z-index: 1000;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: calc(100vw - 16px);
+  margin: 0 auto;
+  padding: 6px 10px;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+.actor-control__label {
+  font:
+    600 13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  white-space: nowrap;
+}
+.actor-control__select {
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  font:
+    13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #f7f7f7;
+  border: 1px solid #767676;
+  border-radius: 6px;
+  touch-action: manipulation;
 }

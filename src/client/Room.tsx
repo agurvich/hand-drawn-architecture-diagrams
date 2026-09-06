@@ -6,6 +6,8 @@ import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
 import { registerSketchRecognition } from './sketch/recogniseOnDraw'
 import { SketchToggle } from './panels/SketchToggle'
+import { ActorControl } from './panels/ActorControl'
+import { attributeTo } from './actors'
 import { stepScene, takeOffSceneAndToggle, viewScene } from './sceneView'
 import {
   bindingUtils,
@@ -134,6 +136,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
       <DiagramIOPanel editor={editor} />
       <NarrationPanel editor={editor} />
       <SketchToggle editor={editor} />
+      <ActorControl editor={editor} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect
@@ -149,6 +152,10 @@ function handleMount(editor: Editor) {
   // at its own boundary -- the panel disables the buttons there -- so its guard
   // is asserted directly, and making it wrap otherwise left every test green.
   window.__scenes = { viewScene, takeOffSceneAndToggle, stepScene }
+  // `attributeTo` refuses a non-node target, and the control cannot offer one --
+  // its list is built from nodes. Exposed so the refusal is asserted directly
+  // rather than being untestable through the only surface that reaches it.
+  window.__actors = { attributeTo }
   // Both disposers are run by tldraw when the editor unmounts.
   const disposeSelection = stripHiddenFromSelection(editor)
   const disposeSketch = registerSketchRecognition(editor)

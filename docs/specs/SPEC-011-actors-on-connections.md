@@ -1,8 +1,8 @@
 # Spec: Actors on connections
 
 **ID:** SPEC-011  
-**Status:** Draft  
-**Last Updated:** 2026-09-05 (rev 2 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-06 (rev 3 — built)  
 **Depends On:** SPEC-004, SPEC-005, SPEC-006, SPEC-008
 
 ## Overview
@@ -121,7 +121,11 @@ offers "performed by", and picking a node attributes it.
       than refused. "A writes to B, performed by A" is ordinary; refusing it would be the tool
       arguing with a true statement
 - [ ] A connection cannot be attributed to another connection, or to a tldraw shape — only to a
-      `diagramNode`, the same restriction the endpoint bindings carry
+      `diagramNode`, the same restriction the endpoint bindings carry. **Built (2026-09-06): this is
+      two mechanisms, not one.** `canBind` is a hook on the SHAPE util, and the connection's already
+      answers the first half (`toShape.type !== CONNECTION_SHAPE_TYPE`, SPEC-005's fence). A binding
+      util is asked nothing at creation time, so "and not a tldraw shape" cannot be a hook at all —
+      it is enforced in `attributeTo`, which is the one place an attribution is made
 - [ ] Attributing is one undoable step, and undo restores the previous attribution rather than
       clearing it
 

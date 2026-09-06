@@ -8,6 +8,7 @@ import {
 } from 'tldraw'
 import { effectiveCollapsed } from '@shared/scenes'
 import { highlightState, sceneState, takeOffSceneAndToggle } from '../sceneView'
+import { actorsOfSelection } from '../actors'
 import {
   NODE_SHAPE_TYPE,
   nodeShapeDefaultProps,
@@ -124,6 +125,10 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
     // Ring the named shapes AND dim the rest: on a busy diagram an outline alone
     // is easy to miss, which is the opposite of the point.
     const { ids, dimming } = highlightState(this.editor)
+    // "Who does this" answered from the CANVAS as well as from the line: with a
+    // connection selected, the node performing it is marked, so the question is
+    // answerable without opening a panel.
+    const performs = actorsOfSelection(this.editor).has(shape.id)
     const accent = !dimming
       ? ''
       : ids.has(shape.id)
@@ -148,7 +153,7 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
         style={{ width: shape.props.w, height: shape.props.h, pointerEvents: 'all' }}
       >
         <div
-          className={`diagram-node${collapsed ? ' diagram-node--collapsed' : ''}${accent}`}
+          className={`diagram-node${collapsed ? ' diagram-node--collapsed' : ''}${accent}${performs ? ' diagram-node--performs' : ''}`}
           data-testid="diagram-node"
           style={{ borderColor: shape.props.color }}
         >

@@ -122,8 +122,8 @@ describe('the lens drives BOTH readers of collapse', () => {
     { id: 'shape:y', parent: PAGE },
   ]
   const connections: ConnectionEndpoints[] = [
-    { connectionId: 'shape:k1', startNodeId: 'shape:c1', endNodeId: 'shape:y' },
-    { connectionId: 'shape:k2', startNodeId: 'shape:c2', endNodeId: 'shape:y' },
+    { connectionId: 'shape:k1', startNodeId: 'shape:c1', endNodeId: 'shape:y', actorId: null },
+    { connectionId: 'shape:k2', startNodeId: 'shape:c2', endNodeId: 'shape:y', actorId: null },
   ]
 
   it('hides descendants through the visibility walk', () => {
@@ -160,7 +160,7 @@ describe('the lens drives BOTH readers of collapse', () => {
       NONE,
     )
     const index = computeMergeIndex(
-      [{ connectionId: 'shape:k', startNodeId: 'shape:x', endNodeId: 'shape:y' }],
+      [{ connectionId: 'shape:k', startNodeId: 'shape:x', endNodeId: 'shape:y', actorId: null }],
       lens,
     )
     expect(index.get('shape:k')).toMatchObject({ startNodeId: 'shape:outer' })

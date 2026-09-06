@@ -25,8 +25,13 @@ function world(spec: Array<{ id: string; parent: string; collapsed?: boolean; ty
 
 const PAGE = 'page:main'
 
-function conn(id: string, start: string | null, end: string | null): ConnectionEndpoints {
-  return { connectionId: id, startNodeId: start, endNodeId: end }
+function conn(
+  id: string,
+  start: string | null,
+  end: string | null,
+  actorId: string | null = null,
+): ConnectionEndpoints {
+  return { connectionId: id, startNodeId: start, endNodeId: end, actorId }
 }
 
 /** The visible line set, as a consumer sees it: id -> "start->end xN". */
@@ -116,6 +121,7 @@ describe('computeMergeIndex — rule 1, an unbound terminal', () => {
       startNodeId: 'shape:a',
       endNodeId: null,
       count: 1,
+      actorId: null,
     })
   })
 
@@ -154,6 +160,7 @@ describe('computeMergeIndex — rule 2, a binding pointing at a shape that is go
       startNodeId: 'shape:a',
       endNodeId: 'shape:gone',
       count: 1,
+      actorId: null,
     })
   })
 })
@@ -416,5 +423,116 @@ describe('computeMergeIndex — rule 5, the gate', () => {
     expect(resolved.get('shape:c1')!.hidden).toBe(false)
     expect(unresolved.get('shape:c2')!.count).toBe(1)
     expect(unresolved.get('shape:c2')!.hidden).toBe(false)
+  })
+})
+
+describe('computeMergeIndex — actors', () => {
+  /**
+   * A merged line cannot claim an actor its members do not agree on. The
+   * predecessor was stricter -- it dropped the actor whenever more than one edge
+   * contributed, agreement or not -- and this is deliberately more permissive:
+   * a merged line whose members all name the same actor can honestly say so.
+   */
+  const folded = () =>
+    world([
+      { id: 'shape:p', parent: PAGE, collapsed: true },
+      { id: 'shape:c1', parent: 'shape:p' },
+      { id: 'shape:c2', parent: 'shape:p' },
+      { id: 'shape:y', parent: PAGE },
+      { id: 'shape:role', parent: PAGE },
+      { id: 'shape:other', parent: PAGE },
+    ])
+
+  it('carries an unmerged line its own actor', () => {
+    const get = world([
+      { id: 'shape:a', parent: PAGE },
+      { id: 'shape:b', parent: PAGE },
+      { id: 'shape:role', parent: PAGE },
+    ])
+    const index = computeMergeIndex([conn('shape:c1', 'shape:a', 'shape:b', 'shape:role')], get)
+    expect(index.get('shape:c1')?.actorId).toBe('shape:role')
+  })
+
+  it('a merged line whose members AGREE shows that actor', () => {
+    const index = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
+        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:role'),
+      ],
+      folded(),
+    )
+    const shown = [...index.entries()].filter(([, e]) => !e.hidden)
+    expect(shown).toHaveLength(1)
+    expect(shown[0]![1].count).toBe(2)
+    expect(shown[0]![1].actorId).toBe('shape:role')
+  })
+
+  it('a merged line whose members DISAGREE shows no actor', () => {
+    // Picking the representative's actor is the natural implementation, and it
+    // silently misattributes every other member of the group.
+    const index = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
+        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:other'),
+      ],
+      folded(),
+    )
+    const shown = [...index.entries()].filter(([, e]) => !e.hidden)
+    expect(shown).toHaveLength(1)
+    expect(shown[0]![1].actorId).toBeNull()
+  })
+
+  it('SOME ATTRIBUTED, SOME NOT is a disagreement, not a majority', () => {
+    const index = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
+        conn('shape:k2', 'shape:c2', 'shape:y', null),
+      ],
+      folded(),
+    )
+    const shown = [...index.entries()].filter(([, e]) => !e.hidden)
+    expect(shown[0]![1].actorId).toBeNull()
+  })
+
+  it('the same, whichever member is the representative', () => {
+    // The representative is the smallest id. Reversing which member carries the
+    // actor must not change the answer -- if it does, the rule is "the
+    // representative's actor" wearing a disguise.
+    const forward = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
+        conn('shape:k2', 'shape:c2', 'shape:y', null),
+      ],
+      folded(),
+    )
+    const backward = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', null),
+        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:role'),
+      ],
+      folded(),
+    )
+    const actorOf = (i: MergeIndex) =>
+      [...i.values()].filter((e) => !e.hidden).map((e) => e.actorId)
+    expect(actorOf(forward)).toEqual([null])
+    expect(actorOf(backward)).toEqual([null])
+  })
+
+  it('expanding restores each line its own actor', () => {
+    const expanded = world([
+      { id: 'shape:p', parent: PAGE },
+      { id: 'shape:c1', parent: 'shape:p' },
+      { id: 'shape:c2', parent: 'shape:p' },
+      { id: 'shape:y', parent: PAGE },
+    ])
+    const index = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
+        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:other'),
+      ],
+      expanded,
+    )
+    expect(index.get('shape:k1')?.actorId).toBe('shape:role')
+    expect(index.get('shape:k2')?.actorId).toBe('shape:other')
   })
 })

@@ -8,6 +8,7 @@ import {
 import { NodeShapeUtil } from './NodeShapeUtil'
 import { ConnectionShapeUtil } from './ConnectionShapeUtil'
 import { ConnectionBindingUtil } from '../bindings/ConnectionBindingUtil'
+import { ActorBindingUtil } from '../bindings/ActorBindingUtil'
 import { NodeTool } from '../tools/NodeTool'
 import { ConnectionTool } from '../tools/ConnectionTool'
 import { Toolbar } from './Toolbar'
@@ -23,7 +24,7 @@ export const shapeUtils = [...defaultShapeUtils, NodeShapeUtil, ConnectionShapeU
 export const tools = [...defaultTools, NodeTool, ConnectionTool]
 
 /** Registered on BOTH useSync and <Tldraw>, exactly as shapeUtils are. */
-export const bindingUtils = [...defaultBindingUtils, ConnectionBindingUtil]
+export const bindingUtils = [...defaultBindingUtils, ConnectionBindingUtil, ActorBindingUtil]
 
 /**
  * Everything the synced store's schema is built from, as ONE object.

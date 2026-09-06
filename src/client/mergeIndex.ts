@@ -1,5 +1,6 @@
 import { computed, type Computed, type Editor } from 'tldraw'
 import { sceneAwareGetShape } from './sceneView'
+import { actorIdOf } from './actors'
 import {
   computeMergeIndex,
   CONNECTION_SHAPE_TYPE,
@@ -52,6 +53,9 @@ function deriveMergeIndex(editor: Editor): MergeIndex {
       connectionId: shape.id,
       startNodeId: bindings.find((b) => b.props.terminal === 'start')?.toId ?? null,
       endNodeId: bindings.find((b) => b.props.terminal === 'end')?.toId ?? null,
+      // Resolved HERE because `merge.ts` has no store access and this spec does
+      // not give it any. This is the one place `ConnectionEndpoints` is built.
+      actorId: actorIdOf(editor, shape.id),
     })
   }
   // The same scene-aware accessor visibility.ts uses. Collapse is read in two
@@ -82,6 +86,12 @@ function sameEntry(a: MergeEntry, b: MergeEntry): boolean {
     a.hidden === b.hidden &&
     a.count === b.count &&
     a.startNodeId === b.startNodeId &&
-    a.endNodeId === b.endNodeId
+    a.endNodeId === b.endNodeId &&
+    // `actorId` MUST be here. This function is the `isEqual` of a computed, so
+    // a field the derivation produces and this comparator ignores is a field
+    // whose changes are invisible: re-attributing a connection would produce an
+    // index the memo calls unchanged, and the label would never update. No
+    // error, no warning -- just a control that appears to do nothing.
+    a.actorId === b.actorId
   )
 }
