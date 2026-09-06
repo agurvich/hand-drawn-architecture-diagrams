@@ -2,8 +2,8 @@
 
 **ID:** SPEC-010  
 **Status:** Draft  
-**Last Updated:** 2026-09-05  
-**Depends On:** SPEC-004, SPEC-005
+**Last Updated:** 2026-09-05 (rev 2 — post-review)  
+**Depends On:** SPEC-004, SPEC-005, SPEC-006, SPEC-008
 
 ## Overview
 
@@ -31,6 +31,11 @@ FR-004, which is the requirement the rest of the spec exists to be safe under.
 - A stroke from one node to another becoming a `diagramConnection`
 - Nesting: a box drawn inside an expanded container becomes its child
 - A mode control, **off by default**, and one undo restoring the original stroke
+- **One new session-scoped record** for the mode, with the ceremony SPEC-008's pattern requires —
+  the `TLGlobalRecordPropsMap` augmentation, a branded id, the `com.tldraw.<type>` migration
+  sequence id, registration on **both** the worker schema and `useSync`, and the type-literal guard.
+  SPEC-008 also widened the shared-import allowlist to `@tldraw/store` for `BaseRecord`/`RecordId`;
+  this depends on that having landed
 
 ### Out of Scope
 
@@ -45,7 +50,9 @@ FR-004, which is the requirement the rest of the spec exists to be safe under.
   the stroke's bounding box. It does not keep the wobble.
 - **Recognition on by default.** FR-004. Deliberately not a preference we ship enabled and let people
   discover; the cost of a wrong conversion is a destroyed annotation.
-- **Changing what a node or connection IS.** No new shape type, no new prop, no migration.
+- **Changing what a node or connection IS.** No new SHAPE type, no new shape prop, no shape
+  migration. The mode record above is a new *record* type, which is a different thing and is in
+  scope.
 
 ---
 
@@ -70,9 +77,17 @@ verdict and not an error.
       the same shape `hierarchy.ts`, `merge.ts` and `document.ts` already have
 - [ ] It returns one of exactly three verdicts: a box (with its bounding box), a line (with its two
       endpoints), or **nothing**. "Nothing" is the default, not the error path
-- [ ] A **recorded-stroke corpus** drives the tests: real point lists captured from pencil input,
-      stored as fixtures, each with its expected verdict. A recogniser tuned against
-      hand-written point lists is tuned against the author's idea of a rectangle
+- [ ] A **recorded-stroke corpus** drives the tests, stored as fixtures with expected verdicts. A
+      recogniser tuned against hand-written point lists is tuned against the author's idea of a
+      rectangle
+- [ ] **The capture mechanism is built, because none exists.** Replay does — `e2e/canvas.spec.ts`
+      drives the draw tool through raw CDP pen events — but nothing writes a real stroke to a file.
+      A dev-only route dumping the last stroke's decoded points as JSON, gated the way
+      `devOnly.ts` already gates, is the cheap version and reuses machinery that is there
+- [ ] **Strokes captured through CDP pen input count as real for this purpose**, and the corpus says
+      so per file. `architecture.md` records an open defect — the app renders blank on iPad — so
+      pencil-on-glass capture is not available, and a spec that waited for it would not be
+      buildable. Recorded honestly rather than implied away
 - [ ] The corpus includes strokes that must be **refused**: a scribble, a spiral, a single dot, a
       squiggly underline, a triangle, and a box drawn so badly it should not count. A corpus of only
       successes cannot see a false positive, and a false positive here eats someone's annotation
@@ -93,13 +108,17 @@ bounding box.
       the shape's default props otherwise
 - [ ] Both happen inside **one recorded change** after a history mark, so a single undo restores the
       original stroke exactly — asserted on the restored record, not on a shape count
-- [ ] A box drawn entirely inside an **expanded** container becomes that container's child, with its
-      position stored relative to the parent as SPEC-004 requires
+- [ ] A box drawn entirely inside an **expanded** container becomes that container's child, created
+      with an explicit `parentId` — not `reparentShapes`. The distinction matters: reparenting
+      converts the position, whereas creating with a parent takes x/y as already parent-local, so
+      naming the wrong one silently misplaces every nested box
 - [ ] A box drawn over a **collapsed** container does not become its child — the container refuses
       children while folded, and a node parented into it would vanish on creation
 - [ ] The new node is selected after conversion, so the next thing you do is name it
-- [ ] A box too small to be a usable node is refused and left as a stroke. Named because the natural
-      failure is a stray dot becoming a 4×4 node that nobody can see or select
+- [ ] A box too small to be a **usable node** is refused and left as a stroke — a different and
+      larger threshold than `MIN_STROKE_EXTENT`'s "this is a dot, not a shape". The default node is
+      200×120; a stroke can clear "not a dot" and still be a node nobody can see or select, so the
+      two constants are separate and both are named
 
 ### FR-003: A sketched line between two nodes becomes a connection
 
@@ -117,9 +136,17 @@ A stroke that starts on one node and ends on another is the gesture for "these a
       nowhere is not a thing this tool has
 - [ ] An endpoint inside a **collapsed** container binds to the container, matching what SPEC-006's
       re-aim already does: a hidden node is not a target because it is not on screen
-- [ ] Classification order is stated and tested: a stroke that is **both** box-like and line-like —
-      a long thin loop — resolves to whichever test is applied first, and the order is box, then
-      line, so a closed shape is never mistaken for a connection
+- [ ] **The rule is outcome-shaped, not order-shaped: a stroke whose two ends resolve to two
+      DIFFERENT nodes is a line, whatever the corner count says; otherwise box-then-line applies.**
+      Box-first alone spends the weaker evidence first. Counterexample, and a required corpus entry:
+      a connection routed around an obstacle — right, down, right — yields three corners, which
+      `CORNER_TOLERANCE` admits, and if its ends happen to fall within `CLOSE_FRACTION` it is called
+      a box. Both ends sit in distinct nodes, which is unambiguous connection evidence, and under a
+      pure order rule it is never consulted. An intended connection becomes a node: exactly the
+      annotation-eating failure FR-004 exists to prevent
+- [ ] The recogniser stays **pure and node-blind**; the endpoint resolution above happens in the
+      client adapter, which then overrides a box verdict. The corpus therefore tests the pure
+      classifier, and one e2e tests the override
 
 ### FR-004: It never eats an annotation
 
@@ -164,9 +191,9 @@ A toggle, its state visible, reachable on an iPad.
 
 ## Data Model
 
-**No new records, no new props, no migration.** A recognised node is a `diagramNode` and a recognised
-connection is a `diagramConnection`; the whole feature is a gesture that creates the shapes the
-toolbar already creates.
+**No new SHAPE type, no new shape prop, no shape migration.** A recognised node is a `diagramNode`
+and a recognised connection is a `diagramConnection`; the conversion is a gesture that creates the
+shapes the toolbar already creates. The one new record is the mode, below.
 
 ```ts
 // src/shared/sketch/recognise.ts -- pure, no tldraw import.
@@ -197,19 +224,30 @@ export const CLOSE_FRACTION: number
 export const CORNER_TOLERANCE: number
 ```
 
-The session-scoped mode record follows SPEC-008's `diagramFrameView` exactly — same scope, same
-reason, same registration path. That is the third custom record type; if SPEC-008's is the pattern,
-this is the first test of whether the pattern is reusable or was a one-off.
+The session-scoped mode record follows SPEC-008's `diagramFrameView` — same scope, same reason, same
+registration path, and **the same governing rule: its writes are history-IGNORED.** tldraw's history
+filters on `source`, not on record scope, so without that the toggle is undoable and FR-004's "one
+undo returns the exact original stroke" is false whenever the toggle was the last write. That is the
+criterion the whole spec exists to protect, and SPEC-008 learned this by measurement rather than by
+reading.
 
 ## API / Interface Contract
 
 ```ts
 // src/client/sketch/recogniseOnDraw.ts
 //
-// Hooks tldraw's side effects: after a `draw` shape is created, classify it and
-// convert. NOT during the drag -- SPEC-004 already paid for the lesson that a
-// per-pointer-frame hook fires far more often than the gesture it looks like it
-// describes.
+// registerAfterChangeHandler('shape', ...), gated on the stroke COMPLETING:
+// prev.props.isComplete === false && next.props.isComplete === true.
+//
+// NOT registerAfterCreateHandler. tldraw creates the draw shape ONCE, at
+// pointer-down, with a single point at the origin; every subsequent point is an
+// update, and `complete()` is an update too. An after-create hook therefore sees
+// one point at (0,0), classifies it as nothing, and the feature is inert -- the
+// same class of mistake SPEC-004 made with onDragShapesOver, arrived at from the
+// opposite direction.
+//
+// The change handler needs a RE-ENTRANCY GUARD: deleting the draw shape and
+// creating the node both fire handlers.
 //
 // Every conversion is one editor.run() after markHistoryStoppingPoint(), for the
 // reason documentIO.ts records: `run` batches a transaction but does not create
@@ -217,10 +255,20 @@ this is the first test of whether the pattern is reusable or was a one-off.
 export function registerSketchRecognition(editor: Editor): () => void
 ```
 
-**Where the endpoints are tested against nodes** matters and is easy to get wrong: a stroke's points
-are in page space, and `nodeAtPoint` (SPEC-007's shared helper) already answers "which node is under
-this page point", excluding hidden ones. FR-003's collapsed-container criterion falls out of reusing
-it rather than writing a second hit test.
+**Getting the points out is two steps, and both are easy to get wrong.**
+
+A `TLDrawShapeSegment` has no `points` field. It has `path: string` — delta-encoded base64. Decoding
+is `b64Vecs.decodePoints`, which `@tldraw/tlschema` exports, so it is inside the shared allowlist;
+`getPointsFromDrawSegments` is in `tldraw` and is not.
+
+And the decoded points are **shape-local, not page space**: the tool seeds `Vec(0,0)` and writes
+`getPointInShapeSpace(shape, currentPagePoint)` thereafter. Feeding them to `nodeAtPoint` — which is
+SPEC-006's helper and hit-tests in PAGE space — tests the wrong coordinates entirely. A
+`getShapePageTransform` pass is required, along with the shape's `scale`, and FR-002's "bounding box"
+means `getShapePageBounds`, not the local extent.
+
+With those two steps done, `nodeAtPoint` answers "which node is under this page point" excluding
+hidden ones, and FR-003's collapsed-container criterion falls out of reusing it.
 
 ## Configuration / Environment
 

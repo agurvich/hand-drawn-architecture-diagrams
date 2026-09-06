@@ -27,8 +27,12 @@ Group related specs and record the order to build them in. Keep this section: a 
 
   Not part of the migration arc — nothing in the predecessor to port. Sketch-to-clean-shape is the
   third of the three reasons `decisions.md` → *Canvas SDK: tldraw* gives for the rebuild, and the one
-  tldraw does not ship. It depends only on the node and connection shapes, so it can be built at any
-  point after SPEC-005 and is deliberately not queued behind the document work.
+  tldraw does not ship.
+
+  It needs **SPEC-006** for `nodeAtPoint`, and **SPEC-008** for the custom-record pattern its mode
+  uses and for the `@tldraw/store` allowlist widening that pattern required. It does **not** need the
+  document work, so it can be built before or after SPEC-009 — which is the whole reason it is a
+  separate arc rather than a tail on the migration one.
 
   The rebuild of `../architecture-diagrams` on tldraw. The order is deliberate and inverts the
   predecessor's handoff plan, which put multiplayer last: sync lands before the first custom shape so
