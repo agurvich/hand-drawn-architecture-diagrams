@@ -89,7 +89,7 @@ test.describe('SPEC-007 FR-002 — export produces a stable, valid document', ()
     const geo = await page.evaluate(
       () => window.__editor!.getCurrentPageShapes().find((s) => s.type === 'geo')!.id as string,
     )
-    await addNode(page, 'Framed', { x: 10, y: 10, w: 60, h: 40, parentId: geo })
+    await addNode(page, 'Scened', { x: 10, y: 10, w: 60, h: 40, parentId: geo })
 
     const doc = await exported(page)
     expect(doc.nodes.map((n) => n.label).sort()).toEqual(['A', 'B'])

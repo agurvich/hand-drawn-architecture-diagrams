@@ -154,7 +154,7 @@ re-binds it, without deleting and redrawing.
 
 A binding is a relationship, and deleting either side must not leave the other half behind.
 
-**Two of these are framework-native and two are not, and the difference matters.** tldraw already
+**Two of these are scenework-native and two are not, and the difference matters.** tldraw already
 deletes bindings when a bound shape is deleted, so "no dangling binding" and "deleting a connection
 leaves the nodes" pass with no code from this spec — they are regression tests. What tldraw does
 *not* do is delete the **connection shape** when its endpoint goes; without that, deleting a node
@@ -164,9 +164,9 @@ leaves a line bound to nothing. That is `onBeforeDeleteToShape`'s job and the on
 
 - [ ] **(load-bearing)** Deleting a node deletes every connection bound to it, at both ends
 - [ ] **(load-bearing)** Deleting a **container** deletes connections bound to its descendants
-- [ ] *(regression over framework behaviour)* Deleting a connection leaves both nodes intact
+- [ ] *(regression over scenework behaviour)* Deleting a connection leaves both nodes intact
 - [ ] Undo after deleting a node restores the node **and** its connections
-- [ ] *(regression over framework behaviour)* No binding survives pointing at a shape that no longer
+- [ ] *(regression over scenework behaviour)* No binding survives pointing at a shape that no longer
       exists — asserted by a sweep over **all** bindings after each case above, never a sample
 
 ### FR-006: Connections sync and persist
@@ -238,7 +238,7 @@ props would create a second home for the same fact, which is the failure `decisi
 //     changes, and 'ancestry' only when its parentId changes. Moving a container
 //     changes only the container's record, so nothing fires for a connection
 //     bound to a descendant -- exactly the criterion at FR-003.
-//  2. Writing anchors from a hook writes to the store once per pointer frame
+//  2. Writing anchors from a hook writes to the store once per pointer scene
 //     during a drag, the same churn SPEC-004 rejected onDragShapesOver for.
 //
 // tldraw's own ArrowBindingUtil does not do it either: it computes routing inside

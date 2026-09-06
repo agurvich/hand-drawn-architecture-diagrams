@@ -141,7 +141,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * Unknown keys are REJECTED, not ignored, and this is the rule that decides it:
- * an author who writes `frames` today must be told it does nothing. Silently
+ * an author who writes `scenes` today must be told it does nothing. Silently
  * dropping it is the predecessor's failure mode in a new costume.
  */
 function unknownKey(object: Record<string, unknown>, allowed: string[]): string | null {

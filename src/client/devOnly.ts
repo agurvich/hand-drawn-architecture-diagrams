@@ -7,7 +7,7 @@ import {
   customShapeSchemas,
   customBindingSchemas,
 } from '@shared/shapes'
-import { customRecordSchemas } from '@shared/frames'
+import { customRecordSchemas } from '@shared/scenes'
 
 /**
  * DEV ONLY, and opt-in PER TEST.
@@ -33,7 +33,7 @@ export function unvalidatedSchemaIfRequested() {
   console.warn(`${UNVALIDATED_MARKER}: client-side validation disabled for this session`)
   return createTLSchema({
     bindings: { ...defaultBindingSchemas, ...customBindingSchemas },
-    // Frames too, or the ?unvalidated path desyncs on a record the room has.
+    // Scenes too, or the ?unvalidated path desyncs on a record the room has.
     records: customRecordSchemas,
     shapes: {
       ...defaultShapeSchemas,

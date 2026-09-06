@@ -4,7 +4,7 @@ import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
-import { takeOffFrameAndToggle, viewFrame } from './frameView'
+import { takeOffSceneAndToggle, viewScene } from './sceneView'
 import {
   bindingUtils,
   components,
@@ -143,7 +143,7 @@ function handleMount(editor: Editor) {
   // Exposed for e2e until PR 2 gives narration a surface. Same reasoning as
   // __editor above: the alternative is a test that writes records directly and
   // therefore never exercises the history rules these functions exist for.
-  window.__frames = { viewFrame, takeOffFrameAndToggle } as Window['__frames']
+  window.__scenes = { viewScene, takeOffSceneAndToggle } as Window['__scenes']
   // Returned disposer is run by tldraw when the editor unmounts.
   return stripHiddenFromSelection(editor)
 }

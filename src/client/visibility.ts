@@ -1,7 +1,7 @@
 import type { Editor, TLShape } from 'tldraw'
 import { isHiddenByCollapse, CONNECTION_SHAPE_TYPE } from '@shared/shapes'
 import { getMergeIndex } from './mergeIndex'
-import { frameAwareGetShape } from './frameView'
+import { sceneAwareGetShape } from './sceneView'
 
 /**
  * Whether a shape should be hidden.
@@ -28,8 +28,8 @@ export function shouldHide(shape: TLShape, editor: Editor): boolean {
   if (shape.type === CONNECTION_SHAPE_TYPE) {
     return getMergeIndex(editor).get(shape.id)?.hidden === true
   }
-  // The FRAME-AWARE accessor, not the raw one: a frame is a lens over collapse,
+  // The FRAME-AWARE accessor, not the raw one: a scene is a lens over collapse,
   // and this is one of the two places collapse is read. The other is
   // mergeIndex.ts, which uses the same accessor for the same reason.
-  return isHiddenByCollapse(shape, frameAwareGetShape(editor))
+  return isHiddenByCollapse(shape, sceneAwareGetShape(editor))
 }

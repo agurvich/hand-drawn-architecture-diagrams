@@ -29,7 +29,7 @@ import {
  * onAfterChangeToShape and store the result -- fails outright: that hook fires
  * for the bound shape's OWN record and for its parentId, so moving a CONTAINER
  * fires nothing for a connection bound to one of its descendants. It would also
- * write to the store once per pointer frame during a drag.
+ * write to the store once per pointer scene during a drag.
  *
  * Reading the bound shapes' page transforms here instead means the geometry
  * recomputes whenever anything upstream moves, including an ancestor.

@@ -12,7 +12,7 @@ const FIXTURES = resolve(ROOT, 'src/shared/shapes/__fixtures__')
 
 /**
  * `@tldraw/store` is here for BaseRecord and RecordId, which @tldraw/tlschema
- * IMPORTS and does not re-export -- SPEC-008's frame records cannot be typed
+ * IMPORTS and does not re-export -- SPEC-008's scene records cannot be typed
  * without it. That is the whole of the widening, decided in the spec rather than
  * in a build: `tldraw` itself stays forbidden, because importing it would pull
  * React, the DOM and CSS into the Worker bundle, which is why this fence exists.
@@ -23,9 +23,9 @@ const TYPE_LITERALS = [
   "'diagramNode'",
   "'diagramConnection'",
   "'connectionEndpoint'",
-  "'diagramFrame'",
-  "'diagramFrameView'",
-  "'diagramOffFrame'",
+  "'diagramScene'",
+  "'diagramSceneView'",
+  "'diagramOffScene'",
 ]
 
 /**
@@ -40,7 +40,7 @@ const TYPE_DEFINITION_MODULES = [
   resolve(SHARED_DIR, 'shapes/node.ts'),
   resolve(SHARED_DIR, 'shapes/connection.ts'),
   resolve(SHARED_DIR, 'bindings/connection.ts'),
-  resolve(SHARED_DIR, 'frames/frame.ts'),
+  resolve(SHARED_DIR, 'scenes/scene.ts'),
 ]
 
 /** Source files under `root`, excluding tests and fixtures. */

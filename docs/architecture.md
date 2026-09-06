@@ -13,7 +13,7 @@ sections describe the target design, not necessarily what's implemented yet.
 
 A hand-drawn architecture-diagramming tool: sketch on an iPad with a pencil, and share the drawing
 live with a colleague over a self-hosted room. It owns the canvas, the domain shapes layered on top
-of it (containers that nest and collapse, connections between them, narration frames), and the sync
+of it (containers that nest and collapse, connections between them, narration scenes), and the sync
 server that makes a room collaborative.
 
 It does **not** own: general-purpose drawing primitives, freehand stroke rendering, or the
@@ -66,8 +66,8 @@ Three domain shapes sit on top of tldraw's built-ins:
   node moves and can be dragged to a new endpoint. *Named ports are deferred:* SPEC-005 binds to the
   **node** and derives the anchor from geometry, with an optional `port` prop reserved as the seam. The pattern is taken from
   tldraw's workflow starter kit; its execution engine is not (see `CLAUDE.md` → Out of Scope).
-- **Frame** — a named snapshot of view state (what is expanded, highlighted, visible), steppable
-  forward and back to narrate one persistent graph. Not tldraw's own frame shape, which is only a
+- **Scene** — a named snapshot of view state (what is expanded, highlighted, visible), steppable
+  forward and back to narrate one persistent graph. Not tldraw's own scene shape, which is only a
   clipping container.
 
 ## 5. What ports from the predecessor
@@ -78,7 +78,7 @@ The renderer does not port. Two things do:
   `docs/ai-authoring-guide.md` in the old repo. Rendering-agnostic, and the user names export/import a
   must-have. **The ideas ported; the schema did not.** SPEC-007 shipped a narrower document:
   `edges` became `connections`, `position` became `x/y/w/h`, validation went from deliberately loose
-  to strict and total, and `metadata`, `edgeSets`, `frames`, `icon`, `isActor`, `autoLayout` and
+  to strict and total, and `metadata`, `edgeSets`, `scenes`, `icon`, `isActor`, `autoLayout` and
   `colorPalette` are all gone until something reads them. Current guide:
   `docs/ai-authoring-guide.md`; the format lives in `src/shared/document.ts`.
 - **The derivation logic** — `src/engine/` in the old repo: `computeEffectiveGraph`, ancestry
@@ -151,8 +151,8 @@ Deferred on purpose, with the seam noted. Each needs a spec to return — none i
 mid-build. Reasoning: `decisions.md` → *Secondary features deferred pending real use*.
 
 - **Edge sets (lens-scoped edges)** — the user is undecided on whether the feature survives contact
-  with the rebuilt tool. Seam: a `Connection` gains a set-membership prop; the toggle is a frame's
-  view state, which is where the frame model already stores visibility.
+  with the rebuilt tool. Seam: a `Connection` gains a set-membership prop; the toggle is a scene's
+  view state, which is where the scene model already stores visibility.
 - **Node-lens grouping** — regrouping nodes into regions by a shared metadata key, with barycenter
   crossing-reduction. Seam: a derived layout pass over records; it reads the graph and writes
   positions, so it needs no new shape.
@@ -160,11 +160,11 @@ mid-build. Reasoning: `decisions.md` → *Secondary features deferred pending re
   (2026-09-05), and the suspicion below held — an attribution is a binding. TRIGGERS remain deferred:
   they need a connection to bind to a connection, which SPEC-005 deliberately fenced off, and moving
   that fence should be argued on its own evidence.
-- **Per-frame sticky notes, share-link / read-only mode** — the read-only case may reduce to a tldraw
+- **Per-scene sticky notes, share-link / read-only mode** — the read-only case may reduce to a tldraw
   primitive plus a room permission rather than the old app's store-level mutation choke point.
 - **Sketch → clean-shape recognition** — one of the three motivations for the rebuild, and the one
   tldraw does not ship. Bounded and additive: a simplify-and-classify pass over freedraw strokes.
 - **"Trace a request"** — walk the connection graph in topological order from a chosen source and
-  generate a frame sequence automatically, so narration is derived rather than hand-authored. Reuses
+  generate a scene sequence automatically, so narration is derived rather than hand-authored. Reuses
   the workflow kit's dependency resolver without adopting its execution semantics. Speculative, and
   recorded here so the idea is not lost.

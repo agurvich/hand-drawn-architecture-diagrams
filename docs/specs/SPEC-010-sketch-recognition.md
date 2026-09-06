@@ -224,7 +224,7 @@ export const CLOSE_FRACTION: number
 export const CORNER_TOLERANCE: number
 ```
 
-The session-scoped mode record follows SPEC-008's `diagramFrameView` — same scope, same reason, same
+The session-scoped mode record follows SPEC-008's `diagramSceneView` — same scope, same reason, same
 registration path, and **the same governing rule: its writes are history-IGNORED.** tldraw's history
 filters on `source`, not on record scope, so without that the toggle is undoable and FR-004's "one
 undo returns the exact original stroke" is false whenever the toggle was the last write. That is the

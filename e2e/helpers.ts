@@ -290,8 +290,8 @@ export async function addHalfConnection(page: Page, fromId: string): Promise<str
   }, fromId)
 }
 
-/** Create a frame record directly, without the authoring UI (which is PR 2). */
-export async function addFrame(
+/** Create a scene record directly, without the authoring UI (which is PR 2). */
+export async function addScene(
   page: Page,
   name: string,
   collapsed: Record<string, boolean> = {},
@@ -300,10 +300,10 @@ export async function addFrame(
   return page.evaluate(
     ({ name, collapsed, highlighted, index }) => {
       const ed = window.__editor!
-      const id = `diagramFrame:${Math.random().toString(36).slice(2, 12)}`
+      const id = `diagramScene:${Math.random().toString(36).slice(2, 12)}`
       ed.store.put([
         {
-          typeName: 'diagramFrame',
+          typeName: 'diagramScene',
           id,
           name,
           note: '',
@@ -319,31 +319,31 @@ export async function addFrame(
 }
 
 /**
- * Point this viewer at a frame, or at none. Session-scoped: never synced.
+ * Point this viewer at a scene, or at none. Session-scoped: never synced.
  *
- * Goes through the app's own `viewFrame`, not a raw `store.put`. The whole point
+ * Goes through the app's own `viewScene`, not a raw `store.put`. The whole point
  * of that function is that the write is history-IGNORED, and a test that wrote
  * the record directly would prove nothing about the thing under test.
  */
-export async function viewFrame(page: Page, frameId: string | null) {
-  await page.evaluate((id) => window.__frames!.viewFrame(window.__editor!, id), frameId)
+export async function viewScene(page: Page, sceneId: string | null) {
+  await page.evaluate((id) => window.__scenes!.viewScene(window.__editor!, id), sceneId)
 }
 
-/** The nodes this viewer has taken off-frame. */
-export async function offFrameNodeIds(page: Page): Promise<string[]> {
+/** The nodes this viewer has taken off-scene. */
+export async function offSceneNodeIds(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const record = window.__editor!.store.get('diagramOffFrame:current' as never) as
+    const record = window.__editor!.store.get('diagramOffScene:current' as never) as
       { nodeIds: string[] } | undefined
     return [...(record?.nodeIds ?? [])].sort()
   })
 }
 
-/** Which frame this viewer is on, or null. */
-export async function activeFrameId(page: Page): Promise<string | null> {
+/** Which scene this viewer is on, or null. */
+export async function activeSceneId(page: Page): Promise<string | null> {
   return page.evaluate(() => {
-    const record = window.__editor!.store.get('diagramFrameView:current' as never) as
-      { activeFrameId: string | null } | undefined
-    return record?.activeFrameId ?? null
+    const record = window.__editor!.store.get('diagramSceneView:current' as never) as
+      { activeSceneId: string | null } | undefined
+    return record?.activeSceneId ?? null
   })
 }
 
@@ -352,7 +352,7 @@ export async function activeFrameId(page: Page): Promise<string | null> {
  *
  * `type` matters more than it looks: folding a container also merges the
  * connections crossing its boundary, so the hidden set legitimately contains
- * connections too. A test about which NODES a frame folds has to say so, or it
+ * connections too. A test about which NODES a scene folds has to say so, or it
  * fails on the feature working.
  */
 export async function hiddenShapeIds(page: Page, type?: string): Promise<string[]> {

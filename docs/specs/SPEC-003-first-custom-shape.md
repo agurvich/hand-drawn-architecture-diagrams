@@ -13,7 +13,7 @@ two ever disagree, records are rejected at the room boundary. This spec establis
 on the simplest shape the product could possibly need (a labelled box), together with the pattern that
 keeps the two halves from drifting and the migration path that lets a shape's props change without
 corrupting rooms that already exist. It is deliberately small: its value is not the box, it is that
-every shape after it — containers, connections, frames — is built on a boundary that has been crossed
+every shape after it — containers, connections, scenes — is built on a boundary that has been crossed
 and tested rather than one that has been read about.
 
 ## Scope

@@ -89,5 +89,5 @@ reviewer's diagram imported first try and its predicted collapse rendering match
 the guide's best evidence — but a guide handed to a model as ground truth cannot carry four wrong
 sentences, and no test can see prose.
 
-Not covered: frames, edge sets, node metadata, icons, actors, colour inheritance, z-order and array
+Not covered: scenes, edge sets, node metadata, icons, actors, colour inheritance, z-order and array
 order. Z-order and array order are losses a round trip does not carry, and the guide says so.

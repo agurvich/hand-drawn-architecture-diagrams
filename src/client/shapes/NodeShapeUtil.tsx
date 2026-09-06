@@ -6,8 +6,8 @@ import {
   type TLResizeInfo,
   resizeBox,
 } from 'tldraw'
-import { effectiveCollapsed } from '@shared/frames'
-import { frameState, takeOffFrameAndToggle } from '../frameView'
+import { effectiveCollapsed } from '@shared/scenes'
+import { sceneState, takeOffSceneAndToggle } from '../sceneView'
 import {
   NODE_SHAPE_TYPE,
   nodeShapeDefaultProps,
@@ -52,18 +52,18 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
    * criteria -- accepting children, the drop hint, and refusing drops into a
    * collapsed container, which would otherwise make the dropped node vanish.
    *
-   * Not extending BaseFrameLikeShapeUtil, which implements this same trio: it
-   * also drags in `isFrameLike`, child clipping and frame brush-selection
+   * Not extending BaseSceneLikeShapeUtil, which implements this same trio: it
+   * also drags in `isSceneLike`, child clipping and scene brush-selection
    * semantics that a diagram node should not have.
    */
   override canReceiveNewChildrenOfType(shape: NodeShape, type: TLShape['type']) {
     // EFFECTIVE, not the raw prop. This refusal exists so a dropped node cannot
-    // vanish into a closed container -- and a container folded only by a frame
+    // vanish into a closed container -- and a container folded only by a scene
     // hides its children just as thoroughly, so it has to refuse too.
-    const { frame, offFrame } = frameState(this.editor)
+    const { scene, offScene } = sceneState(this.editor)
     return (
       type === NODE_SHAPE_TYPE &&
-      !effectiveCollapsed(shape.id, shape.props.collapsed, frame, offFrame)
+      !effectiveCollapsed(shape.id, shape.props.collapsed, scene, offScene)
     )
   }
 
@@ -71,7 +71,7 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
    * The REPARENT hook. Deliberately not `onDragShapesOver`, which fires on every
    * cursor move while over the target and is not gated by
    * `canReceiveNewChildrenOfType` -- reparenting there runs once per pointer
-   * frame, churning the store and spamming sync.
+   * scene, churning the store and spamming sync.
    */
   override onDragShapesIn(shape: NodeShape, shapes: TLShape[]) {
     // Drag-path cycle guard: refuse when the target is inside something being
@@ -116,11 +116,11 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
       this.editor.getSortedChildIdsForParent(id as NodeShape['id']),
     )
     const hasChildren = childCount > 0
-    // The EFFECTIVE state, not the raw prop. A frame is a lens over collapse, so
-    // a container a frame folds must render folded -- otherwise its children
+    // The EFFECTIVE state, not the raw prop. A scene is a lens over collapse, so
+    // a container a scene folds must render folded -- otherwise its children
     // vanish while it still offers "Collapse" and shows no count.
-    const { frame, offFrame } = frameState(this.editor)
-    const collapsed = effectiveCollapsed(shape.id, shape.props.collapsed, frame, offFrame)
+    const { scene, offScene } = sceneState(this.editor)
+    const collapsed = effectiveCollapsed(shape.id, shape.props.collapsed, scene, offScene)
 
     const toggle = (e: React.PointerEvent | React.MouseEvent) => {
       // Without this the press also selects, drags or enters label editing --
@@ -128,10 +128,10 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
       e.stopPropagation()
       e.preventDefault()
       // Writes the opposite of the EFFECTIVE state -- what the user can see --
-      // and takes the node off-frame in the SAME recorded change, so one undo
+      // and takes the node off-scene in the SAME recorded change, so one undo
       // reverses both. Split across two changes, undo would restore the prop
-      // while leaving the node off-frame, showing a state nobody asked for.
-      takeOffFrameAndToggle(this.editor, shape, collapsed)
+      // while leaving the node off-scene, showing a state nobody asked for.
+      takeOffSceneAndToggle(this.editor, shape, collapsed)
     }
 
     return (

@@ -4,14 +4,14 @@ import { roomSchema } from '../../worker/schema'
 import { syncSchemaOptions } from '../../client/shapes/registry'
 import { unvalidatedSchemaIfRequested, UNVALIDATED_MARKER } from '../../client/devOnly'
 import {
-  FRAME_RECORD_TYPE,
-  FRAME_VIEW_RECORD_TYPE,
-  OFF_FRAME_RECORD_TYPE,
+  SCENE_RECORD_TYPE,
+  SCENE_VIEW_RECORD_TYPE,
+  OFF_SCENE_RECORD_TYPE,
   customRecordSchemas,
 } from './index'
 
 /**
- * Every schema-construction site really carries the frame records.
+ * Every schema-construction site really carries the scene records.
  *
  * Asserted on the resulting SCHEMA, not on source text. `TLStoreSchemaOptions` is
  * a union of `{shapeUtils, bindingUtils, records}` and `{schema}`; passing
@@ -19,9 +19,9 @@ import {
  * source scan would see the argument and pass; only building the schema shows
  * whether it survived.
  */
-const RECORD_TYPES = [FRAME_RECORD_TYPE, FRAME_VIEW_RECORD_TYPE, OFF_FRAME_RECORD_TYPE]
+const RECORD_TYPES = [SCENE_RECORD_TYPE, SCENE_VIEW_RECORD_TYPE, OFF_SCENE_RECORD_TYPE]
 
-describe('the frame records reach every schema', () => {
+describe('the scene records reach every schema', () => {
   it('the worker schema carries both', () => {
     for (const type of RECORD_TYPES) expect(Object.keys(roomSchema.types)).toContain(type)
   })
@@ -47,17 +47,17 @@ describe('the frame records reach every schema', () => {
   it('both are registered at the scope their behaviour depends on', () => {
     // document = synced and persisted; session = local to one client and never
     // on the wire. Swapping them silently breaks the whole lens design.
-    expect(customRecordSchemas[FRAME_RECORD_TYPE].scope).toBe('document')
-    expect(customRecordSchemas[FRAME_VIEW_RECORD_TYPE].scope).toBe('session')
-    expect(customRecordSchemas[OFF_FRAME_RECORD_TYPE].scope).toBe('session')
+    expect(customRecordSchemas[SCENE_RECORD_TYPE].scope).toBe('document')
+    expect(customRecordSchemas[SCENE_VIEW_RECORD_TYPE].scope).toBe('session')
+    expect(customRecordSchemas[OFF_SCENE_RECORD_TYPE].scope).toBe('session')
   })
 
   it('the store agrees about which scope each type is in', () => {
     const store = createTLStore(syncSchemaOptions)
-    expect(store.scopedTypes.document.has(FRAME_RECORD_TYPE)).toBe(true)
-    expect(store.scopedTypes.session.has(FRAME_VIEW_RECORD_TYPE)).toBe(true)
-    expect(store.scopedTypes.session.has(OFF_FRAME_RECORD_TYPE)).toBe(true)
-    expect(store.scopedTypes.document.has(FRAME_VIEW_RECORD_TYPE)).toBe(false)
+    expect(store.scopedTypes.document.has(SCENE_RECORD_TYPE)).toBe(true)
+    expect(store.scopedTypes.session.has(SCENE_VIEW_RECORD_TYPE)).toBe(true)
+    expect(store.scopedTypes.session.has(OFF_SCENE_RECORD_TYPE)).toBe(true)
+    expect(store.scopedTypes.document.has(SCENE_VIEW_RECORD_TYPE)).toBe(false)
   })
 })
 

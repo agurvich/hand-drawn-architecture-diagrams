@@ -220,9 +220,9 @@ asks before discarding that work.
 Do not write these; they are rejected as unknown keys, and inventing them will get your document
 refused rather than partially applied:
 
-`frames`, `edgeSets`, `metadata`, `icon`, `isActor`, `actorId`, `sourceHandle`, `targetHandle`,
+`scenes`, `edgeSets`, `metadata`, `icon`, `isActor`, `actorId`, `sourceHandle`, `targetHandle`,
 `autoLayout`, `colorPalette`, `stickyNotes`.
 
-Narrated frames, edge sets, actor/action attribution and icons are all things this tool may grow
+Narrated scenes, edge sets, actor/action attribution and icons are all things this tool may grow
 later. Today it has nodes, nesting, collapse and connections — which is enough to say most of what an
 architecture diagram needs to say.

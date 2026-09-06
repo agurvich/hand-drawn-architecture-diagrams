@@ -34,7 +34,7 @@ same drawing reads as an overview or as a detail view depending on what is folde
   connections exist rather than against a guess. This spec's collapse hides children and nothing more.
 - **Auto-layout of children inside a container.** Children keep the positions the user gave them.
 - **A hierarchy tree panel.** The predecessor had one; it is a view onto this data, not this data.
-- **Frames, narration, or lenses** — later specs.
+- **Scenes, narration, or lenses** — later specs.
 - **Visual polish on the collapsed state** beyond a legible descendant count.
 
 ---
@@ -74,7 +74,7 @@ accepting children, the drop hint, and refusing drops into a collapsed container
 
 **The reparent hook is `onDragShapesIn`, not `onDragShapesOver`.** `onDragShapesOver` fires on every
 cursor move while over the target and is *not* gated by `canReceiveNewChildrenOfType`; reparenting
-there runs once per pointer frame, churning the store and spamming sync.
+there runs once per pointer scene, churning the store and spamming sync.
 
 **Returning to the page on drag-out is not automatic** — `BaseBoxShapeUtil` has no implementation —
 and it must be guarded on `info.nextDraggingOverShapeId`, or dragging straight from one container
@@ -95,7 +95,7 @@ into another reparents to the page mid-gesture.
       **programmatic** path, and the guard runs **before** `reparentShapes`, which throws rather than
       no-ops on a self-parent
 - [ ] Reparenting preserves the node's on-screen page position. `reparentShapes` already converts
-      transforms into the new parent's space, so this is a **regression test over framework
+      transforms into the new parent's space, so this is a **regression test over scenework
       behaviour**, not work this spec performs
 - [ ] Dropping a node onto a **collapsed** container is refused, leaving the node on the page. A drop
       that succeeds would make the node vanish the instant it lands, which reads as data loss
@@ -179,7 +179,7 @@ and persist by the same path SPEC-002 and SPEC-003 established. The `collapsed` 
 A container is a handle on everything inside it. The operations that would otherwise orphan children
 must take them along.
 
-**These are regression tests over framework behaviour, not work this spec performs.** tldraw's
+**These are regression tests over scenework behaviour, not work this spec performs.** tldraw's
 `deleteShapes` walks descendants, `duplicateShapes` reparents copies to copies, undo is store-level,
 and a box resize touches only `w`/`h`. They are worth having — but a green FR-006 is not evidence
 that this spec's nesting code is correct, and a reviewer should not read it as such.

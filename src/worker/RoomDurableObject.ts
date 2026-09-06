@@ -1,4 +1,4 @@
-import { FRAME_RECORD_TYPE } from '../shared/frames'
+import { SCENE_RECORD_TYPE } from '../shared/scenes'
 import { DurableObject } from 'cloudflare:workers'
 import { InMemorySyncStorage, TLSocketRoom } from '@tldraw/sync-core'
 import { roomSchema } from './schema'
@@ -73,11 +73,11 @@ export class RoomDurableObject extends DurableObject<Env> {
     shape: { label: string; parentId: string; collapsed: boolean } | null
     shapeTypes: Record<string, number>
     bindings: Array<{ type: string; fromId: string; toId: string; terminal?: string }>
-    frames: Array<{ id: string; name: string; index: string }>
+    scenes: Array<{ id: string; name: string; index: string }>
   }> {
     const raw = await this.ctx.storage.get<string>('snapshot')
     if (!raw) {
-      return { present: false, documents: 0, shape: null, shapeTypes: {}, bindings: [], frames: [] }
+      return { present: false, documents: 0, shape: null, shapeTypes: {}, bindings: [], scenes: [] }
     }
     const parsed = JSON.parse(raw) as {
       documents?: Array<{ state?: Record<string, any> }>
@@ -120,18 +120,18 @@ export class RoomDurableObject extends DurableObject<Env> {
       shapeTypes[type] = (shapeTypes[type] ?? 0) + 1
     }
 
-    // Frames are custom RECORDS, not shapes -- neither the shape lookup nor the
-    // binding filter can see them, so "a frame reached durable storage" would
+    // Scenes are custom RECORDS, not shapes -- neither the shape lookup nor the
+    // binding filter can see them, so "a scene reached durable storage" would
     // otherwise degrade to a document count.
-    const frames = docs
-      .filter((d) => d.state?.typeName === FRAME_RECORD_TYPE)
+    const scenes = docs
+      .filter((d) => d.state?.typeName === SCENE_RECORD_TYPE)
       .map((d) => ({
         id: String(d.state!.id ?? ''),
         name: String(d.state!.name ?? ''),
         index: String(d.state!.index ?? ''),
       }))
 
-    return { present: true, documents: docs.length, shape, shapeTypes, bindings, frames }
+    return { present: true, documents: docs.length, shape, shapeTypes, bindings, scenes }
   }
 
   /**

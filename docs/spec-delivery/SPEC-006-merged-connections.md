@@ -60,7 +60,7 @@ why neither half showed up.
 Harmless while a hidden connection's endpoints were hidden with it. Once a line is still drawn in
 its place, it is a data-loss path: select the visible line, press Delete, and a different invisible
 connection is destroyed with no feedback but a count quietly changing. Found by the diff review
-frame that drove the running app rather than reading the diff.
+scene that drove the running app rather than reading the diff.
 
 Both halves are fixed and both are mutation-tested. The second half was never connection-specific —
 collapsing a container while one of its children was selected left the child selected too — so there
