@@ -565,7 +565,7 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     // signal, not its presence.
     await expect(page.getByTestId('narration-off-scene')).toHaveText('')
     await page.getByTestId('diagram-node-toggle').first().click()
-    await expect(page.getByTestId('narration-off-scene')).toContainText('opened something')
+    await expect(page.getByTestId('narration-off-scene')).toContainText('changed something')
 
     await page.getByTestId('narration-restore').click()
     await expect(page.getByTestId('narration-off-scene')).toHaveText('')
@@ -735,6 +735,168 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
 
     await p1.ctx.close()
     await p2.ctx.close()
+  })
+
+  test('the highlight RINGS the named shapes and DIMS the rest', async ({ page }) => {
+    await openRoom(page, roomId('sh1'))
+    const { y } = await diagram(page)
+    await page.evaluate((id) => {
+      window.__editor!.select(id as never)
+    }, y)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.evaluate(() => {
+      window.__editor!.selectNone()
+    })
+
+    const classes = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('[data-testid="diagram-node"]')].map((el) => ({
+          lit: el.classList.contains('diagram-node--highlighted'),
+          dim: el.classList.contains('diagram-node--dimmed'),
+        })),
+      )
+    const withHighlight = await classes()
+    expect(withHighlight.filter((c) => c.lit)).toHaveLength(1)
+    expect(withHighlight.filter((c) => c.dim).length).toBeGreaterThan(0)
+
+    // On the COMPUTED style, not the class: a class that resolves to nothing is
+    // exactly how the merge count shipped with an invisible halo.
+    const painted = await page.evaluate(() => {
+      const lit = document.querySelector('.diagram-node--highlighted')!
+      const dim = document.querySelector('.diagram-node--dimmed')!
+      const l = getComputedStyle(lit)
+      return {
+        outline: parseFloat(l.outlineWidth),
+        ringed: l.outlineStyle !== 'none',
+        faded: parseFloat(getComputedStyle(dim).opacity),
+      }
+    })
+    expect(painted.ringed).toBe(true)
+    expect(painted.outline).toBeGreaterThan(0)
+    expect(painted.faded).toBeLessThan(1)
+    // Connections fade too, or the lines stay loud around a quiet diagram.
+    expect(
+      await page.evaluate(
+        () =>
+          document.querySelectorAll('[data-testid="diagram-connection"].diagram-connection--dimmed')
+            .length,
+      ),
+    ).toBeGreaterThan(0)
+
+    // Leaving the scene takes the accent with it.
+    await page.getByTestId('narration-select').first().click()
+    await page.evaluate(() => window.__scenes!.viewScene(window.__editor!, null))
+    expect((await classes()).some((c) => c.lit || c.dim)).toBe(false)
+  })
+
+  test('a scene highlighting only DELETED shapes dims nothing', async ({ page }) => {
+    // A page where everything is faded and nothing is lit reads as broken, not
+    // focused -- and a scene outlives the shapes it names.
+    await openRoom(page, roomId('sh2'))
+    const { y } = await diagram(page)
+    await page.evaluate((id) => {
+      window.__editor!.select(id as never)
+    }, y)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.evaluate((id) => {
+      window.__editor!.deleteShapes([id as never])
+    }, y)
+
+    expect(
+      await page.evaluate(
+        () => document.querySelectorAll('.diagram-node--dimmed, .diagram-node--highlighted').length,
+      ),
+    ).toBe(0)
+  })
+
+  test('the bar stays put and clear of tldraw as the list grows', async ({ page }) => {
+    // At twenty scenes the column grew upward until the bar sat on tldraw's undo
+    // button -- and at 375px, on the JSON launcher. The e2e that checked overlap
+    // only passed because it ran with none.
+    await openRoom(page, roomId('sh3'))
+    await diagram(page)
+    await page.getByTestId('narration-open').click()
+    const barBefore = (await page.getByTestId('narration-open').boundingBox())!
+    for (let i = 0; i < 20; i++) await page.getByTestId('narration-capture').click()
+    await expect(page.getByTestId('narration-select')).toHaveCount(20)
+
+    const barAfter = (await page.getByTestId('narration-open').boundingBox())!
+    expect(barAfter.y).toBe(barBefore.y)
+
+    const covered = await page.evaluate(() => {
+      const hit = (selector: string) => {
+        const el = document.querySelector(selector)
+        if (!el) return null
+        const box = el.getBoundingClientRect()
+        if (box.width === 0) return null
+        const at = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        return at?.closest('.narration') ? selector : null
+      }
+      return ['.tlui-menu-zone', '.tlui-toolbar', '.tlui-style-panel', '.diagram-io__launch']
+        .map(hit)
+        .filter(Boolean)
+    })
+    expect(covered).toEqual([])
+  })
+
+  test('a long scene name does not blow up its row', async ({ page }) => {
+    await openRoom(page, roomId('sh4'))
+    await diagram(page)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.getByTestId('narration-name').fill('x'.repeat(500))
+    await page.getByTestId('narration-name').blur()
+
+    const row = (await page.getByTestId('narration-select').first().boundingBox())!
+    expect(row.height).toBeLessThan(60)
+    // And it is truncated rather than merely clipped by a parent.
+    expect(
+      await page.evaluate(() => {
+        const el = document.querySelector('[data-testid="narration-select"]')!
+        return { wrap: getComputedStyle(el).whiteSpace, over: el.scrollWidth > el.clientWidth }
+      }),
+    ).toEqual({ wrap: 'nowrap', over: true })
+    // And the delete button beside it is still where a finger expects it.
+    const del = (await page.getByTestId('narration-delete').first().boundingBox())!
+    expect(del.width).toBeGreaterThanOrEqual(44)
+  })
+
+  test('the forward button does not move as you step', async ({ page }) => {
+    // Content-sizing the middle button moved forward by 56px between scenes --
+    // further than the button is wide, so tapping in one place missed.
+    await openRoom(page, roomId('sh5'))
+    await diagram(page)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.getByTestId('narration-name').fill('A')
+    await page.getByTestId('narration-name').blur()
+    await page.getByTestId('narration-capture').click()
+    await page.getByTestId('narration-name').fill('A much longer scene name here')
+    await page.getByTestId('narration-name').blur()
+    await page.getByTestId('narration-close').click()
+
+    const at = async () => (await page.getByTestId('narration-forward').boundingBox())!.x
+    const second = await at()
+    await page.getByTestId('narration-back').click()
+    expect(await at()).toBe(second)
+  })
+
+  test('a stale scene is marked on the BAR, not only inside the list', async ({ page }) => {
+    await openRoom(page, roomId('sh6'))
+    const { p } = await diagram(page)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.getByTestId('narration-close').click()
+
+    await expect(page.getByTestId('narration-open')).not.toContainText('⚠')
+    await page.evaluate((id) => {
+      window.__editor!.deleteShapes([id as never])
+    }, p)
+    // A presenter stepping with the list closed would otherwise be shown a scene
+    // that points at nothing as though it worked.
+    await expect(page.getByTestId('narration-open')).toContainText('⚠')
   })
 
   test('the empty state says what a scene is for', async ({ page }) => {

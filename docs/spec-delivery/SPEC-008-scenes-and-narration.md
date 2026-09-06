@@ -20,9 +20,9 @@
   surface had shipped.
 - **Capture takes the current selection as the highlight.** The spec left the authoring gesture open;
   this needs no new control and is a gesture a reader already performs.
-- **Highlight rendering is not built.** FR-003's accent criterion is the one thing this spec did not
-  deliver — the record carries `highlighted` and `isSceneStale` reads it, but nothing draws it. Owed,
-  and recorded here rather than left to be discovered.
+- **Highlight is ring AND dim**, per the user (2026-09-05). It refuses to dim when nothing it names
+  still resolves: a page where everything is faded and nothing is lit reads as broken rather than
+  focused, and a scene outlives the shapes it points at.
 
 ## What changed from earlier specs?
 
@@ -58,6 +58,11 @@ asserts the merge output is deep-equal to setting the prop for real; an e2e asse
 | Re-capture dropping the note | the note test |
 | Capture ignoring the selection | the highlight test |
 | `moveScene` doing nothing | the reorder test |
+| Dimming when nothing it names resolves | the deleted-highlight test |
+| The ring's outline removed | the computed-style assertion |
+| The dim opacity removed | the computed-style assertion |
+| The bar back to content-sized | the drift test |
+| The list row untruncated | the long-name test |
 
 **Three survived a round and were found by review**, which is the honest count:
 
@@ -74,6 +79,11 @@ duplicate to every client; `moveScene` re-indexed every scene from a fixed seque
 clients reordering at once merge into neither person's order; and the panel read every record in the
 store on every pointer frame.
 
-Not covered: highlight **rendering** (owed, above — the record carries `highlighted`, capture writes
-it and the staleness check reads it, but nothing draws it), and scenes in the JSON document, which is
-SPEC-009.
+**A second review used the panel to author a five-scene walkthrough** and found four surface defects
+no test had: with twenty scenes the column grew upward until the bar sat on top of tldraw's undo
+button — and at 375px on the JSON launcher; a long name grew its list row from 44px to 424px; the
+forward button drifted 56px between scenes, further than the button is wide; and a stale scene was
+marked only inside the open list, so a presenter stepping with it closed saw a broken scene presented
+as working. All four are fixed, and each has a test that fails without the fix.
+
+Not covered: scenes in the JSON document, which is SPEC-009.

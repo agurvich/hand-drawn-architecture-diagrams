@@ -345,3 +345,24 @@ export function stepScene(editor: Editor, delta: -1 | 1): void {
   if (next < 0 || next >= order.length) return
   viewScene(editor, order[next]!.id)
 }
+
+/**
+ * What the active scene singles out, and whether anything is singled out at all.
+ *
+ * `ids` is empty when no scene is active, when the scene highlights nothing, or
+ * when nothing it names still resolves -- and in every one of those cases
+ * `dimming` is false, so a diagram is never dimmed with nothing lit. That last
+ * case matters: a scene outlives the shapes it points at, and a page where
+ * everything is faded and nothing is accented reads as broken rather than
+ * focused.
+ */
+export function highlightState(editor: Editor): {
+  ids: ReadonlySet<string>
+  dimming: boolean
+} {
+  const { scene } = sceneState(editor)
+  if (!scene || scene.highlighted.length === 0) return { ids: EMPTY, dimming: false }
+  const live = scene.highlighted.filter((id) => editor.getShape(id as TLShape['id']) !== undefined)
+  if (live.length === 0) return { ids: EMPTY, dimming: false }
+  return { ids: new Set(live), dimming: true }
+}

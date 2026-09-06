@@ -375,6 +375,15 @@ body {
  * Inside .canvas-host, which sets `touch-action: none` for the canvas -- so every
  * interactive part restates it, or a tap does nothing on an iPad.
  */
+/*
+ * Bottom-anchored, with the BAR LAST in both DOM and visual order.
+ *
+ * The bar must not move: it is the primary control, and with the list open at
+ * twenty scenes the column grew upward until the bar sat on top of tldraw's undo
+ * button -- and at 375px, on top of the JSON launcher. The panel now grows
+ * upward from a bar that stays put, and its height is capped so the top strip of
+ * tldraw's UI is never reachable.
+ */
 .narration {
   position: absolute;
   /* Clear of tldraw's navigation panel, which owns the bottom-left corner.
@@ -415,7 +424,11 @@ body {
   background: #f2f2f2;
 }
 
+/* FIXED width, not content-sized: a content-sized middle button moved the
+   forward button by 56px between scenes -- further than the button is wide, so
+   tapping "next, next, next" in one place missed. */
 .narration__button--wide {
+  width: 220px;
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -459,7 +472,9 @@ body {
   flex-direction: column;
   gap: 6px;
   width: min(360px, calc(100vw - 16px));
-  max-height: calc(100dvh - 120px);
+  /* Leaves the top strip free for tldraw's menu and style panels, and the
+     bottom for the bar, the note and the navigation panel. */
+  max-height: calc(100dvh - 220px);
   overflow: auto;
   padding: 10px;
   background: #fff;
@@ -501,6 +516,12 @@ body {
 
 .narration__select {
   flex: 1;
+  /* A long name grew its row from 44px to 424px, stranding the reorder and
+     delete buttons beside a wall of text. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   min-height: 44px;
   padding: 0 10px;
   font:
@@ -578,4 +599,26 @@ body {
 .narration__off--empty {
   padding: 0;
   border: 0;
+}
+
+/*
+ * A scene's highlight: ring the named shapes AND fade everything else.
+ *
+ * Both, deliberately. A ring alone is easy to miss on a busy diagram; dimming
+ * alone leaves the reader hunting for what is still sharp. `highlightState`
+ * refuses to dim when nothing resolves, so a page is never all-faded with
+ * nothing lit.
+ */
+.diagram-node--highlighted {
+  outline: 3px solid #1a5fb4;
+  outline-offset: 2px;
+}
+
+.diagram-node--dimmed,
+.diagram-connection--dimmed {
+  opacity: 35%;
+}
+
+.diagram-connection--highlighted {
+  color: #1a5fb4;
 }

@@ -48,16 +48,17 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
     () => (editor ? sceneState(editor).offScene.size > 0 : false),
     [editor],
   )
-  // Gated on `open`: it walks every id every scene names, and it only renders
-  // inside the list.
+  // NOT gated on `open`: the bar marks the active scene stale too, because a
+  // presenter stepping with the list closed would otherwise be shown a scene
+  // that points at nothing as though it were working.
   const staleIds = useValue(
     'stale scenes',
     () => {
-      if (!editor || !open) return new Set<string>()
+      if (!editor) return new Set<string>()
       const get = (id: string) => editor.getShape(id as never)
       return new Set(scenes.filter((s) => isSceneStale(s, get)).map((s) => s.id as string))
     },
-    [editor, open, scenes],
+    [editor, scenes],
   )
 
   useEffect(() => {
@@ -91,67 +92,6 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
 
   return (
     <div className="narration">
-      <div className="narration__bar">
-        <button
-          type="button"
-          className="narration__button"
-          data-testid="narration-back"
-          aria-label="Previous scene"
-          disabled={scenes.length === 0 || position === 0}
-          onClick={() => step(-1)}
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          ref={launchButton}
-          className="narration__button narration__button--wide"
-          data-testid="narration-open"
-          aria-expanded={open}
-          onClick={() => setOpen((was) => !was)}
-        >
-          {active ? `${position + 1}/${scenes.length} ${active.name}` : 'Scenes'}
-        </button>
-        <button
-          type="button"
-          className="narration__button"
-          data-testid="narration-forward"
-          aria-label="Next scene"
-          disabled={scenes.length === 0 || position === scenes.length - 1}
-          onClick={() => step(1)}
-        >
-          ›
-        </button>
-      </div>
-
-      {active && active.note !== '' && (
-        <p className="narration__note" data-testid="narration-note">
-          {active.note}
-        </p>
-      )}
-      {/* Permanently mounted, text swapped: a live region inserted WITH its
-          content already present is the classic case assistive tech does not
-          announce, because the region was never in the tree to mutate. */}
-      <p
-        className={`narration__off${offScene ? '' : ' narration__off--empty'}`}
-        role="status"
-        data-testid="narration-off-scene"
-      >
-        {offScene && (
-          <>
-            You have opened something this scene folds.{' '}
-            <button
-              type="button"
-              className="narration__link"
-              data-testid="narration-restore"
-              onClick={() => active && viewScene(editor, active.id)}
-            >
-              Back to the scene
-            </button>
-          </>
-        )}
-      </p>
-
       {open && (
         <div
           ref={panel}
@@ -311,6 +251,69 @@ export function NarrationPanel({ editor }: NarrationPanelProps) {
             </div>
           )}
         </div>
+      )}
+      {/* Permanently mounted, text swapped: a live region inserted WITH its
+          content already present is the classic case assistive tech does not
+          announce, because the region was never in the tree to mutate. */}
+      <p
+        className={`narration__off${offScene ? '' : ' narration__off--empty'}`}
+        role="status"
+        data-testid="narration-off-scene"
+      >
+        {offScene && (
+          <>
+            You have changed something this scene sets.{' '}
+            <button
+              type="button"
+              className="narration__link"
+              data-testid="narration-restore"
+              onClick={() => active && viewScene(editor, active.id)}
+            >
+              Back to the scene
+            </button>
+          </>
+        )}
+      </p>
+
+      <div className="narration__bar">
+        <button
+          type="button"
+          className="narration__button"
+          data-testid="narration-back"
+          aria-label="Previous scene"
+          disabled={scenes.length === 0 || position === 0}
+          onClick={() => step(-1)}
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          ref={launchButton}
+          className="narration__button narration__button--wide"
+          data-testid="narration-open"
+          aria-expanded={open}
+          onClick={() => setOpen((was) => !was)}
+        >
+          {active
+            ? `${position + 1}/${scenes.length} ${active.name}${staleIds.has(active.id as string) ? ' ⚠' : ''}`
+            : 'Scenes'}
+        </button>
+        <button
+          type="button"
+          className="narration__button"
+          data-testid="narration-forward"
+          aria-label="Next scene"
+          disabled={scenes.length === 0 || position === scenes.length - 1}
+          onClick={() => step(1)}
+        >
+          ›
+        </button>
+      </div>
+
+      {active && active.note !== '' && (
+        <p className="narration__note" data-testid="narration-note">
+          {active.note}
+        </p>
       )}
     </div>
   )

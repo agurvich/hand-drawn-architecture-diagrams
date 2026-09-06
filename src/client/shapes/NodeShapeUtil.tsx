@@ -7,7 +7,7 @@ import {
   resizeBox,
 } from 'tldraw'
 import { effectiveCollapsed } from '@shared/scenes'
-import { sceneState, takeOffSceneAndToggle } from '../sceneView'
+import { highlightState, sceneState, takeOffSceneAndToggle } from '../sceneView'
 import {
   NODE_SHAPE_TYPE,
   nodeShapeDefaultProps,
@@ -121,6 +121,14 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
     // vanish while it still offers "Collapse" and shows no count.
     const { scene, offScene } = sceneState(this.editor)
     const collapsed = effectiveCollapsed(shape.id, shape.props.collapsed, scene, offScene)
+    // Ring the named shapes AND dim the rest: on a busy diagram an outline alone
+    // is easy to miss, which is the opposite of the point.
+    const { ids, dimming } = highlightState(this.editor)
+    const accent = !dimming
+      ? ''
+      : ids.has(shape.id)
+        ? ' diagram-node--highlighted'
+        : ' diagram-node--dimmed'
 
     const toggle = (e: React.PointerEvent | React.MouseEvent) => {
       // Without this the press also selects, drags or enters label editing --
@@ -140,7 +148,7 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
         style={{ width: shape.props.w, height: shape.props.h, pointerEvents: 'all' }}
       >
         <div
-          className={`diagram-node${collapsed ? ' diagram-node--collapsed' : ''}`}
+          className={`diagram-node${collapsed ? ' diagram-node--collapsed' : ''}${accent}`}
           data-testid="diagram-node"
           style={{ borderColor: shape.props.color }}
         >

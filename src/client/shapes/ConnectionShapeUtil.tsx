@@ -11,6 +11,7 @@ import {
 } from 'tldraw'
 import { getMergeIndex } from '../mergeIndex'
 import { nodeAtPoint } from '../nodeAtPoint'
+import { highlightState } from '../sceneView'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -151,8 +152,14 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
     const count = this.mergeCount(shape)
+    const { ids, dimming } = highlightState(this.editor)
+    const accent = !dimming
+      ? ''
+      : ids.has(shape.id)
+        ? ' diagram-connection--highlighted'
+        : ' diagram-connection--dimmed'
     return (
-      <svg className="tl-svg-container" data-testid="diagram-connection">
+      <svg className={`tl-svg-container${accent}`} data-testid="diagram-connection">
         <defs>
           <marker
             id={`arrow-${shape.id.replace(/[^a-zA-Z0-9]/g, '')}`}
