@@ -161,8 +161,9 @@ mid-build. Reasoning: `decisions.md` → *Secondary features deferred pending re
   port rather than at a shape. Worth re-deriving rather than porting.
 - **Per-frame sticky notes, share-link / read-only mode** — the read-only case may reduce to a tldraw
   primitive plus a room permission rather than the old app's store-level mutation choke point.
-- **Sketch → clean-shape recognition** — one of the three motivations for the rebuild, and the one
-  tldraw does not ship. Bounded and additive: a simplify-and-classify pass over freedraw strokes.
+- **Sketch → clean-shape recognition** — no longer deferred: specified as SPEC-010 (2026-09-05). One
+  of the three motivations for the rebuild, and the one tldraw does not ship. Bounded and additive: a
+  simplify-and-classify pass over freedraw strokes.
 - **"Trace a request"** — walk the connection graph in topological order from a chosen source and
   generate a frame sequence automatically, so narration is derived rather than hand-authored. Reuses
   the workflow kit's dependency resolver without adopting its execution semantics. Speculative, and
