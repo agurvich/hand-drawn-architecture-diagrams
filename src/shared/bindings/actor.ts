@@ -1,5 +1,4 @@
 import {
-  createBindingPropsMigrationIds,
   createBindingPropsMigrationSequence,
   type RecordProps,
   type TLBaseBinding,
@@ -43,8 +42,6 @@ declare module '@tldraw/tlschema' {
 
 export const actorBindingProps: RecordProps<ActorBinding> = {}
 
-export const actorBindingVersions = createBindingPropsMigrationIds(ACTOR_BINDING_TYPE, {})
-
 export const actorBindingMigrations: TLPropsMigrations = createBindingPropsMigrationSequence({
   sequence: [],
 })
@@ -63,7 +60,7 @@ export const actorBindingMigrations: TLPropsMigrations = createBindingPropsMigra
  * so the tie has to break on data they both already have. Plain `<`, not
  * `localeCompare`, which disagrees with it on mixed case.
  */
-export function chosenActorBinding<T extends { id: string; toId: string }>(
+export function chosenActorBinding<T extends { id: string }>(
   bindings: readonly T[],
 ): T | undefined {
   let best: T | undefined

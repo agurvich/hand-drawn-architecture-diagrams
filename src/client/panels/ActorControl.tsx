@@ -40,14 +40,23 @@ export function ActorControl({ editor }: ActorControlProps) {
     'nodes',
     () => {
       if (!editor) return []
-      return editor
-        .getCurrentPageShapes()
-        .filter((shape) => shape.type === NODE_SHAPE_TYPE)
-        .map((shape) => ({
-          id: shape.id as string,
-          label: ((shape.props as { label?: string }).label ?? '').trim() || 'Untitled',
-        }))
-        .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.id < b.id ? -1 : 1))
+      return (
+        editor
+          .getCurrentPageShapes()
+          .filter((shape) => shape.type === NODE_SHAPE_TYPE)
+          .map((shape) => ({
+            id: shape.id as string,
+            label: ((shape.props as { label?: string }).label ?? '').trim() || 'Untitled',
+          }))
+          .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : a.id < b.id ? -1 : 1))
+          // TWO NODES CAN SHARE A NAME, and two identical options are two options
+          // a keyboard or voice-control user cannot choose between. Disambiguated
+          // only where it is needed, so the common case reads as the plain name.
+          .map((node, i, all) => {
+            const duplicate = all.some((other, j) => j !== i && other.label === node.label)
+            return duplicate ? { ...node, label: `${node.label} (${node.id.slice(-4)})` } : node
+          })
+      )
     },
     [editor],
   )

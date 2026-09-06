@@ -1,6 +1,7 @@
-import { createBindingId, type Editor, type TLShapeId } from 'tldraw'
+import { computed, createBindingId, type Computed, type Editor, type TLShapeId } from 'tldraw'
 import {
   ACTOR_BINDING_TYPE,
+  CONNECTION_SHAPE_TYPE,
   NODE_SHAPE_TYPE,
   chosenActorBinding,
   type ActorBinding,
@@ -77,4 +78,50 @@ export function clearActor(editor: Editor, connectionId: TLShapeId): void {
   editor.run(() => {
     editor.deleteBindings(existing)
   })
+}
+
+/**
+ * The nodes that perform whatever connections are currently selected.
+ *
+ * The other half of "who does this": the label on the line answers it from the
+ * line, and this answers it from the canvas, so selecting a connection shows you
+ * the actor without opening anything.
+ *
+ * Behind a `computed` for the reason `highlightState` is: this runs inside the
+ * tracked render scope of EVERY node, and it reads the selection plus every
+ * actor binding. Unguarded, each of N nodes takes a dependency on all of that
+ * and re-renders whenever any of it changes.
+ */
+const performers = new WeakMap<Editor, Computed<ReadonlySet<string>>>()
+
+const NO_ACTORS: ReadonlySet<string> = new Set()
+
+function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a.size !== b.size) return false
+  for (const id of a) if (!b.has(id)) return false
+  return true
+}
+
+export function actorsOfSelection(editor: Editor): ReadonlySet<string> {
+  let set = performers.get(editor)
+  if (!set) {
+    set = computed(
+      'actors of selection',
+      () => {
+        const ids = editor.getSelectedShapeIds()
+        if (ids.length === 0) return NO_ACTORS
+        const out = new Set<string>()
+        for (const id of ids) {
+          const shape = editor.getShape(id)
+          if (shape?.type !== CONNECTION_SHAPE_TYPE) continue
+          const actor = actorIdOf(editor, id)
+          if (actor) out.add(actor)
+        }
+        return out.size === 0 ? NO_ACTORS : out
+      },
+      { isEqual: sameSet },
+    )
+    performers.set(editor, set)
+  }
+  return set.get()
 }

@@ -5,10 +5,9 @@ import {
   customShapeSchemas,
   customBindingSchemas,
   NODE_SHAPE_TYPE,
-  CONNECTION_BINDING_TYPE,
   nodeShapeDefaultProps,
 } from './index'
-import { ConnectionBindingUtil } from '../../client/bindings/ConnectionBindingUtil'
+import { bindingUtils } from '../../client/shapes/registry'
 
 /**
  * The ONE test that legitimately imports across both runtimes. `shared-imports.test.ts`
@@ -74,26 +73,46 @@ describe('client / worker shape boundary', () => {
     // The same replace-not-extend trap SPEC-003 hit with shapes. Without the
     // spread, every built-in binding becomes unknown at the room boundary.
     expect(workerSchema.serialize().sequences['com.tldraw.binding.arrow']).toBeDefined()
-    expect(
-      workerSchema.serialize().sequences[`com.tldraw.binding.${CONNECTION_BINDING_TYPE}`],
-    ).toBeDefined()
+    // EVERY custom binding, derived from the registry rather than named one at
+    // a time -- a list you have to remember to extend is a list that goes stale
+    // the moment a second binding type lands, which is exactly what happened.
+    for (const type of Object.keys(customBindingSchemas)) {
+      expect(
+        workerSchema.serialize().sequences[`com.tldraw.binding.${type}`],
+        `worker schema is missing ${type}`,
+      ).toBeDefined()
+    }
   })
 
-  it('client and worker carry the SAME migration sequence version for the BINDING', () => {
+  it('client and worker carry the SAME migration sequence version for EVERY binding', () => {
     // Props validators can agree while the two sides carry different binding
     // sequences -- a connection-level failure no record check would see.
+    //
+    // BUILT FROM THE BINDING UTILS, which is the client's real source: its
+    // synced schema comes from `bindingUtils`' statics, while the worker's comes
+    // from `customBindingSchemas`. Two independent sources that agree today only
+    // because each util aliases the shared constants -- and this is the check
+    // that keeps them agreeing. It iterates rather than naming a type, because
+    // the version that named one silently stopped covering the second.
+    const clientBindings = Object.fromEntries(
+      bindingUtils.map((util) => {
+        const u = util as unknown as { type: string; props?: unknown; migrations?: unknown }
+        return [u.type, { props: u.props, migrations: u.migrations }]
+      }),
+    )
     const clientSchema = createTLSchema({
       shapes: { ...defaultShapeSchemas, ...customShapeSchemas },
-      bindings: {
-        ...defaultBindingSchemas,
-        [CONNECTION_BINDING_TYPE]: {
-          props: ConnectionBindingUtil.props,
-          migrations: ConnectionBindingUtil.migrations,
-        },
-      },
+      bindings: { ...defaultBindingSchemas, ...clientBindings },
     })
-    const key = `com.tldraw.binding.${CONNECTION_BINDING_TYPE}`
-    expect(clientSchema.serialize().sequences[key]).toBe(workerSchema.serialize().sequences[key])
+    const custom = Object.keys(customBindingSchemas)
+    expect(custom.length).toBeGreaterThan(1)
+    for (const type of custom) {
+      const key = `com.tldraw.binding.${type}`
+      expect(clientSchema.serialize().sequences[key], `client is missing ${type}`).toBeDefined()
+      expect(clientSchema.serialize().sequences[key], `${type} drifted`).toBe(
+        workerSchema.serialize().sequences[key],
+      )
+    }
   })
 
   it('client and worker carry the SAME migration sequence version for the shape', () => {

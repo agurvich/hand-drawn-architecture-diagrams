@@ -323,6 +323,12 @@ refused rather than partially applied:
 `edgeSets`, `metadata`, `icon`, `isActor`, `actorId`, `sourceHandle`, `targetHandle`, `autoLayout`,
 `colorPalette`, `stickyNotes`.
 
-Edge sets, actor/action attribution and icons are all things this tool may grow later. Today it has
-nodes, nesting, collapse, connections and scenes — which is enough to say most of what an
-architecture diagram needs to say, and to walk someone through it.
+Edge sets and icons are things this tool may grow later.
+
+**Actors are a special case, and the honest answer is awkward.** The app *does* have them — a
+connection can be attributed to the node that performs it, so a line can say an IAM role copies
+between two buckets that are not themselves connected. The **format does not carry it yet.** So
+`actorId` above is still rejected, and an attribution made in the app does not survive an export:
+copy a diagram out and paste it back and every attribution is gone, with nothing warning you. Until
+the format grows a version 3, actors are something you add in the app after importing, not something
+you can write here.

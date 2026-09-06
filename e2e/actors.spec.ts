@@ -137,18 +137,22 @@ test.describe('SPEC-011 FR-001 — the binding and its lifecycle', () => {
       ({ k, one, two }) => {
         const ed = window.__editor!
         ed.run(() => {
-          ed.createBinding({
-            id: 'binding:aaaaaaaa' as never,
-            type: 'connectionActor',
-            fromId: k as never,
-            toId: one as never,
-            props: {},
-          })
+          // THE LARGEST ID IS PLANTED FIRST, deliberately. With the smallest
+          // created first, "smallest id" and "first in the array" agree, and an
+          // implementation that just took the first would pass -- which is store
+          // order, precisely the thing that need not match between two clients.
           ed.createBinding({
             id: 'binding:zzzzzzzz' as never,
             type: 'connectionActor',
             fromId: k as never,
             toId: two as never,
+            props: {},
+          })
+          ed.createBinding({
+            id: 'binding:aaaaaaaa' as never,
+            type: 'connectionActor',
+            fromId: k as never,
+            toId: one as never,
             props: {},
           })
         })
@@ -356,6 +360,104 @@ test.describe('SPEC-011 FR-003 — how an attributed connection reads', () => {
     await viewScene(page, sceneId)
 
     await expect.poll(() => actorLabels(page)).toEqual(['Platform'])
+  })
+})
+
+test.describe('SPEC-011 FR-003 — the control, and what it must not cover', () => {
+  test('the control does not cover the JSON launcher or any tldraw UI', async ({ page }) => {
+    // On OVERLAP, not coordinates. The first version sat top-centre with an
+    // offset and a comment claiming the two "never coexist" -- but only the
+    // EXPANDED json panel is conditional; the launcher button is always there,
+    // and the control's box contained it entirely. Export was unreachable while
+    // a connection was selected. Third time this corner has been fought over.
+    await openRoom(page, roomId('ac21'))
+    const a = await addNode(page, 'A', { x: 100, y: 300, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 600, y: 300, w: 160, h: 100 })
+    const k = await addConnection(page, a, b)
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, k)
+    await page.getByTestId('actor-control').waitFor()
+
+    const covered = await page.evaluate(() => {
+      const mine = document.querySelector('[data-testid="actor-control"]')!.getBoundingClientRect()
+      const hits: string[] = []
+      for (const selector of [
+        '[data-testid="diagram-io-open"]',
+        '[data-testid="narration-open"]',
+        '[data-testid="sketch-toggle"]',
+        '.tlui-toolbar',
+        '.tlui-menu-zone',
+        '.tlui-navigation-panel',
+      ]) {
+        const el = document.querySelector(selector)
+        if (!el) continue
+        const r = el.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) continue
+        if (
+          mine.left < r.right &&
+          mine.right > r.left &&
+          mine.top < r.bottom &&
+          mine.bottom > r.top
+        )
+          hits.push(selector)
+      }
+      return hits
+    })
+    expect(covered).toEqual([])
+
+    // And the launcher is still the thing you actually hit.
+    const onTop = await page.evaluate(() => {
+      const r = document.querySelector('[data-testid="diagram-io-open"]')!.getBoundingClientRect()
+      const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return el?.closest('[data-testid="diagram-io-open"]') !== null
+    })
+    expect(onTop).toBe(true)
+  })
+
+  test('the control fits a 375px viewport', async ({ page }) => {
+    // A translate moves the box AFTER max-width resolves, so the first version
+    // pushed 41px of itself off-screen where nothing could scroll to it.
+    await page.setViewportSize({ width: 375, height: 812 })
+    await openRoom(page, roomId('ac22'))
+    const a = await addNode(page, 'A', { x: 40, y: 300, w: 120, h: 80 })
+    const b = await addNode(page, 'B', { x: 220, y: 300, w: 120, h: 80 })
+    const k = await addConnection(page, a, b)
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, k)
+    const box = (await page.getByTestId('actor-control').boundingBox())!
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.width).toBeLessThanOrEqual(375)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375)
+  })
+
+  test('THE ACTOR NODE IS MARKED while its connection is selected', async ({ page }) => {
+    // "Who does this" answered from the canvas as well as from the line.
+    await openRoom(page, roomId('ac23'))
+    const a = await addNode(page, 'A', { x: 100, y: 300, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 600, y: 300, w: 160, h: 100 })
+    const role = await addNode(page, 'Role', { x: 350, y: 60, w: 160, h: 100 })
+    const k = await addConnection(page, a, b)
+    await attribute(page, k, role)
+
+    const marked = () =>
+      page.evaluate(() => document.querySelectorAll('.diagram-node--performs').length)
+    expect(await marked()).toBe(1)
+
+    // On COMPUTED STYLE, not the class: a class that resolves to nothing is how
+    // the merge count shipped with an invisible halo.
+    const painted = await page.evaluate(() => {
+      const style = getComputedStyle(document.querySelector('.diagram-node--performs')!)
+      return { style: style.outlineStyle, width: parseFloat(style.outlineWidth) }
+    })
+    expect(painted.style).not.toBe('none')
+    expect(painted.width).toBeGreaterThan(0)
+
+    await page.evaluate(() => {
+      window.__editor!.selectNone()
+    })
+    expect(await marked()).toBe(0)
   })
 })
 
