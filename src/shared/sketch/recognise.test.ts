@@ -5,6 +5,7 @@ import {
   recognise,
   simplify,
   trimOvershoot,
+  isPurposeful,
   CLOSE_FRACTION,
   type Point,
   type Verdict,
@@ -180,5 +181,56 @@ describe('simplify', () => {
       y: Math.sin(i / 50) * 400,
     }))
     expect(() => simplify(points)).not.toThrow()
+  })
+})
+
+describe('isPurposeful — what lets a node-pair override a refusal', () => {
+  /**
+   * A different question from `recognise`'s. The classifier asks what shape a
+   * stroke is; this asks whether it went from one end to the other. The client
+   * needs the second when both ends land in two different nodes, so that a
+   * connection routed around an obstacle can outweigh a refusal -- without a
+   * scribble across the same two nodes doing the same.
+   */
+  it('accepts a connection routed around an obstacle', () => {
+    const routed = [
+      [240, 310],
+      [330, 311],
+      [420, 309],
+      [422, 400],
+      [420, 480],
+      [520, 482],
+      [620, 479],
+      [700, 400],
+      [720, 320],
+      [730, 310],
+    ].map(([x, y]) => ({ x: x!, y: y! }))
+    // The classifier refuses it, which is correct -- it cannot see the nodes.
+    expect(recognise(routed).kind).toBe('none')
+    expect(isPurposeful(routed)).toBe(true)
+  })
+
+  it('refuses the corpus scribble', () => {
+    const scribble = STROKES.find((s) => s.name === 'refuse-scribble')!
+    expect(isPurposeful(scribble.points)).toBe(false)
+  })
+
+  it('refuses a stroke that returns to where it started', () => {
+    const box = STROKES.find((s) => s.name === 'box-clockwise')!
+    expect(isPurposeful(box.points)).toBe(false)
+  })
+
+  it('refuses a stroke too short to have gone anywhere', () => {
+    expect(
+      isPurposeful([
+        { x: 0, y: 0 },
+        { x: 3, y: 3 },
+      ]),
+    ).toBe(false)
+  })
+
+  it('accepts a plain straight line', () => {
+    const line = STROKES.find((s) => s.name === 'line-straight')!
+    expect(isPurposeful(line.points)).toBe(true)
   })
 })

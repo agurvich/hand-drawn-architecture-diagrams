@@ -96,6 +96,21 @@ export const MAX_LINE_BACKTRACK_FRACTION = 0.25
  */
 export const CLOSING_TRAVEL_FRACTION = 0.6
 
+/**
+ * How much longer than the straight run between its ends a path may be and
+ * still count as PURPOSEFUL -- a stroke that set out from one place and arrived
+ * at another, rather than one that wandered.
+ *
+ * Generous, because a connection routed around an obstacle genuinely detours:
+ * right, down, right measures about 1.5x its own span. A scribble over the same
+ * two points measures three to five times it, and crosses itself doing so.
+ *
+ * This exists for the CLIENT's override, not for classification: `isPurposeful`
+ * is what lets "both ends landed in two different nodes" outweigh a refusal,
+ * without letting a scribble drawn across two nodes become a connection.
+ */
+export const MAX_PURPOSEFUL_PATH_FRACTION = 2.5
+
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
@@ -290,4 +305,21 @@ export function recognise(points: readonly Point[]): Verdict {
   }
 
   return { kind: 'line', from: first, to: last }
+}
+
+/**
+ * Did this stroke go somewhere, or did it wander?
+ *
+ * Node-blind like everything else here, and deliberately NOT part of
+ * `recognise`: it answers a different question. The classifier asks "what shape
+ * is this"; this asks "was this a journey from one end to the other". The client
+ * needs the second when it can see that a stroke's two ends landed in two
+ * different nodes -- that is unambiguous connection evidence, and it has to be
+ * able to outweigh a refusal without also promoting a scribble.
+ */
+export function isPurposeful(points: readonly Point[]): boolean {
+  if (points.length < 2) return false
+  const span = distance(points[0]!, points[points.length - 1]!)
+  if (span < MIN_STROKE_EXTENT) return false
+  return pathLength(points) <= span * MAX_PURPOSEFUL_PATH_FRACTION
 }

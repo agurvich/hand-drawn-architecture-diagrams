@@ -1,8 +1,8 @@
 # Spec: Sketch to clean shape
 
 **ID:** SPEC-010  
-**Status:** In Progress  
-**Last Updated:** 2026-09-05 (rev 2 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-06 (rev 3 — built)  
 **Depends On:** SPEC-004, SPEC-005, SPEC-006, SPEC-008
 
 ## Overview
@@ -145,7 +145,12 @@ A stroke that starts on one node and ends on another is the gesture for "these a
       pure order rule it is never consulted. An intended connection becomes a node: exactly the
       annotation-eating failure FR-004 exists to prevent
 - [ ] The recogniser stays **pure and node-blind**; the endpoint resolution above happens in the
-      client adapter, which then overrides a box verdict. The corpus therefore tests the pure
+      client adapter, which then overrides a box verdict. **Built (2026-09-06): the override also
+      outweighs a REFUSAL, not only a box.** A routed connection is open as often as it is closed —
+      right-down-right that does not return to its start is refused for deviation, not called a box —
+      so an override that only beat a box verdict left the motivating case unconverted. It is
+      gated on `isPurposeful`, a second pure predicate: a stroke no longer than 2.5× the straight
+      run between its ends went somewhere, and a scribble across the same two nodes did not. The corpus therefore tests the pure
       classifier, and one e2e tests the override
 
 ### FR-004: It never eats an annotation
@@ -164,7 +169,12 @@ from a bug to the person whose note just became a rectangle.
 - [ ] With it off, no stroke is ever converted, asserted by drawing a stroke that the recogniser
       classifies as a box and finding the `draw` shape still there and no node created
 - [ ] The mode is per viewer and does not sync — one person tidying their sketches does not convert
-      shapes under someone else's pencil. The seam SPEC-008 established for per-viewer state is the
+      shapes under someone else's pencil. **Two halves, and the build found the second: the
+      session-scoped record keeps the SETTING local, and a `source !== 'user'` guard in the change
+      handler keeps its EFFECT local.** Without the guard a stroke arriving over the wire is a shape
+      change like any other, so the enabled client converts a stroke somebody else drew and the node
+      syncs back — the second person watching their sketch become a rectangle having enabled
+      nothing. The seam SPEC-008 established for per-viewer state is the
       same one: a session-scoped record, not a module variable
 - [ ] With it on, **one undo** returns the exact original stroke — same points, same id — for both
       the box and the line case

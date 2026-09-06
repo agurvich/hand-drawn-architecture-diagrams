@@ -4,6 +4,8 @@ import { useSync } from '@tldraw/sync'
 import type { TLAssetStore } from 'tldraw'
 import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
+import { registerSketchRecognition } from './sketch/recogniseOnDraw'
+import { SketchToggle } from './panels/SketchToggle'
 import { stepScene, takeOffSceneAndToggle, viewScene } from './sceneView'
 import {
   bindingUtils,
@@ -131,6 +133,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
           handling, which this panel needs none of. */}
       <DiagramIOPanel editor={editor} />
       <NarrationPanel editor={editor} />
+      <SketchToggle editor={editor} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect
@@ -146,8 +149,13 @@ function handleMount(editor: Editor) {
   // at its own boundary -- the panel disables the buttons there -- so its guard
   // is asserted directly, and making it wrap otherwise left every test green.
   window.__scenes = { viewScene, takeOffSceneAndToggle, stepScene }
-  // Returned disposer is run by tldraw when the editor unmounts.
-  return stripHiddenFromSelection(editor)
+  // Both disposers are run by tldraw when the editor unmounts.
+  const disposeSelection = stripHiddenFromSelection(editor)
+  const disposeSketch = registerSketchRecognition(editor)
+  return () => {
+    disposeSelection()
+    disposeSketch()
+  }
 }
 
 function Centered({ testId, children }: { testId: string; children: React.ReactNode }) {
