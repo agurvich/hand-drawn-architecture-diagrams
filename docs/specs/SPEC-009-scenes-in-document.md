@@ -257,7 +257,7 @@ export interface ExportableScene {
 }
 
 export interface DocumentScene {
-  /** Unique among FRAMES. May equal a node or connection id -- see FR-002. */
+  /** Unique among SCENES. May equal a node or connection id -- see FR-002. */
   id: string
   name: string
   /** Optional; defaults to ''. */

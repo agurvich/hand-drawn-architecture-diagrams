@@ -16,7 +16,7 @@ One persistent graph of your architecture, with two ideas layered on tldraw's ca
 
 - **Hierarchical nesting** — containers hold other nodes to arbitrary depth and collapse, merging
   their children's connections into deduplicated lines against the outside world.
-- **Frame-based narration** — named snapshots of view state (what is expanded, highlighted, visible),
+- **Scene-based narration** — named snapshots of view state (what is expanded, highlighted, visible),
   stepped forward and back to walk someone through the system.
 
 It replaces [`../architecture-diagrams`](https://github.com/agurvich/architecture-diagrams), a

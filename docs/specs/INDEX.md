@@ -23,30 +23,31 @@ to status only — no prose.
 Group related specs and record the order to build them in. Keep this section: a spec split for size
 (`process.md` §4) always records its order here, even if you group nothing else.
 
-- **Canvas migration:** SPEC-001 → SPEC-002 → SPEC-003 → SPEC-004 → SPEC-005 → SPEC-006 → SPEC-007 → SPEC-008 → SPEC-009
-
-- **Drawing:** SPEC-010
-
-  Not part of the migration arc — nothing in the predecessor to port. Sketch-to-clean-shape is the
-  third of the three reasons `decisions.md` → *Canvas SDK: tldraw* gives for the rebuild, and the one
-  tldraw does not ship.
-
-  It needs **SPEC-006** for `nodeAtPoint`, and **SPEC-008** for the custom-record pattern its mode
-  uses and for the `@tldraw/store` allowlist widening that pattern required. It does **not** need the
-  document work, so it can be built before or after SPEC-009 — which is the whole reason it is a
-  separate arc rather than a tail on the migration one.
+- **Canvas migration:** SPEC-001 -> SPEC-002 -> SPEC-003 -> SPEC-004 -> SPEC-005 -> SPEC-006 ->
+  SPEC-007 -> SPEC-008 -> SPEC-009
 
   The rebuild of `../architecture-diagrams` on tldraw. The order is deliberate and inverts the
   predecessor's handoff plan, which put multiplayer last: sync lands before the first custom shape so
   the client/worker schema duality is proven on a trivial shape rather than retrofitted across a
-  finished shape library (`decisions.md` → *Multiplayer lands before the first custom shape*).
+  finished shape library (`decisions.md` -> *Multiplayer lands before the first custom shape*).
 
-  SPEC-001 through SPEC-007 are built; SPEC-008 and SPEC-009 are authored. The order is not
-  negotiable — the shape of each was not knowable until the one before it landed, and a spec authored
-  against an unproven foundation is rewritten rather than built.
+  SPEC-001 through SPEC-008 are built; SPEC-009 is authored. The order is not negotiable -- the shape
+  of each was not knowable until the one before it landed, and a spec authored against an unproven
+  foundation is rewritten rather than built.
 
   SPEC-009 closes the arc: a document that carries its narration as well as its diagram, which is
   what lets a model be asked for a walkthrough rather than a picture.
+
+- **Drawing:** SPEC-010
+
+  Not part of the migration arc -- nothing in the predecessor to port. Sketch-to-clean-shape is the
+  third of the three reasons `decisions.md` -> *Canvas SDK: tldraw* gives for the rebuild, and the one
+  tldraw does not ship.
+
+  It needs **SPEC-006** for `nodeAtPoint`, and **SPEC-008** for the custom-record pattern its mode
+  uses and for the `@tldraw/store` allowlist widening that pattern required. It does **not** need the
+  document work, so it can be built before or after SPEC-009 -- which is the whole reason it is a
+  separate arc rather than a tail on the migration one.
 
 - **Modelling:** SPEC-011 -> SPEC-012
 
