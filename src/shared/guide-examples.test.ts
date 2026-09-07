@@ -47,6 +47,21 @@ describe('the authoring guide', () => {
     ).toBe(true)
   })
 
+  it('carries a worked example with an ACTOR THAT IS NEITHER END', () => {
+    // The existing extraction tests cannot see this -- a guide with zero
+    // actorId examples passes all of them. And "neither end" is the only form
+    // that shows the point: the thing performing a connection is usually not one
+    // of the two things it joins, which is the whole reason the field exists.
+    const documents = blocks.map((block) => parseDocument(block)).filter((r) => r.ok)
+    expect(
+      documents.some((r) =>
+        r.document.connections.some(
+          (c) => c.actorId !== undefined && c.actorId !== c.sourceId && c.actorId !== c.targetId,
+        ),
+      ),
+    ).toBe(true)
+  })
+
   it('carries a worked example WITH scenes, and it is a real walkthrough', () => {
     // Not merely "a scenes key parses": the scenes worth writing change what is
     // folded, so a guide whose example scenes are interchangeable teaches the
@@ -95,7 +110,12 @@ describe('the authoring guide', () => {
     for (const field of ['scenes', 'name', 'note', 'highlighted']) {
       expect(markdown).toContain(field)
     }
-    for (const absent of ['sourceHandle', 'actorId']) {
+    // `actorId` moved out of the forbidden list when SPEC-012 shipped it. The old
+    // loop checked it and `sourceHandle` were PRESENT, under a comment saying
+    // they appear only in the what-this-tool-does-not-have list -- a claim it
+    // could not have tested either way, and which became false on merge.
+    for (const field of ['actorId']) expect(markdown).toContain(field)
+    for (const absent of ['sourceHandle']) {
       // Present only in the "what this tool does not have" list, never as a field.
       expect(markdown.includes(absent)).toBe(true)
     }

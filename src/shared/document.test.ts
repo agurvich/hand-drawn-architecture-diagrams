@@ -137,10 +137,13 @@ describe('parseDocument — rejection, each naming its path', () => {
   // HARD-CODED, not built from SUPPORTED_DOCUMENT_VERSIONS: a pin that
   // interpolates the implementation's own expression is not a pin. Changing the
   // separator to ', ' would keep a derived assertion green.
+  // 3 is a VALID version now, so the unknown ones move up. Hard-coded, not
+  // built from SUPPORTED_DOCUMENT_VERSIONS: a pin that interpolates the
+  // implementation's own expression is not a pin.
   it.each([
-    [3, 'document.version: expected 1 or 2, got 3'],
-    [0, 'document.version: expected 1 or 2, got 0'],
-    ['2', 'document.version: expected 1 or 2, got "2"'],
+    [4, 'document.version: expected 1 or 2 or 3, got 4'],
+    [0, 'document.version: expected 1 or 2 or 3, got 0'],
+    ['3', 'document.version: expected 1 or 2 or 3, got "3"'],
   ])('rejects version %p', (version, message) => {
     expect(errorFrom(json({ version, nodes: [] }))).toBe(message)
   })
@@ -151,7 +154,7 @@ describe('parseDocument — rejection, each naming its path', () => {
     // checks in either order -- and the mutation that used to prove this went
     // inert the moment `scenes` became a legal top-level key.
     expect(errorFrom(json({ version: 9, bogus: 1 }))).toBe(
-      'document.version: expected 1 or 2, got 9',
+      'document.version: expected 1 or 2 or 3, got 9',
     )
   })
 
@@ -1055,5 +1058,194 @@ describe('fromDocument — scenes', () => {
     expect(fromDocument(parsed.document, PAGE).scenes.map((s) => s.id)).toEqual(
       ids.map((id) => `diagramScene:${id}`),
     )
+  })
+})
+
+describe('actorId — a connection can say who performs it', () => {
+  const withActors = (connections: unknown[]) =>
+    json({
+      version: DOCUMENT_VERSION,
+      nodes: [node('a'), node('b'), node('role')],
+      connections,
+    })
+
+  it('is optional, and omitted from an unattributed connection', () => {
+    const out = toDocument(
+      [exportableNode('a'), exportableNode('b')],
+      [exportableConnection('k')],
+      [binding('k', 'a', 'start'), binding('k', 'b', 'end')],
+    )
+    expect(out.connections[0]).toEqual({ id: 'k', sourceId: 'a', targetId: 'b' })
+  })
+
+  it('carries an attribution through', () => {
+    const result = parseDocument(
+      withActors([{ id: 'k', sourceId: 'a', targetId: 'b', actorId: 'role' }]),
+    )
+    expect(result.ok && result.document.connections[0]).toEqual({
+      id: 'k',
+      sourceId: 'a',
+      targetId: 'b',
+      actorId: 'role',
+    })
+  })
+
+  it('does NOT make the other connection fields optional', () => {
+    // The split that had to happen first: one array was both the allowlist and
+    // the required-string list, so adding `actorId` to it would have made it
+    // mandatory and rejected every connection ever written.
+    const result = parseDocument(withActors([{ id: 'k', sourceId: 'a', targetId: 'b' }]))
+    expect(result.ok).toBe(true)
+  })
+
+  it.each([
+    [
+      { id: 'k', sourceId: 'a', targetId: 'b', actorId: 1 },
+      'connections[0].actorId: must be a string',
+    ],
+    [
+      { id: 'k', sourceId: 'a', targetId: 'b', actorId: 'has spaces' },
+      `connections[0].actorId: must match ${String(/^[A-Za-z0-9_.-]{1,128}$/)}`,
+    ],
+    [
+      { id: 'k', sourceId: 'a', targetId: 'b', actorId: 'ghost' },
+      'connections[0].actorId: no node with id "ghost"',
+    ],
+  ])('rejects %j', (connection, message) => {
+    expect(errorFrom(withActors([connection]))).toBe(message)
+  })
+
+  it('gives an actorId naming a CONNECTION its own message', () => {
+    // Two different authoring mistakes: a typo, and a misunderstanding of what
+    // can perform a connection.
+    expect(
+      errorFrom(
+        withActors([
+          { id: 'k1', sourceId: 'a', targetId: 'b' },
+          { id: 'k2', sourceId: 'a', targetId: 'b', actorId: 'k1' },
+        ]),
+      ),
+    ).toBe('connections[1].actorId: names a connection, which cannot perform another')
+  })
+
+  it('ACCEPTS a connection attributed to one of its own endpoints', () => {
+    // "A writes to B, performed by A" is ordinary, and the canvas accepts it. A
+    // format that refused it would make a legal room unexportable.
+    const result = parseDocument(
+      withActors([{ id: 'k', sourceId: 'a', targetId: 'b', actorId: 'a' }]),
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects actorId on a v1 or v2 document, naming the CONNECTION', () => {
+    // Pathed to the connection, not to document.version: an author who wrote it
+    // on one of forty needs to know which. And after the reorder, `version: 2`
+    // passes the version gate and `actorId` is a legal v3 key, so without this
+    // guard the attribution is silently discarded.
+    for (const version of [1, 2]) {
+      expect(
+        errorFrom(
+          json({
+            version,
+            nodes: [node('a'), node('b')],
+            connections: [
+              { id: 'k1', sourceId: 'a', targetId: 'b' },
+              { id: 'k2', sourceId: 'a', targetId: 'b', actorId: 'a' },
+            ],
+          }),
+        ),
+      ).toBe('connections[1].actorId: requires version 3')
+    }
+  })
+
+  it('SCENES wins when a v1 document breaks both rules at once', () => {
+    // Two guards, one document, one message. Which one is not obvious and is
+    // not derivable from either guard alone -- swapping them leaves the whole
+    // suite green, which is why this is pinned rather than assumed.
+    expect(
+      errorFrom(
+        json({
+          version: 1,
+          nodes: [node('a'), node('b')],
+          connections: [{ id: 'k', sourceId: 'a', targetId: 'b', actorId: 'a' }],
+          scenes: [],
+        }),
+      ),
+    ).toBe('document.version: scenes requires version 2')
+  })
+
+  it('does not THROW on a malformed connections key it has not validated yet', () => {
+    // The guard runs before `Array.isArray(connections)`, so a naive loop throws
+    // `connections is not iterable` -- an exception escaping a function whose
+    // contract is "the whole document or a message. Never a partial result".
+    expect(errorFrom(json({ version: 1, connections: 5 }))).toBe(
+      'document.connections: must be an array',
+    )
+    expect(errorFrom(json({ version: 2, connections: [7] }))).toBe(
+      'connections[0]: must be an object',
+    )
+  })
+})
+
+describe('toDocument / fromDocument — actors', () => {
+  const nodes = [exportableNode('a'), exportableNode('b'), exportableNode('role')]
+  const ends = [binding('k', 'a', 'start'), binding('k', 'b', 'end')]
+  const actorBinding = (to: string) =>
+    ({ type: 'connectionActor', fromId: 'shape:k', toId: `shape:${to}` }) as const
+
+  it('exports the attribution with the prefix stripped', () => {
+    const out = toDocument(nodes, [exportableConnection('k')], [...ends, actorBinding('role')])
+    expect(out.connections[0]!.actorId).toBe('role')
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('DROPS an attribution naming a node the document does not carry', () => {
+    const parented = [...nodes, exportableNode('hidden', { parentId: 'shape:someFrame' })]
+    const out = toDocument(parented, [exportableConnection('k')], [...ends, actorBinding('hidden')])
+    expect(out.nodes.map((n) => n.id)).not.toContain('hidden')
+    expect(out.connections[0]!.actorId).toBeUndefined()
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('KEEPS an attribution naming a node inside a collapsed container', () => {
+    // Collapse does not affect documentability, and a filter written against
+    // VISIBILITY rather than documentability passes the drop case above and
+    // silently loses this one.
+    const inside = [
+      exportableNode('box', { props: { ...exportableNode('box').props, collapsed: true } }),
+      exportableNode('role', { parentId: 'shape:box' }),
+      exportableNode('a'),
+      exportableNode('b'),
+    ]
+    const out = toDocument(inside, [exportableConnection('k')], [...ends, actorBinding('role')])
+    expect(out.connections[0]!.actorId).toBe('role')
+  })
+
+  it('DROPS an attribution naming a node that is gone entirely', () => {
+    // The third case the spec enumerated: not undescribable, just absent -- a
+    // node deleted after the binding was made, which `onBeforeDeleteToShape`
+    // makes transient but a synced room can still hold.
+    const out = toDocument(
+      [exportableNode('a'), exportableNode('b')],
+      [exportableConnection('k')],
+      [...ends, actorBinding('vanished')],
+    )
+    expect(out.connections[0]).toEqual({ id: 'k', sourceId: 'a', targetId: 'b' })
+    expect(parseDocument(json(out)).ok).toBe(true)
+  })
+
+  it('rebuilds the binding on the way back in', () => {
+    const parsed = parseDocument(
+      json({
+        version: DOCUMENT_VERSION,
+        nodes: [node('a'), node('b'), node('role')],
+        connections: [{ id: 'k', sourceId: 'a', targetId: 'b', actorId: 'role' }],
+      }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    const actors = fromDocument(parsed.document, PAGE).bindings.filter(
+      (b) => b.type === 'connectionActor',
+    )
+    expect(actors).toEqual([{ type: 'connectionActor', fromId: 'shape:k', toId: 'shape:role' }])
   })
 })

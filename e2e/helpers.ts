@@ -534,3 +534,21 @@ export async function dragCorner(page: Page, id: string, dx: number, dy: number)
   await page.mouse.up()
   await page.waitForTimeout(200)
 }
+
+/** Attribute a connection to a node through the real control. */
+export async function attributeConnection(page: Page, connectionId: string, nodeId: string | null) {
+  await page.evaluate((id) => {
+    window.__editor!.setSelectedShapes([id as never])
+  }, connectionId)
+  await page.getByTestId('actor-control').waitFor()
+  await page.getByTestId('actor-select').selectOption(nodeId ?? '')
+}
+
+/** The actor labels currently drawn on connections. */
+export async function actorLabels(page: Page): Promise<string[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map(
+      (el) => el.textContent ?? '',
+    ),
+  )
+}

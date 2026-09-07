@@ -16,8 +16,10 @@ to status only — no prose.
 | SPEC-009 | Scenes in the JSON document | Completed | SPEC-007, SPEC-008 |
 | SPEC-010 | Sketch to clean shape | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-011 | Actors on connections | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
-| SPEC-012 | Actors in the JSON document | Planned | SPEC-009, SPEC-011 |
+| SPEC-012 | Actors in the JSON document | Completed | SPEC-009, SPEC-011 |
 | SPEC-013 | Hand-drawn content inside a node | Completed | SPEC-004, SPEC-006, SPEC-008, SPEC-010 |
+| SPEC-014 | An icon on every node | Draft | SPEC-004, SPEC-007, SPEC-012 |
+| SPEC-015 | Actors on a merged edge | Draft | SPEC-006, SPEC-011, SPEC-014 |
 
 ## Arcs (build order)
 
@@ -57,13 +59,11 @@ Group related specs and record the order to build them in. Keep this section: a 
   one mechanism -- what a node will accept as a child -- and SPEC-013 changes the answer SPEC-010
   depends on, so the order is not negotiable.
 
-- **Modelling:** SPEC-011 -> SPEC-012
+- **Modelling:** SPEC-011 -> SPEC-012 -> SPEC-014 -> SPEC-015
 
-  Attributing a connection to the thing that performs it, independent of its two ends. Ported in
-  spirit from the predecessor's actor/action/trigger model, but re-derived rather than copied: on
-  this foundation an attribution is a binding, which is what `architecture.md` -> Deferred suspected.
+  Attributing a connection to the thing that performs it, and then making that visible at a glance.
+  The order is forced: SPEC-014 puts `icon` in the document at the version SPEC-012 introduces, and
+  SPEC-015 draws the icons SPEC-014 defines. SPEC-015 also REVERSES a SPEC-011 decision -- a merged
+  edge showed no actor when its members disagreed, and now shows them all -- which is why it is last
+  and why it carries the superseded markers.
 
-  - SPEC-012 - Actors in the JSON document. Split out for the same reason SPEC-009 was split out of
-    SPEC-008: it needs a version 3 and its own frozen corpus, and it is unbuildable until SPEC-009
-    exists. Folding it into SPEC-011 would pin four buildable requirements behind two that are not.
-    Until it lands, an attribution does not survive an export, and the guide must say so.

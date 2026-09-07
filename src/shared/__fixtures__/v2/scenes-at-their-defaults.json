@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "nodes": [{ "id": "a", "label": "A", "x": 0, "y": 0, "w": 200, "h": 120 }],
+  "scenes": [{ "id": "bare", "name": "Nothing folded, nothing lit" }]
+}

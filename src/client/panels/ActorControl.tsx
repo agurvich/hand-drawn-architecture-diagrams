@@ -1,6 +1,7 @@
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE, NODE_SHAPE_TYPE } from '@shared/shapes'
 import { actorIdOf, attributeTo, clearActor } from '../actors'
+import { getMergeIndex } from '../mergeIndex'
 
 interface ActorControlProps {
   /** The mounted editor, or null before `onMount` has run. */
@@ -61,10 +62,33 @@ export function ActorControl({ editor }: ActorControlProps) {
     [editor],
   )
 
+  /*
+   * READ THROUGH THE MERGE INDEX, not off the selected shape's own binding.
+   *
+   * A merged line is drawn by ONE of its members -- the representative -- and
+   * that is the only member you can hit-test, so selecting a `x2` line selects
+   * it. Reading `actorIdOf` there answered with that one member's actor while
+   * the canvas, one click away, correctly claimed nobody. Worse, "Nobody in
+   * particular" then called `clearActor` on the representative and destroyed its
+   * real attribution while every other member kept theirs -- a person "fixing" a
+   * reading that was wrong to begin with, and losing data doing it.
+   */
+  const merged = useValue(
+    'merge entry',
+    () => (editor && selected ? (getMergeIndex(editor).get(selected) ?? null) : null),
+    [editor, selected],
+  )
+  const standsForSeveral = (merged?.count ?? 1) > 1
   const actorId = useValue(
     'actor',
-    () => (editor && selected ? actorIdOf(editor, selected) : null),
-    [editor, selected],
+    () => {
+      if (!editor || !selected) return null
+      // The merged answer when it stands for several -- null when they disagree,
+      // which is the same thing the line itself says.
+      if (standsForSeveral) return merged?.actorId ?? null
+      return actorIdOf(editor, selected)
+    },
+    [editor, selected, standsForSeveral, merged],
   )
 
   if (!editor || !selected) return null
@@ -79,6 +103,16 @@ export function ActorControl({ editor }: ActorControlProps) {
         className="actor-control__select"
         data-testid="actor-select"
         value={actorId ?? ''}
+        /*
+         * READ-ONLY ON A MERGED LINE. Editing it would rewrite the
+         * representative alone and leave every other member as it was -- a
+         * silent partial edit with nothing on screen saying only one of several
+         * changed. Attributing them all is a coherent alternative, but it is a
+         * bulk edit nobody asked for and SPEC-015 is about to change what a
+         * merged edge shows; expanding the container is the gesture that already
+         * exists.
+         */
+        disabled={standsForSeveral}
         onChange={(event) => {
           const value = event.target.value
           if (value === '') clearActor(editor, selected)
@@ -92,6 +126,11 @@ export function ActorControl({ editor }: ActorControlProps) {
           </option>
         ))}
       </select>
+      {standsForSeveral && (
+        <p className="actor-control__note" data-testid="actor-control-merged">
+          This line stands for {merged?.count} connections. Expand the container to attribute them.
+        </p>
+      )}
     </div>
   )
 }

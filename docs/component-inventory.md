@@ -47,4 +47,6 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `ActorBindingUtil` | `src/client/bindings/ActorBindingUtil.ts` | Deliberately hookless: the absence of a delete hook is the behaviour |
 | `ActorControl` | `src/client/panels/ActorControl.tsx` | Performed-by, on the selected connection |
 | e2e content helpers | `e2e/helpers.ts` | `addTldrawShape`, `parentOf`, `pageBounds`, `dragCorner` |
+| v2 corpus | `src/shared/__fixtures__/v2/` | Frozen `"version": 2` documents with scenes; the regression base for version 3 |
+| e2e actor helpers | `e2e/helpers.ts` | `attributeConnection`, `actorLabels` |
 

@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "nodes": [
+    { "id": "a", "label": "A", "x": 0, "y": 0, "w": 200, "h": 120 },
+    { "id": "b", "label": "B", "x": 400, "y": 0, "w": 200, "h": 120 }
+  ],
+  "connections": [{ "id": "a-b", "sourceId": "a", "targetId": "b" }]
+}
