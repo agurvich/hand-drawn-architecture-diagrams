@@ -7,6 +7,7 @@ import {
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
 import { isShapeId, SHAPE_ID_PREFIX } from './shapes/hierarchy'
 import { ACTOR_BINDING_TYPE } from './bindings/actor'
+import { ICON_KEYS, ICON_NONE } from './icons'
 import { SCENE_ID_PREFIX } from './scenes/sceneType'
 
 /**
@@ -72,6 +73,15 @@ export interface DocumentNode {
   color?: string
   collapsed?: boolean
   parentId?: string
+  /**
+   * A PINNED icon key, or `'none'` for deliberately no icon.
+   *
+   * Omitted when the node's icon is automatic, and that omission is the point: a
+   * document carries DECISIONS, not derivations. Writing the guessed key would
+   * freeze it, so a renamed node would keep its old icon after a round trip --
+   * exactly what the three-state design exists to prevent.
+   */
+  icon?: string
 }
 
 export interface DocumentConnection {
@@ -209,7 +219,19 @@ export type BindingDescriptor =
  * own guard for the same reason.
  */
 const TOP_LEVEL_KEYS = ['version', 'nodes', 'connections', 'scenes']
-const NODE_KEYS = ['id', 'label', 'x', 'y', 'w', 'h', 'rotation', 'color', 'collapsed', 'parentId']
+const NODE_KEYS = [
+  'id',
+  'label',
+  'x',
+  'y',
+  'w',
+  'h',
+  'rotation',
+  'color',
+  'collapsed',
+  'parentId',
+  'icon',
+]
 /**
  * SPLIT, and the split is load-bearing.
  *
@@ -420,6 +442,15 @@ export function parseDocument(input: string): ParseResult {
       if (typeof entry.collapsed !== 'boolean')
         return fail(`${path}.collapsed`, 'must be a boolean')
       node.collapsed = entry.collapsed
+    }
+    if (entry.icon !== undefined) {
+      if (typeof entry.icon !== 'string') return fail(`${path}.icon`, 'must be a string')
+      // An UNKNOWN key renders nothing and looks exactly like the matcher
+      // failing, so it is rejected by name rather than accepted and dropped.
+      if (entry.icon !== ICON_NONE && !ICON_KEYS.includes(entry.icon)) {
+        return fail(`${path}.icon`, `unknown icon ${JSON.stringify(entry.icon)}`)
+      }
+      node.icon = entry.icon
     }
     if (entry.parentId !== undefined) {
       if (typeof entry.parentId !== 'string') return fail(`${path}.parentId`, 'must be a string')
@@ -708,6 +739,9 @@ export function toDocument(
       if (node.rotation !== 0) out.rotation = node.rotation
       if (node.props.color !== nodeShapeDefaultProps.color) out.color = node.props.color
       if (node.props.collapsed) out.collapsed = true
+      // PINNED ONLY. '' is automatic -- an absence of decision, and a document
+      // records decisions. Emitting the guess would freeze it.
+      if (node.props.icon !== '') out.icon = node.props.icon
       if (isShapeId(node.parentId)) out.parentId = documentId(node.parentId)
       return out
     })
@@ -887,6 +921,7 @@ export function fromDocument(
       label: node.label,
       color: node.color ?? nodeShapeDefaultProps.color,
       collapsed: node.collapsed ?? false,
+      icon: node.icon ?? nodeShapeDefaultProps.icon,
     },
   }))
 

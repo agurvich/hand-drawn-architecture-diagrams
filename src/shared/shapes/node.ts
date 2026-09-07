@@ -30,6 +30,23 @@ export interface NodeShapeProps {
   color: string
   /** Added at v3. While true, every descendant is hidden. */
   collapsed: boolean
+  /**
+   * Added at v4. THREE STATES, and the third is the interesting one:
+   *
+   *   a key   -> pinned. This icon, whatever the label says.
+   *   'none'  -> pinned to nothing. No icon here, deliberately.
+   *   ''      -> automatic. Guessed live, so renaming the node updates it.
+   *
+   * Automatic is the ABSENCE of a decision, not a value written once at
+   * creation. A node called "DB" renamed to "Queue" changes icon; one whose icon
+   * was chosen by hand does not. Writing the guess into the record at creation
+   * would look identical on day one and lose that behaviour forever.
+   *
+   * The empty string is the sentinel because a shape prop cannot be `undefined`
+   * -- it is validated and persisted, and an optional prop on a required record
+   * is a different thing from an absent one. See `resolveNodeIcon`.
+   */
+  icon: string
 }
 
 export type NodeShape = TLBaseShape<typeof NODE_SHAPE_TYPE, NodeShapeProps>
@@ -53,6 +70,7 @@ export const nodeShapeProps: RecordProps<NodeShape> = {
   label: T.string,
   color: T.string,
   collapsed: T.boolean,
+  icon: T.string,
 }
 
 export const nodeShapeDefaultProps: NodeShapeProps = {
@@ -61,11 +79,14 @@ export const nodeShapeDefaultProps: NodeShapeProps = {
   label: '',
   color: 'black',
   collapsed: false,
+  // '' means AUTOMATIC -- guessed live from the label. See `resolveNodeIcon`.
+  icon: '',
 }
 
 export const nodeVersions = createShapePropsMigrationIds(NODE_SHAPE_TYPE, {
   AddColor: 1,
   AddCollapsed: 2,
+  AddIcon: 3,
 })
 
 export const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationSequence({
@@ -90,6 +111,20 @@ export const nodeShapeMigrations: TLPropsMigrations = createShapePropsMigrationS
       },
       down(props) {
         delete (props as Partial<NodeShapeProps>).collapsed
+      },
+    },
+    {
+      id: nodeVersions.AddIcon,
+      up(props) {
+        // Rooms hold v3 records. Default to AUTOMATIC rather than to a guessed
+        // key: every existing node gains an icon derived from its label, which
+        // is the intended outcome, and it keeps following the label afterwards.
+        // Writing a guess here would freeze whatever the label happened to be
+        // at migration time.
+        ;(props as NodeShapeProps).icon = ''
+      },
+      down(props) {
+        delete (props as Partial<NodeShapeProps>).icon
       },
     },
   ],

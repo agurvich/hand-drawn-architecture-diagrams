@@ -31,6 +31,7 @@ until the first real decision lands.
 - [Store-native domain state](#store-native-domain-state)
 - [Multiplayer lands before the first custom shape](#multiplayer-lands-before-the-first-custom-shape)
 - [Hobby licence accepted for now; commercial use is unresolved](#hobby-licence-accepted-for-now-commercial-use-is-unresolved)
+- [Icon artwork rides the same deployment fence](#icon-artwork-rides-the-same-deployment-fence)
 - [Secondary features deferred pending real use](#secondary-features-deferred-pending-real-use)
 - [Derived views are computed, never materialized](#derived-views-are-computed-never-materialized)
 - [Scope says who sees a record; history is decided per write](#scope-says-who-sees-a-record-history-is-decided-per-write)
@@ -120,6 +121,19 @@ through SPEC-004. Recorded as a Known Constraint in `architecture.md` rather tha
 
 **Do NOT** write a production deploy spec, or deploy a room to a public host, until this entry is
 updated with the answer.
+
+### Icon artwork rides the same deployment fence
+
+**Settled 2026-09-07.** SPEC-014 draws node icons from two sources: `lucide-react` (ISC, no
+question), and the **real AWS architecture icons**, vendored as SVG under `src/client/icons/aws/`.
+
+The AWS artwork is AWS's, governed by its asset and trademark terms rather than by the MIT licence
+on the npm package that redistributes it. Those terms permit use in architecture diagrams — which is
+what this is — but they are not a blanket grant.
+
+**The same fence as the tldraw licence above, and for the same reason:** the question only has teeth
+at deployment, and there is no deployment. Recorded so that it is re-asked in the same conversation
+as the tldraw one rather than discovered separately afterwards. Not a blocker on any spec.
 
 ### Secondary features deferred pending real use
 

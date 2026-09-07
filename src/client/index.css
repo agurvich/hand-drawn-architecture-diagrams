@@ -829,4 +829,123 @@ body {
     -apple-system,
     sans-serif;
   color: #444;
+/*
+ * A node's icon, beside its label.
+ *
+ * Never a pointer target: a tap on the icon is a tap on the node, and an icon
+ * that swallowed it would make the middle of a box unselectable.
+ */
+.diagram-node__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: -3px;
+  pointer-events: none;
+}
+.diagram-node__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * The icon picker.
+ *
+ * TOP-LEFT, below tldraw's own menu zone. Every other corner is taken: tldraw
+ * owns bottom-left, the sketch toggle is bottom-right, the narration bar is
+ * bottom-left-of-centre, and the JSON launcher plus the "performed by" control
+ * are top-centre. The e2e asserts on overlap rather than on these numbers.
+ */
+.icon-picker {
+  position: absolute;
+  top: 60px;
+  left: 8px;
+  z-index: 1000;
+  touch-action: manipulation;
+}
+.icon-picker__button {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  font:
+    600 12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+.icon-picker__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+.icon-picker__glyph svg {
+  width: 100%;
+  height: 100%;
+}
+.icon-picker__sheet {
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(420px, calc(100dvh - 140px));
+  margin-top: 6px;
+  padding: 8px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #767676;
+  border-radius: 8px;
+  touch-action: manipulation;
+}
+.icon-picker__row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.icon-picker__choice {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 8px;
+  font:
+    500 12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  background: #f7f7f7;
+  border: 1px solid #767676;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+.icon-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+}
+.icon-picker__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  touch-action: manipulation;
+}
+/* The pinned one is a FILL, not a border tint: a 1px difference is not a state
+   anyone can read at arm's length on a tablet. */
+.icon-picker__cell[aria-pressed='true'] {
+  background: #dce9fa;
+  border-color: #1a5fb4;
 }

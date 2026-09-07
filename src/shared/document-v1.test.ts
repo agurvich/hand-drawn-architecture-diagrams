@@ -68,6 +68,7 @@ const EXPECTED = {
           label: 'A',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -83,6 +84,7 @@ const EXPECTED = {
           label: 'B',
           color: '#ff8800',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -98,6 +100,7 @@ const EXPECTED = {
           label: 'C',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
@@ -190,6 +193,7 @@ const EXPECTED = {
           label: 'one char',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -205,6 +209,7 @@ const EXPECTED = {
           label: '128 chars',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -220,6 +225,7 @@ const EXPECTED = {
           label: 'punctuation',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
@@ -242,6 +248,7 @@ const EXPECTED = {
           label: 'Solo',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
@@ -264,6 +271,7 @@ const EXPECTED = {
           label: 'Outer',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -279,6 +287,7 @@ const EXPECTED = {
           label: 'Middle',
           color: 'black',
           collapsed: true,
+          icon: '',
         },
       },
       {
@@ -294,6 +303,7 @@ const EXPECTED = {
           label: 'Inner',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],

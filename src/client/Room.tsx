@@ -7,6 +7,7 @@ import { stripHiddenFromSelection } from './selection'
 import { registerSketchRecognition } from './sketch/recogniseOnDraw'
 import { SketchToggle } from './panels/SketchToggle'
 import { ActorControl } from './panels/ActorControl'
+import { IconPicker } from './panels/IconPicker'
 import { attributeTo } from './actors'
 import { stepScene, takeOffSceneAndToggle, viewScene } from './sceneView'
 import {
@@ -137,6 +138,7 @@ export function Room({ roomId }: { roomId: RoomId }) {
       <NarrationPanel editor={editor} />
       <SketchToggle editor={editor} />
       <ActorControl editor={editor} />
+      <IconPicker editor={editor} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect
