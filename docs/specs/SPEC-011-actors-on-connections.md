@@ -250,6 +250,10 @@ class ActorBindingUtil extends BindingUtil<ActorBinding> {
 // `ConnectionEndpoints` gains `actorId: string | null`, so the derivation can
 // answer FR-004 without reaching for a store it deliberately cannot see. The
 // merged entry gains `actorId: string | null`, null when the members disagree.
+//
+// SUPERSEDED by SPEC-015 (2026-09-07): the MERGED entry's field is now
+// `actorIds: string[]` -- every distinct actor, ordered by id. `ConnectionEndpoints`
+// is unchanged; one connection still names at most one actor.
 export interface ConnectionEndpoints {
   connectionId: string
   startNodeId: string | null

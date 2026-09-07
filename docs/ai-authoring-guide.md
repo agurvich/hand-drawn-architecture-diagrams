@@ -328,9 +328,10 @@ format answers one way and the canvas answers another — deliberately.
 it never edits. So a diagram exported while a container is folded loses nothing, and expanding it
 again gives every line its own actor back.
 
-**The drawn line is more careful.** It names an actor only when *every* connection it stands for
-names the same one. If they disagree — including "some attributed, some not" — it names nobody,
-rather than picking one and misattributing the rest.
+**The drawn line shows them all.** A merged line carries every distinct actor its connections name,
+as icons — the first two, then `+N more`. It never picks one and presents it as the line's, which
+would misattribute the rest; and it never claims nobody, which would hide the thing folding a
+container is for.
 
 So: attribute freely, and do not worry about what is folded when you write the document.
 

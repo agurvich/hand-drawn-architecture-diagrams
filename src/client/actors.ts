@@ -1,4 +1,5 @@
 import { computed, createBindingId, type Computed, type Editor, type TLShapeId } from 'tldraw'
+import { actorsOnScreen } from './actorsOnScreen'
 import {
   ACTOR_BINDING_TYPE,
   CONNECTION_SHAPE_TYPE,
@@ -114,8 +115,11 @@ export function actorsOfSelection(editor: Editor): ReadonlySet<string> {
         for (const id of ids) {
           const shape = editor.getShape(id)
           if (shape?.type !== CONNECTION_SHAPE_TYPE) continue
-          const actor = actorIdOf(editor, id)
-          if (actor) out.add(actor)
+          // THROUGH THE SAME ANSWER THE LINE DRAWS. Reading this connection's
+          // own binding rings ONE node while a merged line draws several -- and
+          // rings NOTHING at all when the representative's actor is the one
+          // inside the folded container, since that id is not on screen.
+          for (const actor of actorsOnScreen(editor, id)) out.add(actor.id)
         }
         return out.size === 0 ? NO_ACTORS : out
       },

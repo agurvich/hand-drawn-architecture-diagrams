@@ -86,9 +86,19 @@ Icons at the midpoint, stacked clear of the `×N` count, capped.
 - [ ] Each icon resolves through SPEC-014's `resolveNodeIcon`, so an actor with a pinned icon shows
       it and one without shows its guess — one rule, three consumers, no re-implementation
 - [ ] An actor pinned to `'none'` contributes **no icon but still counts** toward `+N more`; it is a
-      resource crossing the boundary whether or not it has a glyph
+      resource crossing the boundary whether or not it has a glyph. It gets no slot either — an empty
+      20px chip spends the scarce space on nothing and makes the number of visible icons stop meaning
+      anything — and `+N more` **names** what it stands for, since the obvious home for that (`title`)
+      is inert under the row's `pointer-events: none`
 - [ ] The icons do not overlap the `×N` count, asserted on box intersection
 - [ ] They do not intercept pointer events — a tap near them reaches the line
+- [ ] An actor with **no label at all** is kept and counted, named `Untitled` as the panel names it.
+      It crosses the boundary whether or not anyone has named it, and a node's label is empty from
+      creation until someone types in it
+- [ ] **One answer, three consumers.** The line, the "Performed by" panel and the canvas ring share a
+      single resolution — merge index → `visibleStandInFor` → dedupe. Re-implementing it per consumer
+      has now failed twice: the panel named the representative's actor while the line drew two, and
+      after that was fixed the ring still did
 - [ ] Each icon carries the actor's **name** as its accessible name. The glyph is the visual channel;
       the name is the one a screen reader has, and "which resources cross this boundary" has to be
       answerable without seeing it

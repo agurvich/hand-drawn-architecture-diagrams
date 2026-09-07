@@ -555,9 +555,13 @@ describe('computeMergeIndex — the actor SET is deterministic', () => {
       { id: 'shape:c2', parent: 'shape:p' },
       { id: 'shape:c3', parent: 'shape:p' },
       { id: 'shape:y', parent: PAGE },
-      { id: 'shape:aaa', parent: PAGE },
+      // MIXED CASE, and that is the whole point: `localeCompare` and plain `<`
+      // agree on lowercase ids and disagree on these, so an all-lowercase
+      // fixture proves the actors are sorted and NOT which way. The
+      // representative rule 275 lines up uses the same pair for the same reason.
+      { id: 'shape:aB3', parent: PAGE },
+      { id: 'shape:Ab3', parent: PAGE },
       { id: 'shape:mmm', parent: PAGE },
-      { id: 'shape:zzz', parent: PAGE },
     ])
 
   const shownActors = (members: ConnectionEndpoints[]) => {
@@ -569,9 +573,9 @@ describe('computeMergeIndex — the actor SET is deterministic', () => {
     // `Set` iteration order is insertion order, which is store order, which is
     // exactly what differs between two clients. Every permutation must agree.
     const permutations = [
-      ['shape:zzz', 'shape:aaa', 'shape:mmm'],
-      ['shape:aaa', 'shape:mmm', 'shape:zzz'],
-      ['shape:mmm', 'shape:zzz', 'shape:aaa'],
+      ['shape:mmm', 'shape:aB3', 'shape:Ab3'],
+      ['shape:aB3', 'shape:Ab3', 'shape:mmm'],
+      ['shape:Ab3', 'shape:mmm', 'shape:aB3'],
     ]
     for (const order of permutations) {
       expect(
@@ -580,18 +584,21 @@ describe('computeMergeIndex — the actor SET is deterministic', () => {
           conn('shape:k2', 'shape:c2', 'shape:y', order[1]!),
           conn('shape:k3', 'shape:c3', 'shape:y', order[2]!),
         ]),
-      ).toEqual(['shape:aaa', 'shape:mmm', 'shape:zzz'])
+        // UTF-16 code-unit order: capitals before lowercase, so `Ab3` sorts
+        // first. `localeCompare` puts `aB3` first, which is the mutation an
+        // all-lowercase fixture cannot see.
+      ).toEqual(['shape:Ab3', 'shape:aB3', 'shape:mmm'])
     }
   })
 
   it('is DISTINCT: two members naming the same actor contribute one entry', () => {
     expect(
       shownActors([
-        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:aaa'),
-        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:aaa'),
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:Ab3'),
+        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:Ab3'),
         conn('shape:k3', 'shape:c3', 'shape:y', 'shape:mmm'),
       ]),
-    ).toEqual(['shape:aaa', 'shape:mmm'])
+    ).toEqual(['shape:Ab3', 'shape:mmm'])
   })
 
   it('an unattributed line has an EMPTY set, not a null', () => {

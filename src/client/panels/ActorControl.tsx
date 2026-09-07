@@ -2,6 +2,7 @@ import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE, NODE_SHAPE_TYPE } from '@shared/shapes'
 import { actorIdOf, attributeTo, clearActor } from '../actors'
 import { getMergeIndex } from '../mergeIndex'
+import { actorsOnScreen } from '../actorsOnScreen'
 
 /**
  * The `<select>` value for "several different actors".
@@ -87,7 +88,22 @@ export function ActorControl({ editor }: ActorControlProps) {
     [editor, selected],
   )
   const standsForSeveral = (merged?.count ?? 1) > 1
-  const mergedActorIds = standsForSeveral ? (merged?.actorIds ?? []) : []
+  /*
+   * RESOLVED THE WAY THE CANVAS RESOLVES, not read raw off the index.
+   *
+   * An actor inside a folded container is drawn as that container, and two
+   * actors in one folded container are drawn as ONE icon. A panel that named the
+   * hidden nodes while the line named the box would be the panel and the canvas
+   * saying different sentences about the same line -- the defect this control's
+   * merge-index read exists to prevent, in a new place. So both the names and
+   * the COUNT come from the resolved set.
+   */
+  const mergedActors = useValue(
+    'merged actors',
+    () => (editor && selected && standsForSeveral ? actorsOnScreen(editor, selected) : []),
+    [editor, selected, standsForSeveral],
+  )
+  const mergedActorIds = mergedActors.map((actor) => actor.id)
   /*
    * SEVERAL DISTINCT ACTORS is a state a `<select>` has no value for, and since
    * SPEC-015 it is a state the LINE draws: it shows every one of them. Leaving
@@ -104,17 +120,18 @@ export function ActorControl({ editor }: ActorControlProps) {
       if (standsForSeveral) return mergedActorIds.length === 1 ? (mergedActorIds[0] ?? null) : null
       return actorIdOf(editor, selected)
     },
+    // `mergedActorIds` is memoised by its own `useValue`, so this is a stable
+    // reference between renders rather than a fresh array every time.
     [editor, selected, standsForSeveral, mergedActorIds],
   )
 
   if (!editor || !selected) return null
 
-  const nameOf = (id: string) => nodes.find((node) => node.id === id)?.label ?? 'Untitled'
   // BY NAME, where the canvas orders the same actors by id: agreement between
   // the two is about WHICH actors, and a list of names sorted by an id nobody
   // can see reads as unsorted.
-  const severalLabel = mergedActorIds
-    .map(nameOf)
+  const severalLabel = mergedActors
+    .map((actor) => actor.label)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
     .join(', ')
 
@@ -156,8 +173,13 @@ export function ActorControl({ editor }: ActorControlProps) {
         ))}
       </select>
       {standsForSeveral && (
+        // THE NAMES GO HERE TOO, not only in the disabled option. A `<select>`
+        // truncates to its own width and a disabled one cannot be opened to read
+        // the rest, so at 375px "Ann, Bob, Payments" renders as "Ann, Boby" with
+        // no way to see more. The note wraps.
         <p className="actor-control__note" data-testid="actor-control-merged">
-          This line stands for {merged?.count} connections. Expand the container to attribute them.
+          This line stands for {merged?.count} connections
+          {several ? `, performed by ${severalLabel}` : ''}. Expand the container to attribute them.
         </p>
       )}
     </div>

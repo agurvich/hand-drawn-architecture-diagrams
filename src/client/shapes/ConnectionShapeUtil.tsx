@@ -11,9 +11,10 @@ import {
 } from 'tldraw'
 import { getMergeIndex } from '../mergeIndex'
 import { NodeIcon } from '../icons/NodeIcon'
+import { actorsOnScreen, type OnScreenActor } from '../actorsOnScreen'
 import { MAX_ACTOR_ICONS } from '../icons/actorIcons'
 import { nodeAtPoint } from '../nodeAtPoint'
-import { highlightState, sceneAwareGetShape } from '../sceneView'
+import { highlightState } from '../sceneView'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -22,8 +23,6 @@ import {
   CONNECTION_BINDING_TYPE,
   type ConnectionShape,
   type ConnectionBinding,
-  visibleStandInFor,
-  resolveNodeIcon,
   type ConnectionTerminal,
 } from '@shared/shapes'
 
@@ -99,53 +98,31 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   /**
-   * The label of the node that performs this connection, or null.
+   * The actors to draw, split into the ones with a glyph and the rest.
    *
-   * DERIVED, never copied. Renaming the actor updates every line attributed to
-   * it with no write to any connection -- `decisions.md` -> *Derived views are
-   * computed, never materialized*.
+   * `actorsOnScreen` answers WHO; this decides what fits. Ordered by NAME here
+   * rather than by the id the derivation sorts on: the derivation's order has to
+   * come from data both clients hold with no coordination, and the label is
+   * exactly that -- it is in the store -- so sorting by it is just as
+   * deterministic and gives a reader an order they can predict. Which two of six
+   * icons you see should not look like a coin toss.
    *
-   * Read from the MERGE INDEX rather than from the binding directly, which is
-   * what makes FR-004 fall out: a merged line whose members disagree already has
-   * `actorId: null` there, so there is no second place for the disagreement rule
-   * to be re-implemented differently.
-   *
-   * Resolved through `visibleStandInFor` and the SCENE-AWARE accessor. An actor
-   * inside a collapsed container is not on screen, and naming it would be naming
-   * something invisible -- the container standing in for it is what the reader
-   * can actually see. The scene half is a separate concern from the collapse
-   * half and the natural implementation gets only the first: SPEC-008's finding
-   * was that collapse is read in two places, and this label is the third
-   * consumer.
+   * An actor pinned to NO ICON is not drawn -- there is nothing to draw -- but
+   * it is still counted, per the spec: it crosses the boundary whether or not it
+   * has a glyph. Giving it an empty 20px slot instead, which is what the first
+   * version did, spends the scarce space on a blank tile and quietly makes the
+   * count of visible icons mean nothing.
    */
-  private actors(shape: ConnectionShape): Array<{ id: string; label: string; icon: string }> {
-    const ids = getMergeIndex(this.editor).get(shape.id)?.actorIds ?? []
-    if (ids.length === 0) return []
-    const get = sceneAwareGetShape(this.editor)
-    const out: Array<{ id: string; label: string; icon: string }> = []
-    for (const id of ids) {
-      const actor = get(id)
-      if (!actor) continue
-      // The container standing in for an off-screen actor, not the actor: an
-      // actor inside a folded box is not on screen, and naming it would be
-      // naming something invisible. The SCENE-AWARE accessor, because a scene
-      // folds just as thoroughly as the prop and the natural implementation
-      // gets only the first.
-      const onScreen = visibleStandInFor(actor, get)
-      const props = onScreen.props as { label?: unknown; icon?: unknown }
-      const label = typeof props.label === 'string' ? props.label : ''
-      if (label.length === 0) continue
-      out.push({
-        id: onScreen.id,
-        label,
-        icon: typeof props.icon === 'string' ? props.icon : '',
-      })
-    }
-    // DEDUPED AFTER RESOLUTION: two actors inside the same folded container both
-    // stand in as that container, and showing it twice would say two things
-    // cross the boundary when one does.
-    const seen = new Set<string>()
-    return out.filter((actor) => (seen.has(actor.id) ? false : (seen.add(actor.id), true)))
+  private drawableActors(shape: ConnectionShape): {
+    drawn: OnScreenActor[]
+    rest: OnScreenActor[]
+  } {
+    const all = [...actorsOnScreen(this.editor, shape.id)].sort((a, b) =>
+      a.label < b.label ? -1 : a.label > b.label ? 1 : a.id < b.id ? -1 : 1,
+    )
+    const drawn = all.filter((actor) => actor.hasGlyph).slice(0, MAX_ACTOR_ICONS)
+    const shown = new Set(drawn.map((actor) => actor.id))
+    return { drawn, rest: all.filter((actor) => !shown.has(actor.id)) }
   }
 
   /** Page-space endpoints, resolved through the merge index. */
@@ -206,7 +183,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
     const count = this.mergeCount(shape)
-    const actors = this.actors(shape)
+    const { drawn, rest } = this.drawableActors(shape)
     const { ids, dimming } = highlightState(this.editor)
     const accent = !dimming
       ? ''
@@ -250,7 +227,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             {`\u00d7${count}`}
           </text>
         )}
-        {count === 1 && actors.length === 1 && (
+        {count === 1 && drawn.length + rest.length === 1 && drawn.length === 1 && (
           // UNMERGED, so there is exactly one and the NAME is the more precise
           // thing to show -- SPEC-011's rendering, unchanged. Icons are the
           // answer to "several", not a replacement for a name that fits.
@@ -259,16 +236,16 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
           <text
             className="diagram-connection__actor"
             data-testid="diagram-connection-actor"
-            data-actor={actors[0]!.id}
-            aria-label={`Performed by ${actors[0]!.label}`}
+            data-actor={drawn[0]!.id}
+            aria-label={`Performed by ${drawn[0]!.label}`}
             x={(a.x + b.x) / 2}
             y={(a.y + b.y) / 2 + 16}
             textAnchor="middle"
           >
-            {actors[0]!.label}
+            {drawn[0]!.label}
           </text>
         )}
-        {count > 1 && actors.length > 0 && (
+        {count > 1 && drawn.length + rest.length > 0 && (
           /*
            * MERGED: every distinct actor, as icons, stacked below the count.
            *
@@ -290,17 +267,10 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             data-testid="diagram-connection-actors"
           >
             <div className="diagram-connection__actors-row">
-              {actors.slice(0, MAX_ACTOR_ICONS).map((entry) => (
+              {drawn.map((entry) => (
                 <span
                   key={entry.id}
-                  // An actor PINNED TO NO ICON still crosses the boundary, so it
-                  // keeps its slot and its name -- but a halo around nothing
-                  // reads as a blank tile, so the chip loses its background.
-                  className={`diagram-connection__actor-icon${
-                    resolveNodeIcon(entry.icon, entry.label) === null
-                      ? ' diagram-connection__actor-icon--bare'
-                      : ''
-                  }`}
+                  className="diagram-connection__actor-icon"
                   data-testid="diagram-connection-actor"
                   data-actor={entry.id}
                   // The glyph is the visual channel; the NAME is what a screen
@@ -308,18 +278,25 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
                   // be answerable without seeing it.
                   role="img"
                   aria-label={`Performed by ${entry.label}`}
-                  title={entry.label}
                 >
                   <NodeIcon icon={entry.icon} label={entry.label} />
                 </span>
               ))}
-              {actors.length > MAX_ACTOR_ICONS && (
+              {rest.length > 0 && (
+                // NAMED, not just counted. The two glyphs are the glance; this
+                // is the only place the rest of the answer exists, and a bare
+                // "+3 more" tells a reader that they are missing something
+                // without telling them what. `title` would be the obvious home
+                // and it is inert here -- the whole row is `pointer-events:
+                // none` so a tap reaches the line -- so the name goes where
+                // assistive tech will actually read it.
                 <span
                   className="diagram-connection__actor-more"
                   data-testid="diagram-connection-actors-more"
-                  aria-label={`and ${actors.length - MAX_ACTOR_ICONS} more`}
+                  role="img"
+                  aria-label={`and ${rest.length} more: ${rest.map((e) => e.label).join(', ')}`}
                 >
-                  {`+${actors.length - MAX_ACTOR_ICONS} more`}
+                  {`+${rest.length} more`}
                 </span>
               )}
             </div>

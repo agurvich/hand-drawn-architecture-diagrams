@@ -418,6 +418,46 @@ test.describe('SPEC-011 FR-003 — the control, and what it must not cover', () 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375)
   })
 
+  test('a MERGED line names its actors somewhere READABLE at 375px', async ({ page }) => {
+    // The `<select>` truncates to its own width and a DISABLED one cannot be
+    // opened to read the rest, so "Ann, Bob, Payments" rendered as "Ann, Boby"
+    // under the chevron with no way to see more. The note wraps, so the names
+    // live there too.
+    await page.setViewportSize({ width: 375, height: 812 })
+    await openRoom(page, roomId('ac36'))
+    const box = await addNode(page, 'Platform', { x: 20, y: 60, w: 200, h: 220 })
+    const c1 = await addNode(page, 'C1', { x: 20, y: 20, w: 80, h: 50, parentId: box })
+    const c2 = await addNode(page, 'C2', { x: 20, y: 120, w: 80, h: 50, parentId: box })
+    const y = await addNode(page, 'Y', { x: 250, y: 150, w: 90, h: 60 })
+    const one = await addNode(page, 'Ann', { x: 40, y: 420, w: 90, h: 50 })
+    const two = await addNode(page, 'Bartholomew', { x: 160, y: 420, w: 140, h: 50 })
+    await attribute(page, await addConnection(page, c1, y), one)
+    await attribute(page, await addConnection(page, c2, y), two)
+    await setCollapsed(page, box, true)
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
+
+    await page.evaluate(() => {
+      const ed = window.__editor!
+      const visible = ed
+        .getCurrentPageShapes()
+        .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
+      ed.setSelectedShapes([visible[0]!.id])
+    })
+    const note = page.getByTestId('actor-control-merged')
+    await expect(note).toContainText('Ann, Bartholomew')
+    // ...and it is actually laid out on screen, not clipped to a sliver.
+    const fits = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="actor-control-merged"]')!
+      const r = el.getBoundingClientRect()
+      return {
+        onScreen: r.left >= 0 && r.right <= 375 && r.width > 100,
+        whole: el.scrollWidth <= Math.ceil(r.width),
+      }
+    })
+    expect(fits.onScreen).toBe(true)
+    expect(fits.whole).toBe(true)
+  })
+
   test('THE ACTOR NODE IS MARKED while its connection is selected', async ({ page }) => {
     // "Who does this" answered from the canvas as well as from the line.
     await openRoom(page, roomId('ac23'))
@@ -511,11 +551,11 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     await attribute(p1.page, k1, one)
     await attribute(p1.page, k2, two)
     await setCollapsed(p1.page, box, true)
-    await expect.poll(() => actorLabels(p1.page), { timeout: 15_000 }).toHaveLength(2)
-    await expect.poll(() => actorLabels(p2.page), { timeout: 15_000 }).toHaveLength(2)
-
-    // Not `.sort()`: the ORDER is the claim.
-    expect(await actorLabels(p2.page)).toEqual(await actorLabels(p1.page))
+    // Not `.sort()`: the ORDER is the claim, and it is a claim about the state
+    // both clients settle on -- polled on each rather than snapshotted, since a
+    // client still receiving the room can hold a partial one for a frame.
+    await expect.poll(() => actorLabels(p1.page), { timeout: 15_000 }).toEqual(['One', 'Two'])
+    await expect.poll(() => actorLabels(p2.page), { timeout: 15_000 }).toEqual(['One', 'Two'])
 
     await p1.ctx.close()
     await p2.ctx.close()
@@ -541,6 +581,64 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     expect(await actorOverflow(page)).toBe('+1 more')
   })
 
+  test('FIVE actors show two icons and `+3 more`', async ({ page }) => {
+    // The cap, on the count in the text, so an off-by-one is visible.
+    await openRoom(page, roomId('ac32'))
+    const box = await addNode(page, 'Platform', { x: 200, y: 60, w: 400, h: 460 })
+    const y = await addNode(page, 'Y', { x: 780, y: 250, w: 160, h: 100 })
+    for (let i = 0; i < 5; i++) {
+      const child = await addNode(page, `C${i}`, {
+        x: 30,
+        y: 20 + i * 85,
+        w: 120,
+        h: 60,
+        parentId: box,
+      })
+      const actor = await addNode(page, `A${i}`, { x: 60 + i * 150, y: 600, w: 120, h: 60 })
+      await attribute(page, await addConnection(page, child, y), actor)
+    }
+    await setCollapsed(page, box, true)
+
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
+    expect(await actorOverflow(page)).toBe('+3 more')
+  })
+
+  test('an actor with NO NAME still counts toward `+N more`', async ({ page }) => {
+    /*
+     * It crosses the boundary whether or not anyone has named it, and the icon
+     * exists regardless -- SPEC-011 skipped the unnamed node because a name-only
+     * rendering had nothing to draw, and carrying that forward made a merged
+     * edge with three actors show two icons and NO overflow badge. A line
+     * under-reporting what crosses it is the failure this spec exists to fix.
+     */
+    await openRoom(page, roomId('ac33'))
+    const box = await addNode(page, 'Platform', { x: 200, y: 60, w: 400, h: 400 })
+    const y = await addNode(page, 'Y', { x: 780, y: 250, w: 160, h: 100 })
+    const named = ['One', 'Two', '']
+    for (let i = 0; i < 3; i++) {
+      const child = await addNode(page, `C${i}`, {
+        x: 30,
+        y: 20 + i * 120,
+        w: 120,
+        h: 60,
+        parentId: box,
+      })
+      const actor = await addNode(page, named[i]!, { x: 100 + i * 200, y: 560, w: 120, h: 60 })
+      await attribute(page, await addConnection(page, child, y), actor)
+    }
+    await setCollapsed(page, box, true)
+
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
+    expect(await actorOverflow(page)).toBe('+1 more')
+    // And where it IS drawn it is named the way the panel names it.
+    const names = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map((el) =>
+        (el.getAttribute('aria-label') ?? '').replace(/^Performed by /, ''),
+      ),
+    )
+    expect(names.every((n) => n.length > 0)).toBe(true)
+  })
+
   test('two actors in the SAME folded container count once', async ({ page }) => {
     // Both resolve to the container standing in for them, and showing it twice
     // would say two things cross the boundary when one does.
@@ -560,6 +658,20 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     await setCollapsed(page, vault, true)
     await expect.poll(() => actorLabels(page)).toEqual(['Vault'])
     expect(await actorOverflow(page)).toBe(null)
+
+    // AND THE PANEL SAYS THE SAME SENTENCE. Reading the raw ids off the index
+    // would name the two hidden nodes while the line names the box -- the panel
+    // and the canvas disagreeing about one line, in a new place.
+    await page.evaluate(() => {
+      const ed = window.__editor!
+      const visible = ed
+        .getCurrentPageShapes()
+        .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
+      ed.setSelectedShapes([visible[0]!.id])
+    })
+    await page.getByTestId('actor-control').waitFor()
+    await expect(page.getByTestId('actor-select-several')).toHaveCount(0)
+    expect(await page.getByTestId('actor-select').inputValue()).toBe(vault)
   })
 
   test('the merged ICONS have their own painted halo, and take no taps', async ({ page }) => {
@@ -596,10 +708,15 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     expect(painted.events).toBe('none')
   })
 
-  test('an actor pinned to NO ICON still counts and still has its name', async ({ page }) => {
-    // It is a resource crossing the boundary whether or not it has a glyph. It
-    // keeps its slot and its accessible name; only the halo goes, because a ring
-    // around nothing reads as a blank tile.
+  test('an actor pinned to NO ICON is COUNTED, not drawn as a blank tile', async ({ page }) => {
+    /*
+     * FR-002: it "contributes no icon but still counts toward `+N more`". The
+     * first implementation gave it a slot instead, and the slot was literally
+     * empty -- 20px of nothing between two glyphs, on a line where space is the
+     * scarce thing. Worse, it made the number of visible icons stop meaning
+     * anything: two actors, one of them iconless, drew one glyph and no overflow
+     * badge at all, so the line said "one actor" about two.
+     */
     await openRoom(page, roomId('ac30'))
     const { box, k1, k2, one, two } = await merged(page)
     await attribute(page, k1, one)
@@ -613,19 +730,88 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     }, one)
     await setCollapsed(page, box, true)
 
-    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
-    const glyphs = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map((el) => ({
-        actor: el.getAttribute('data-actor'),
-        hasGlyph: !!el.querySelector('[data-testid="diagram-node-icon"]'),
-        shadow: getComputedStyle(el).boxShadow,
-      })),
+    // One glyph drawn -- and the other actor counted, and NAMED where a screen
+    // reader will read it, since `title` is inert under `pointer-events: none`.
+    await expect.poll(() => actorLabels(page)).toEqual(['Two'])
+    expect(await actorOverflow(page)).toBe('+1 more')
+    const overflowName = await page.evaluate(() =>
+      document
+        .querySelector('[data-testid="diagram-connection-actors-more"]')!
+        .getAttribute('aria-label'),
     )
-    expect(glyphs).toHaveLength(2)
-    const bare = glyphs.find((g) => g.actor === one)!
-    expect(bare.hasGlyph).toBe(false)
-    expect(bare.shadow).toBe('none')
-    expect(glyphs.find((g) => g.actor === two)!.hasGlyph).toBe(true)
+    expect(overflowName).toBe('and 1 more: One')
+    // No empty chip left behind.
+    const empty = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].filter(
+          (el) => el.childElementCount === 0,
+        ).length,
+    )
+    expect(empty).toBe(0)
+  })
+
+  test('THE PERFORMER RING lights every actor the merged line draws', async ({ page }) => {
+    /*
+     * The third consumer of "who performs this line", and the one that was
+     * missed. It read the selected connection's OWN binding, so a merged line
+     * drawing two icons lit exactly one node -- and lit NOTHING when the
+     * representative's actor was the one inside the folded container, because
+     * that id is not on screen at all.
+     */
+    await openRoom(page, roomId('ac34'))
+    const { box, k1, k2, one, two } = await merged(page)
+    await attribute(page, k1, one)
+    await attribute(page, k2, two)
+    await setCollapsed(page, box, true)
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
+
+    const ringed = async () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll('.diagram-node--performs')]
+          .map((el) => el.querySelector('.diagram-node__label')?.textContent ?? '')
+          .sort(),
+      )
+    await page.evaluate(() => {
+      const ed = window.__editor!
+      const visible = ed
+        .getCurrentPageShapes()
+        .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
+      ed.setSelectedShapes([visible[0]!.id])
+    })
+    await expect.poll(ringed).toEqual(['One', 'Two'])
+  })
+
+  test('THE PERFORMER RING marks the CONTAINER when the actor is folded away', async ({ page }) => {
+    await openRoom(page, roomId('ac35'))
+    const box = await addNode(page, 'Platform', { x: 200, y: 100, w: 400, h: 400 })
+    const c1 = await addNode(page, 'C1', { x: 30, y: 40, w: 140, h: 80, parentId: box })
+    const c2 = await addNode(page, 'C2', { x: 30, y: 200, w: 140, h: 80, parentId: box })
+    const inside = await addNode(page, 'Inside', { x: 30, y: 300, w: 140, h: 70, parentId: box })
+    const y = await addNode(page, 'Y', { x: 780, y: 250, w: 160, h: 100 })
+    const outside = await addNode(page, 'Outside', { x: 300, y: 600, w: 140, h: 70 })
+    await attribute(page, await addConnection(page, c1, y), inside)
+    await attribute(page, await addConnection(page, c2, y), outside)
+    await setCollapsed(page, box, true)
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['Outside', 'Platform'])
+
+    await page.evaluate(() => {
+      const ed = window.__editor!
+      const visible = ed
+        .getCurrentPageShapes()
+        .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
+      ed.setSelectedShapes([visible[0]!.id])
+    })
+    // The container stands in for the actor it hides, so the container is what
+    // lights up. Ringing a shape nobody can see rings nothing.
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          [...document.querySelectorAll('.diagram-node--performs')]
+            .map((el) => el.querySelector('.diagram-node__label')?.textContent ?? '')
+            .sort(),
+        ),
+      )
+      .toEqual(['Outside', 'Platform'])
   })
 
   test('an UNMERGED line still shows the actor NAME, not an icon', async ({ page }) => {

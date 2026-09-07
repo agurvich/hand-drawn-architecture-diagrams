@@ -231,10 +231,6 @@ body {
   border-radius: 4px;
   box-shadow: 0 0 0 2px var(--tl-color-background, #fff);
 }
-.diagram-connection__actor-icon--bare {
-  background: none;
-  box-shadow: none;
-}
 .diagram-connection__actor-more {
   font:
     600 11px/1 system-ui,
