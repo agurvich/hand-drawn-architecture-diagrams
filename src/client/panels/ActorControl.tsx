@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
-import { CONNECTION_SHAPE_TYPE, NODE_SHAPE_TYPE } from '@shared/shapes'
+import { CONNECTION_SHAPE_TYPE, NODE_SHAPE_TYPE, visibleStandInFor } from '@shared/shapes'
 import { actorIdOf, attributeTo, clearActor } from '../actors'
 import { getMergeIndex } from '../mergeIndex'
 import { actorsOnScreen } from '../actorsOnScreen'
+import { sceneAwareGetShape } from '../sceneView'
 
 /**
  * The `<select>` value for "several different actors".
@@ -103,7 +105,8 @@ export function ActorControl({ editor }: ActorControlProps) {
     () => (editor && selected && standsForSeveral ? actorsOnScreen(editor, selected) : []),
     [editor, selected, standsForSeveral],
   )
-  const mergedActorIds = mergedActors.map((actor) => actor.id)
+  const mergedActorIds = useMemo(() => mergedActors.map((actor) => actor.id), [mergedActors])
+
   /*
    * SEVERAL DISTINCT ACTORS is a state a `<select>` has no value for, and since
    * SPEC-015 it is a state the LINE draws: it shows every one of them. Leaving
@@ -120,9 +123,36 @@ export function ActorControl({ editor }: ActorControlProps) {
       if (standsForSeveral) return mergedActorIds.length === 1 ? (mergedActorIds[0] ?? null) : null
       return actorIdOf(editor, selected)
     },
-    // `mergedActorIds` is memoised by its own `useValue`, so this is a stable
-    // reference between renders rather than a fresh array every time.
+    // `mergedActorIds` is a `useMemo` over a `useValue`, so this is a stable
+    // reference between renders rather than a fresh array every time -- which is
+    // what the dep needs to be, or the computed is rebuilt and re-subscribed on
+    // every render (`best-practices/react/react.md` -> deps by reference).
     [editor, selected, standsForSeveral, mergedActorIds],
+  )
+
+  /*
+   * THE STAND-IN, when the attributed node is not the one on screen.
+   *
+   * This control EDITS the binding, so on an unmerged line it names the node the
+   * binding actually points at -- picking the container the canvas draws would
+   * re-attribute the connection to the container on the next change, which is a
+   * different fact. That is the one place the panel and the canvas legitimately
+   * say different things, so it is said out loud rather than left to be
+   * discovered: "Alice, shown as Platform while it is folded."
+   */
+  const standIn = useValue(
+    'stand-in for the actor',
+    () => {
+      if (!editor || !actorId || standsForSeveral) return null
+      const get = sceneAwareGetShape(editor)
+      const actor = get(actorId)
+      if (!actor) return null
+      const onScreen = visibleStandInFor(actor, get)
+      if (onScreen.id === actor.id) return null
+      const label = ((onScreen.props as { label?: string }).label ?? '').trim()
+      return label || 'Untitled'
+    },
+    [editor, actorId, standsForSeveral],
   )
 
   if (!editor || !selected) return null
@@ -172,6 +202,11 @@ export function ActorControl({ editor }: ActorControlProps) {
           </option>
         ))}
       </select>
+      {standIn !== null && (
+        <p className="actor-control__note" data-testid="actor-control-standin">
+          Folded away, so the line shows {standIn}.
+        </p>
+      )}
       {standsForSeveral && (
         // THE NAMES GO HERE TOO, not only in the disabled option. A `<select>`
         // truncates to its own width and a disabled one cannot be opened to read

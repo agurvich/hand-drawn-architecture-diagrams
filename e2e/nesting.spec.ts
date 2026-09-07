@@ -63,7 +63,9 @@ test.describe('SPEC-004 FR-001/FR-002 — containment', () => {
     // The other FR-002 tests call the hooks directly, which proves the hooks are
     // right and nothing about whether they are WIRED. This drives the pointer.
     await openRoom(page, roomId('ndrag'))
-    await page.evaluate(() => window.__editor!.setCamera({ x: 0, y: 0, z: 1 }))
+    await page.evaluate(() => {
+      window.__editor!.setCamera({ x: 0, y: 0, z: 1 })
+    })
     const container = await addNode(page, 'Container', { x: 80, y: 80, w: 380, h: 260 })
     const loose = await addNode(page, 'Loose', { x: 560, y: 420, w: 140, h: 90 })
 
@@ -244,7 +246,9 @@ test.describe('SPEC-004 FR-003/FR-004 — collapse and its affordance', () => {
     // boundingBox() is measured AFTER the canvas transform, so a 44px control
     // measures 22 at z=0.5. Pin the camera or the assertion silently depends on
     // whatever zoom the test happened to leave behind.
-    await page.evaluate(() => window.__editor!.setCamera({ x: 0, y: 0, z: 1 }))
+    await page.evaluate(() => {
+      window.__editor!.setCamera({ x: 0, y: 0, z: 1 })
+    })
     const box = (await toggle.boundingBox())!
     expect(box.width).toBeGreaterThanOrEqual(44)
     expect(box.height).toBeGreaterThanOrEqual(44)
@@ -261,7 +265,9 @@ test.describe('SPEC-004 FR-003/FR-004 — collapse and its affordance', () => {
     // tldraw swallows Tab while any shape is selected, so the reachable path is
     // Tab with an empty selection. Naming it here stops the criterion looking
     // like a tldraw bug mid-build.
-    await page.evaluate(() => window.__editor!.selectNone())
+    await page.evaluate(() => {
+      window.__editor!.selectNone()
+    })
 
     const toggle = page.getByTestId('diagram-node-toggle')
     await toggle.focus()

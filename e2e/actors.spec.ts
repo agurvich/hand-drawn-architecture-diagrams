@@ -537,10 +537,17 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     ).toBe(1)
   })
 
-  test('the order is the same on two clients', async ({ browser }) => {
-    // Two clients must draw the same line without coordinating, and the actors
-    // are ordered by id under plain `<` for exactly that reason. Insertion order
-    // is store order, which is the thing that differs between them.
+  test('the order is BY NAME, and the same on two clients', async ({ browser }) => {
+    /*
+     * Two clients must draw the same line without coordinating. The DERIVATION
+     * orders by id, because that is data both hold; the RENDER re-sorts by
+     * label, which is also data both hold and which a reader can predict --
+     * "which two of six icons do I see" should not look like a coin toss.
+     *
+     * The labels are assigned so that label order REVERSES id order, or the two
+     * rules agree by luck on about half of runs and the test catches a
+     * regression one time in two.
+     */
     const room = roomId('ac26')
     const p1 = await newParticipant(browser)
     const p2 = await newParticipant(browser)
@@ -548,6 +555,20 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     await openRoom(p2.page, room)
 
     const { box, k1, k2, one, two } = await merged(p1.page)
+    const [smaller, larger] = [one, two].sort((a, b) => (a < b ? -1 : 1))
+    const label = async (id: string, text: string) =>
+      p1.page.evaluate(
+        ({ id, text }) => {
+          window.__editor!.updateShape({
+            id: id as never,
+            type: 'diagramNode',
+            props: { label: text },
+          })
+        },
+        { id, text },
+      )
+    await label(smaller!, 'Two')
+    await label(larger!, 'One')
     await attribute(p1.page, k1, one)
     await attribute(p1.page, k2, two)
     await setCollapsed(p1.page, box, true)
@@ -576,7 +597,7 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     await attribute(page, await addConnection(page, c3, y), three)
     await setCollapsed(page, box, true)
 
-    // Two icons drawn, the third counted. Which two is the id order, not chance.
+    // Two icons drawn, the third counted. Which two is the LABEL order.
     await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
     expect(await actorOverflow(page)).toBe('+1 more')
   })
@@ -831,6 +852,65 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     expect(drawn.text).toBe('Role')
     expect(drawn.icons).toBe(0)
     expect(await actorLabels(page)).toEqual(['Role'])
+  })
+
+  test('an UNMERGED line shows the name even when the actor has NO ICON', async ({ page }) => {
+    /*
+     * The glyph filter is a question about ICONS, and this branch draws TEXT --
+     * gating it on the drawn-with-a-glyph list made an actor pinned to
+     * `icon: 'none'` render nothing at all on an unmerged line, taking the only
+     * accessible name for "who performs this" with it. SPEC-015 FR-002's last
+     * criterion is that an unmerged line is UNCHANGED from SPEC-011.
+     */
+    await openRoom(page, roomId('ac37'))
+    const a = await addNode(page, 'A', { x: 100, y: 300, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 600, y: 300, w: 160, h: 100 })
+    const role = await addNode(page, 'Role', { x: 350, y: 60, w: 160, h: 100 })
+    await attribute(page, await addConnection(page, a, b), role)
+    expect(await actorLabels(page)).toEqual(['Role'])
+
+    await page.evaluate((id) => {
+      window.__editor!.updateShape({
+        id: id as never,
+        type: 'diagramNode',
+        props: { icon: 'none' },
+      })
+    }, role)
+    await expect.poll(() => actorLabels(page)).toEqual(['Role'])
+    expect(
+      await page.evaluate(
+        () => document.querySelector('[data-testid="diagram-connection-actor"]')!.tagName,
+      ),
+    ).toBe('text')
+  })
+
+  test('the panel NAMES THE STAND-IN when the actor it edits is folded away', async ({ page }) => {
+    /*
+     * The one place the panel and the canvas legitimately differ, so it is said
+     * out loud rather than left to be discovered. The control EDITS the binding,
+     * so it names the node the binding points at; picking the container the
+     * canvas draws would re-attribute the connection to the container on the
+     * next change, which is a different fact.
+     */
+    await openRoom(page, roomId('ac38'))
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 600, y: 400, w: 160, h: 100 })
+    const box = await addNode(page, 'Platform', { x: 260, y: 40, w: 300, h: 200 })
+    const role = await addNode(page, 'Role', { x: 20, y: 40, w: 160, h: 100, parentId: box })
+    const k = await addConnection(page, a, b)
+    await attribute(page, k, role)
+    await expect(page.getByTestId('actor-control-standin')).toHaveCount(0)
+
+    await setCollapsed(page, box, true)
+    await expect.poll(() => actorLabels(page)).toEqual(['Platform'])
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, k)
+    await page.getByTestId('actor-control').waitFor()
+    // Still editing the real binding...
+    expect(await page.getByTestId('actor-select').inputValue()).toBe(role)
+    // ...and saying why that is not what the line shows.
+    await expect(page.getByTestId('actor-control-standin')).toContainText('Platform')
   })
 
   test('EXPANDING restores each line its own attribution', async ({ page }) => {

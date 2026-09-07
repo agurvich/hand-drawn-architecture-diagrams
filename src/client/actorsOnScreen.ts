@@ -1,5 +1,5 @@
 import { type Editor } from 'tldraw'
-import { resolveNodeIcon, visibleStandInFor } from '@shared/shapes'
+import { ICON_NONE, visibleStandInFor } from '@shared/shapes'
 import { getMergeIndex } from './mergeIndex'
 import { sceneAwareGetShape } from './sceneView'
 
@@ -26,6 +26,13 @@ import { sceneAwareGetShape } from './sceneView'
  * 3. DEDUPE AFTER resolution. Two actors in one folded container both stand in
  *    as that container, and counting it twice would say two things cross the
  *    boundary when one does.
+ *
+ * ONE EXEMPTION, deliberate and stated here because the docstring is where a
+ * reader will look for it: the "Performed by" control names the node the binding
+ * actually points at on an UNMERGED line, not the container standing in for it.
+ * That control edits the binding, and picking the container would re-attribute
+ * the connection to the container on the next change -- a different fact. It
+ * says so on screen instead ("Folded away, so the line shows Platform").
  *
  * A node with no name is KEPT. It crosses the boundary whether or not anyone has
  * named it, and the icon exists regardless -- dropping it made a merged edge
@@ -62,7 +69,13 @@ export function actorsOnScreen(editor: Editor, connectionId: string): OnScreenAc
       id: onScreen.id,
       label: label || 'Untitled',
       icon,
-      hasGlyph: resolveNodeIcon(icon, label) !== null,
+      // `icon !== ICON_NONE`, NOT `resolveNodeIcon(...) !== null`, which is the
+      // same answer at 95x the price: the automatic case runs 109 match rules
+      // over two passes and throws the key away. This runs per actor per
+      // connection per render, and inside `actorsOfSelection`, which draws no
+      // icons at all -- 8ms per sweep on a 400-shape page, half a frame, on the
+      // iPad this targets.
+      hasGlyph: icon !== ICON_NONE,
     })
   }
   return out

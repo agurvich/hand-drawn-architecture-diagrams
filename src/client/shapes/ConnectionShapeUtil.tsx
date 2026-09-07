@@ -227,22 +227,27 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             {`\u00d7${count}`}
           </text>
         )}
-        {count === 1 && drawn.length + rest.length === 1 && drawn.length === 1 && (
+        {count === 1 && drawn.length + rest.length === 1 && (
           // UNMERGED, so there is exactly one and the NAME is the more precise
           // thing to show -- SPEC-011's rendering, unchanged. Icons are the
           // answer to "several", not a replacement for a name that fits.
+          //
+          // On the WHOLE set, `drawn` plus `rest`. Gating this on `drawn` alone
+          // meant an actor pinned to `icon: 'none'` rendered nothing at all here
+          // -- the glyph filter is a question about icons, and this branch draws
+          // text, so it has no business asking it.
           //
           // STACKED BELOW the count, not on top of it. Both want the midpoint.
           <text
             className="diagram-connection__actor"
             data-testid="diagram-connection-actor"
-            data-actor={drawn[0]!.id}
-            aria-label={`Performed by ${drawn[0]!.label}`}
+            data-actor={(drawn[0] ?? rest[0])!.id}
+            aria-label={`Performed by ${(drawn[0] ?? rest[0])!.label}`}
             x={(a.x + b.x) / 2}
             y={(a.y + b.y) / 2 + 16}
             textAnchor="middle"
           >
-            {drawn[0]!.label}
+            {(drawn[0] ?? rest[0])!.label}
           </text>
         )}
         {count > 1 && drawn.length + rest.length > 0 && (

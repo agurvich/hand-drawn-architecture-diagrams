@@ -9,7 +9,9 @@ async function canvasReady(page: Page) {
   await page.goto('/')
   await expect(page.getByTestId('canvas-host')).toBeVisible()
   await page.waitForFunction(() => !!window.__editor)
-  await page.evaluate(() => window.__editor!.setCurrentTool('draw'))
+  await page.evaluate(() => {
+    window.__editor!.setCurrentTool('draw')
+  })
 }
 
 test.describe('SPEC-001 FR-003 — touch and pen input', () => {

@@ -86,5 +86,29 @@ exact failure this spec exists to fix.
 - **The five-actor cap had no test**, only the three-actor one. Behaviour was already right.
 - **At 375px the merged names were unreadable**: a `<select>` truncates to its own width and a
   disabled one cannot be opened to see the rest. The note carries them now, and wraps.
+A third round reviewed those fixes and found one they had introduced, which is the reason a revised
+artifact re-enters the gate rather than shipping on the strength of the round before it:
+
+- **An unmerged line lost its actor's name entirely when that actor was pinned to `icon: 'none'`.**
+  The name branch was gated on the drawn-with-a-glyph list, and the glyph filter is a question about
+  icons — that branch draws text. It took the only accessible name for "who performs this line" with
+  it, and it broke FR-002's "an unmerged connection is unchanged" outright.
+- **`hasGlyph` cost 95x what it needed to.** `resolveNodeIcon(icon, label) !== null` runs 109 match
+  rules over two passes and throws the key away; it is exactly `icon !== ICON_NONE`. The call went
+  from 364µs to 3.85µs — it runs per actor per connection per render, and inside `actorsOfSelection`,
+  which draws no icons at all, so a 400-shape page was paying 8ms a sweep. Half a frame, on the iPad
+  this targets.
+- **The panel is now an explicit, stated exemption rather than an accidental one.** On an *unmerged*
+  line it names the node the binding actually points at, not the container standing in for it: it
+  edits that binding, and picking the container would re-attribute the connection to the container on
+  the next change. It says so on screen — "Folded away, so the line shows Platform" — instead of
+  leaving the reader to notice.
+- **The ordering test agreed by luck half the time.** Its fixture ids were random, so id-order and
+  label-order coincided on about half of runs; with CI's two retries, a regression would have been
+  caught roughly one run in eight. The labels are now assigned so label order *reverses* id order.
+- Two `page.evaluate` bodies in `nesting.spec.ts` and one in `canvas.spec.ts` returned the Editor,
+  which Playwright cannot serialise. Deterministic, not flaky, and it had been costing the suite a
+  red run — fixed here because it was masking whatever else those files assert.
+
 - Two doc sites still stated the old rule with no marker — `docs/ai-authoring-guide.md`, which is live
   author-facing guidance and was simply corrected, and SPEC-012's spec, which got the marker.
