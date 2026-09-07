@@ -14,6 +14,8 @@ import {
   sceneRecords,
   viewScene,
   addScene,
+  attributeConnection,
+  actorLabels,
   connectionCount,
   roomId,
 } from './helpers'
@@ -421,7 +423,51 @@ test.describe('SPEC-009 — scenes in the document', () => {
       }),
     )
     expect((await exported(page)).nodes).toHaveLength(1)
-    expect((await exported(page)).version).toBe(2)
+    // The CURRENT version, whatever it is -- a v1 document comes back upgraded.
+    expect((await exported(page)).version).toBe(3)
+  })
+
+  test('a v2 document still imports too, scenes and all', async ({ page }) => {
+    // The step in between. v1 proves the format two versions back; v2 is what
+    // everything written since scenes shipped uses, and therefore what is most
+    // likely to be sitting in somebody's chat window.
+    await openRoom(page, roomId('sc1b'))
+    await pasteDocument(
+      page,
+      JSON.stringify({
+        version: 2,
+        nodes: [
+          { id: 'a', label: 'A', x: 0, y: 0, w: 200, h: 120 },
+          { id: 'b', label: 'B', x: 400, y: 0, w: 200, h: 120 },
+        ],
+        connections: [{ id: 'a-b', sourceId: 'a', targetId: 'b' }],
+        scenes: [{ id: 's', name: 'Overview', collapsed: { a: true } }],
+      }),
+    )
+    const doc = await exported(page)
+    expect(doc.version).toBe(3)
+    expect(doc.nodes).toHaveLength(2)
+    expect((doc as unknown as { scenes: unknown[] }).scenes).toHaveLength(1)
+  })
+
+  test('a v2 document carrying actorId is refused by VERSION, naming the connection', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('sc1c'))
+    await pasteDocument(
+      page,
+      JSON.stringify({
+        version: 2,
+        nodes: [
+          { id: 'a', label: 'A', x: 0, y: 0, w: 200, h: 120 },
+          { id: 'b', label: 'B', x: 400, y: 0, w: 200, h: 120 },
+        ],
+        connections: [{ id: 'a-b', sourceId: 'a', targetId: 'b', actorId: 'a' }],
+      }),
+    )
+    await expect(page.getByTestId('diagram-io-error')).toContainText(
+      'connections[0].actorId: requires version 3',
+    )
   })
 
   test('a v1 document carrying scenes is refused by VERSION, not by key', async ({ page }) => {
@@ -589,5 +635,127 @@ test.describe('SPEC-009 — scenes in the document', () => {
         window.__editor!.store.allRecords().some((r) => r.typeName === 'diagramOffScene'),
       ),
     ).toBe(false)
+  })
+})
+
+test.describe('SPEC-012 — actors in the document', () => {
+  const scene = async (page: import('@playwright/test').Page) => {
+    const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const role = await addNode(page, 'Role', { x: 400, y: 100, w: 160, h: 100 })
+    const k = await addConnection(page, a, b)
+    return { a, b, role, k }
+  }
+
+  test('an attribution SURVIVES a round trip and renders again', async ({ page }) => {
+    await openRoom(page, roomId('ac-doc1'))
+    const { role, k } = await scene(page)
+    await attributeConnection(page, k, role)
+    expect(await actorLabels(page)).toEqual(['Role'])
+
+    const json = await exportedJson(page)
+    expect(JSON.parse(json).version).toBe(3)
+    expect(JSON.parse(json).connections[0].actorId).toBeTruthy()
+
+    await pasteDocument(page, json)
+    const confirm = page.getByTestId('diagram-io-confirm-yes')
+    if ((await confirm.count()) > 0) await confirm.click()
+
+    // ON THE LABEL, not on the binding: that covers the whole path rather than
+    // the write.
+    await expect.poll(() => actorLabels(page)).toEqual(['Role'])
+  })
+
+  test('a MERGED connection exports its OWN attribution, not the merged one', async ({ page }) => {
+    /*
+     * SPEC-011 blanks a merged line's actor when its members disagree, and that
+     * is a RENDERING decision about one drawn line. The document records what
+     * each connection IS -- or collapsing a container before an export would
+     * silently erase attributions from the file.
+     */
+    await openRoom(page, roomId('ac-doc2'))
+    const box = await addNode(page, 'Platform', { x: 200, y: 100, w: 400, h: 400 })
+    const c1 = await addNode(page, 'C1', { x: 30, y: 40, w: 140, h: 80, parentId: box })
+    const c2 = await addNode(page, 'C2', { x: 30, y: 200, w: 140, h: 80, parentId: box })
+    const y = await addNode(page, 'Y', { x: 800, y: 250, w: 160, h: 100 })
+    const one = await addNode(page, 'One', { x: 200, y: 560, w: 140, h: 80 })
+    const two = await addNode(page, 'Two', { x: 400, y: 560, w: 140, h: 80 })
+    const k1 = await addConnection(page, c1, y)
+    const k2 = await addConnection(page, c2, y)
+    await attributeConnection(page, k1, one)
+    await attributeConnection(page, k2, two)
+
+    await setCollapsed(page, box, true)
+    // The drawn line claims nobody, correctly.
+    await expect.poll(() => actorLabels(page)).toEqual([])
+
+    // The file still knows both.
+    const doc = JSON.parse(await exportedJson(page)) as {
+      connections: Array<{ actorId?: string }>
+      nodes: Array<{ id: string; label: string }>
+    }
+    const labelOf = (id?: string) => doc.nodes.find((n) => n.id === id)?.label
+    expect(doc.connections.map((c) => labelOf(c.actorId)).sort()).toEqual(['One', 'Two'])
+  })
+
+  test('ONE undo restores the previous room, attributions included', async ({ page }) => {
+    await openRoom(page, roomId('ac-doc3'))
+    const { role, k } = await scene(page)
+    await attributeConnection(page, k, role)
+    const before = await actorLabels(page)
+
+    await pasteDocument(page, MINIMAL)
+    const confirm = page.getByTestId('diagram-io-confirm-yes')
+    if ((await confirm.count()) > 0) await confirm.click()
+    await expect.poll(() => actorLabels(page)).toEqual([])
+
+    await page.evaluate(() => {
+      window.__editor!.undo()
+    })
+    await expect.poll(() => actorLabels(page)).toEqual(before)
+  })
+
+  test('export, import, export again is identical', async ({ page }) => {
+    await openRoom(page, roomId('ac-doc4'))
+    const { role, k } = await scene(page)
+    await attributeConnection(page, k, role)
+    const first = await exportedJson(page)
+
+    await pasteDocument(page, first)
+    const confirm = page.getByTestId('diagram-io-confirm-yes')
+    if ((await confirm.count()) > 0) await confirm.click()
+    await page.waitForTimeout(300)
+    expect(await exportedJson(page)).toBe(first)
+  })
+
+  test('two exports of an unchanged room are identical', async ({ page }) => {
+    await openRoom(page, roomId('ac-doc5'))
+    const { role, k } = await scene(page)
+    await attributeConnection(page, k, role)
+    expect(await exportedJson(page)).toBe(await exportedJson(page))
+  })
+
+  test('the imported attribution reaches a second client', async ({ browser }) => {
+    const room = roomId('ac-doc6')
+    const p1 = await newParticipant(browser)
+    const p2 = await newParticipant(browser)
+    await openRoom(p1.page, room)
+    await openRoom(p2.page, room)
+
+    const a = await addNode(p1.page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+    const b = await addNode(p1.page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    const role = await addNode(p1.page, 'Role', { x: 400, y: 100, w: 160, h: 100 })
+    const k = await addConnection(p1.page, a, b)
+    await attributeConnection(p1.page, k, role)
+    const json = await exportedJson(p1.page)
+
+    await pasteDocument(p1.page, json)
+    const confirm = p1.page.getByTestId('diagram-io-confirm-yes')
+    if ((await confirm.count()) > 0) await confirm.click()
+
+    await expect.poll(() => actorLabels(p2.page), { timeout: 15_000 }).toEqual(['Role'])
+
+    await p1.ctx.close()
+    await p2.ctx.close()
   })
 })

@@ -1,8 +1,8 @@
 # Spec: Actors in the JSON document
 
 **ID:** SPEC-012  
-**Status:** Draft  
-**Last Updated:** 2026-09-07 (rev 2 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-07 (rev 3 — built)  
 **Depends On:** SPEC-009, SPEC-011
 
 ## Overview

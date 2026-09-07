@@ -181,7 +181,7 @@ collapsed, so the diagram opens as "client → platform → database" and expand
     { "id": "client-gateway", "sourceId": "client", "targetId": "gateway" },
     { "id": "gateway-orders", "sourceId": "gateway", "targetId": "orders" },
     { "id": "orders-billing", "sourceId": "orders", "targetId": "billing" },
-    { "id": "orders-db", "sourceId": "orders", "targetId": "db" },
+    { "id": "orders-db", "sourceId": "orders", "targetId": "db", "actorId": "billing" },
     { "id": "billing-db", "sourceId": "billing", "targetId": "db" }
   ]
 }
@@ -297,6 +297,28 @@ scenes to lose.
 Read in order, that is a three-beat explanation: the outline, the interior, then the single edge the
 conversation was actually about. Nothing in the diagram changed between beats.
 
+## Actors: who performs a connection
+
+A connection says what talks to what. `actorId` says **who did it** — and the thing doing it is often
+neither end.
+
+An IAM role copies an object between two buckets it is not itself connected to. A scheduler kicks off
+a job that writes to a database. A person approves a transfer between two accounts. Draw only the
+endpoints and the actor disappears from the diagram, which is usually the part someone is asking
+about.
+
+```ts
+{ id: 'copy', sourceId: 'raw-bucket', targetId: 'clean-bucket', actorId: 'etl-role' }
+```
+
+`actorId` names a **node**. It may name one of the connection's own ends — "A writes to B, performed
+by A" is ordinary — but naming another connection is an error, not a no-op, and the node must exist
+in the same document.
+
+**Write it whenever the answer is not obvious from the two ends.** On a real system that is most of
+the time, and it is the difference between a diagram that shows the wiring and one that answers "who
+does this".
+
 ## What a round trip does not carry
 
 Export is faithful except in three ways, all deliberate:
@@ -326,15 +348,7 @@ shows includes what is inside your boxes as well as what is loose on the page.
 Do not write these; they are rejected as unknown keys, and inventing them will get your document
 refused rather than partially applied:
 
-`edgeSets`, `metadata`, `icon`, `isActor`, `actorId`, `sourceHandle`, `targetHandle`, `autoLayout`,
+`edgeSets`, `metadata`, `icon`, `isActor`, `sourceHandle`, `targetHandle`, `autoLayout`,
 `colorPalette`, `stickyNotes`.
 
 Edge sets and icons are things this tool may grow later.
-
-**Actors are a special case, and the honest answer is awkward.** The app *does* have them — a
-connection can be attributed to the node that performs it, so a line can say an IAM role copies
-between two buckets that are not themselves connected. The **format does not carry it yet.** So
-`actorId` above is still rejected, and an attribution made in the app does not survive an export:
-copy a diagram out and paste it back and every attribution is gone, with nothing warning you. Until
-the format grows a version 3, actors are something you add in the app after importing, not something
-you can write here.
