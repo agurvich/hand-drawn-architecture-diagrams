@@ -284,6 +284,48 @@ test.describe('SPEC-014 — an icon on every node', () => {
     )
   })
 
+  test('the picker SAYS SO when the node will not draw an icon', async ({ page }) => {
+    await openRoom(page, roomId('ic18'))
+    const small = await addNode(page, 'Postgres', { x: 200, y: 200, w: 60, h: 40 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, small)
+    await page.getByTestId('icon-picker-open').click()
+    // Pinning one is still legal -- it takes effect when the node grows -- but a
+    // picker that says nothing about it looks broken.
+    await expect(page.getByTestId('icon-picker-too-small')).toBeVisible()
+    await page.locator('[data-icon="rocket"]').first().click()
+    expect(await iconKey(page)).toBeNull()
+    await page.evaluate((id) => {
+      window.__editor!.updateShape({
+        id: id as never,
+        type: 'diagramNode',
+        props: { w: 200, h: 90 },
+      })
+    }, small)
+    await expect.poll(() => iconKey(page)).toBe('rocket')
+  })
+
+  test('selecting a DIFFERENT node does not STEAL FOCUS to the picker', async ({ page }) => {
+    // Tapping the canvas closes the sheet, and pulling focus into a floating
+    // panel from a pointer gesture is a context change nobody asked for.
+    await openRoom(page, roomId('ic19'))
+    const first = await addNode(page, 'Postgres', { x: 200, y: 200, w: 220, h: 120 })
+    const second = await addNode(page, 'Redis', { x: 500, y: 200, w: 220, h: 120 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, first)
+    await page.getByTestId('icon-picker-open').click()
+    await page.getByTestId('icon-picker-sheet').waitFor()
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, second)
+    await expect(page.getByTestId('icon-picker-sheet')).toHaveCount(0)
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).not.toBe(
+      'icon-picker-open',
+    )
+  })
+
   test('selecting a DIFFERENT node does not re-present the open sheet', async ({ page }) => {
     await openRoom(page, roomId('ic15'))
     const first = await addNode(page, 'Postgres', { x: 200, y: 200, w: 220, h: 120 })
@@ -302,33 +344,74 @@ test.describe('SPEC-014 — an icon on every node', () => {
     await expect(page.getByTestId('icon-picker-sheet')).toHaveCount(0)
   })
 
-  test('a node too SMALL for both keeps its label and drops the icon', async ({ page }) => {
-    // 40 is the sketch recogniser's own minimum box, so this size is reachable
-    // by drawing one. With the icon in the line, `overflow: hidden` cut the
-    // label's descenders off.
+  test('THE ICON NEVER MAKES THE LABEL FIT WORSE, at any size', async ({ page }) => {
+    /*
+     * The invariant, asserted against the SAME node with its icon pinned off.
+     *
+     * The first version of this test used the label "DB" at 60x40 and passed for
+     * the wrong reason -- that is the one label that fits there. Any real label
+     * at that size is clipped with or without an icon, so "it keeps its label"
+     * was never what the code did. What the code owes is narrower and checkable:
+     * the icon must never cost the label room it would otherwise have had.
+     *
+     * 96x56 is here because it was the first fix's threshold, where the icon
+     * came back and pushed a two-line label to three inside a box with room for
+     * two -- the same bug, moved rather than fixed.
+     */
     await openRoom(page, roomId('ic16'))
-    await addNode(page, 'DB', { x: 200, y: 200, w: 60, h: 40 })
-    expect(await iconKey(page)).toBeNull()
-
-    const fits = await page.evaluate(() => {
-      const label = document.querySelector('.diagram-node__label')!
-      const node = document.querySelector('[data-testid="diagram-node"]')!
-      const l = label.getBoundingClientRect()
-      const n = node.getBoundingClientRect()
-      return l.top >= n.top - 0.5 && l.bottom <= n.bottom + 0.5 && label.textContent === 'DB'
-    })
-    expect(fits).toBe(true)
+    const cases: Array<[label: string, w: number, h: number]> = [
+      ['DB', 60, 40],
+      ['Postgres', 60, 40],
+      ['Message broker', 95, 55],
+      ['Message broker', 96, 56],
+      ['Message broker', 160, 90],
+      ['Payment gateway service', 96, 56],
+      ['Payment gateway service', 220, 120],
+      ['DB', 220, 40],
+    ]
+    for (const [label, w, h] of cases) {
+      const id = await addNode(page, label, { x: 200, y: 200, w, h })
+      const measure = async () =>
+        page.evaluate(() => {
+          const label = document.querySelector('.diagram-node__label')!
+          const node = document.querySelector('[data-testid="diagram-node"]')!
+          const l = label.getBoundingClientRect()
+          const n = node.getBoundingClientRect()
+          return {
+            clipped: Math.max(0, n.top - l.top) + Math.max(0, l.bottom - n.bottom),
+            icon: !!document.querySelector('[data-testid="diagram-node-icon"]'),
+          }
+        })
+      const automatic = await measure()
+      await page.evaluate((id) => {
+        window.__editor!.updateShape({
+          id: id as never,
+          type: 'diagramNode',
+          props: { icon: 'none' },
+        })
+      }, id)
+      const bare = await measure()
+      const where = `${label} at ${w}x${h}`
+      expect(bare.icon, where).toBe(false)
+      // The claim: whatever the icon decision was, the label is no worse off.
+      expect(automatic.clipped, where).toBeLessThanOrEqual(bare.clipped + 0.5)
+      await page.evaluate((id) => {
+        window.__editor!.deleteShapes([id as never])
+      }, id)
+    }
   })
 
-  test('a node big enough shows the icon again', async ({ page }) => {
+  test('a node too small for both drops the icon; a big one draws it', async ({ page }) => {
+    // 40 is the sketch recogniser's own MIN_BOX_EXTENT, so this size is reached
+    // by drawing a box rather than by contriving one.
     await openRoom(page, roomId('ic17'))
-    const node = await addNode(page, 'DB', { x: 200, y: 200, w: 60, h: 40 })
+    const node = await addNode(page, 'Postgres', { x: 200, y: 200, w: 60, h: 40 })
     expect(await iconKey(page)).toBeNull()
     await page.evaluate((id) => {
       window.__editor!.updateShape({
         id: id as never,
         type: 'diagramNode',
-        props: { w: 160, h: 90 },
+        props: { w: 200, h: 90 },
       })
     }, node)
     await expect.poll(() => iconKey(page)).toBe('database')

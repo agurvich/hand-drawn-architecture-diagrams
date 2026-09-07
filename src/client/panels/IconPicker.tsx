@@ -8,6 +8,7 @@ import {
   isAwsIconKey,
 } from '@shared/shapes'
 import { DRAWABLE_ICON_KEYS, awsIconSvg, generalIcon } from '../icons/registry'
+import { shouldDrawNodeIcon } from '../icons/iconFit'
 
 interface IconPickerProps {
   /** The mounted editor, or null before `onMount` has run. */
@@ -57,8 +58,16 @@ export function IconPicker({ editor }: IconPickerProps) {
       if (ids.length !== 1) return null
       const shape = editor.getShape(ids[0]!)
       if (shape?.type !== NODE_SHAPE_TYPE) return null
-      const props = shape.props as { icon: string; label: string }
-      return { id: shape.id, icon: props.icon, label: props.label }
+      const props = shape.props as { icon: string; label: string; w: number; h: number }
+      return {
+        id: shape.id,
+        icon: props.icon,
+        label: props.label,
+        // The node drops its icon when the label needs the room. Pinning one
+        // there is legal and it takes effect the moment the node grows -- but a
+        // picker that says nothing looks broken, so it says it.
+        drawn: shouldDrawNodeIcon(props.w, props.h, props.label),
+      }
     },
     [editor],
   )
@@ -76,22 +85,29 @@ export function IconPicker({ editor }: IconPickerProps) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open, close])
 
-  // Opening unmounts nothing but puts 97 tab stops between the user and the
-  // sheet; picking an icon unmounts the button their focus is ON, which drops
-  // focus to <body> and leaves a keyboard user nowhere.
-  useEffect(() => {
-    if (open) sheet.current?.focus()
-    else if (wasOpen.current) launcher.current?.focus()
-    wasOpen.current = open
-  }, [open])
-
   // A DIFFERENT node selected is a different subject; re-presenting an already
   // open sheet over it is a sheet nobody opened. The component stays mounted
   // across the change, so `open` has to be reset explicitly.
   const nodeId = node?.id ?? null
   useEffect(() => {
     setOpen(false)
+    // Not a close the user performed, so it must not pull focus (below).
+    wasOpen.current = false
   }, [nodeId])
+
+  // Opening unmounts nothing but puts 97 tab stops between the user and the
+  // sheet; picking an icon unmounts the button their focus is ON, which drops
+  // focus to <body> and leaves a keyboard user nowhere.
+  //
+  // Only for a close the USER performed. Tapping the canvas to select another
+  // node also closes the sheet, and pulling focus into a floating panel from a
+  // pointer gesture is a context change nobody asked for -- announced as one,
+  // to anyone listening.
+  useEffect(() => {
+    if (open) sheet.current?.focus()
+    else if (wasOpen.current) launcher.current?.focus()
+    wasOpen.current = open
+  }, [open])
 
   if (!editor || !node) return null
 
@@ -162,6 +178,12 @@ export function IconPicker({ editor }: IconPickerProps) {
               No icon
             </button>
           </div>
+          {!node.drawn && (
+            <p className="icon-picker__note" data-testid="icon-picker-too-small">
+              This node is too small to show an icon beside its label. A choice here is kept, and
+              appears when the node is bigger.
+            </p>
+          )}
           <div className="icon-picker__grid">
             {DRAWABLE_ICON_KEYS.map((key) => (
               <button

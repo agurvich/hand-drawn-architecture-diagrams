@@ -931,6 +931,14 @@ body {
   border-radius: 6px;
   touch-action: manipulation;
 }
+.icon-picker__note {
+  margin: 0 0 8px;
+  font:
+    500 11px/1.35 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #444;
+}
 .icon-picker__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
@@ -956,7 +964,7 @@ body {
  * The fill alone was the plan and it does not carry the state -- #dce9fa on #fff
  * is 1.23:1, well under 1.4.11's 3:1, so what was actually doing the work was
  * the 1px border the comment here dismissed. A thicker border in the same accent
- * is 4.63:1 against the neighbouring cells and reads at arm's length.
+ * is 6.29:1 against the neighbouring cells' fill and reads at arm's length.
  */
 .icon-picker__cell[aria-pressed='true'] {
   background: #dce9fa;

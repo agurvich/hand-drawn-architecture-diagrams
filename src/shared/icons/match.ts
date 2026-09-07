@@ -42,6 +42,17 @@ function patternMatches(
   return false
 }
 
+/**
+ * The first matching rule's key, or the fallback. FIRST, not best -- order decides.
+ *
+ * TWO PASSES, which is the one place this improves on the port rather than
+ * copying it. Plural handling runs in both directions, so `user` and `users` are
+ * indistinguishable to a single pass and whichever rule sits first wins both --
+ * the predecessor put `users` first deliberately, which meant a node called
+ * "User" got the plural icon forever. An exact-word pass first gives each the
+ * rule that actually names it, and the fuzzy pass still catches "buckets"
+ * against a `bucket` rule.
+ */
 export function guessIconKey(label: string): string {
   const lowered = label.toLowerCase()
   const words = new Set(lowered.split(/[^a-z0-9]+/).filter(Boolean))

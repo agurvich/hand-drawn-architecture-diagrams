@@ -1,21 +1,6 @@
 import { resolveNodeIcon } from '@shared/shapes'
 import { awsIconSvg, generalIcon } from './registry'
 
-/**
- * The smallest node that shows an icon at all, in shape units.
- *
- * An 18px glyph plus its margin takes ~24px out of a line of text, and a node
- * can legitimately be 40px square -- `MIN_BOX_EXTENT` in the sketch recogniser
- * is exactly that, so a hand-drawn box lands inside this range in normal use.
- * At 60x40 the icon pushed "DB" far enough down that `overflow: hidden` cut the
- * descenders off; the same node with no icon read fine.
- *
- * THE LABEL WINS. The icon is a second channel for something the text already
- * says, so when only one fits it is the one that goes.
- */
-export const ICON_MIN_NODE_W = 96
-export const ICON_MIN_NODE_H = 56
-
 interface NodeIconProps {
   /** The node's raw `icon` prop: a key, `'none'`, or `''` for automatic. */
   icon: string

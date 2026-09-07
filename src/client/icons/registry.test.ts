@@ -22,6 +22,10 @@ describe('the icon registry', () => {
   it('draws every key the rules can produce', () => {
     const missing = ruleKeys.filter((key) => !hasIcon(key))
     expect(missing, `rules point at icons that do not exist: ${missing.join(', ')}`).toEqual([])
+    // AND through the LIST, not only through `hasIcon`. `hasIcon` reads the two
+    // maps directly, so truncating `DRAWABLE_ICON_KEYS` -- the list the picker
+    // renders from -- left this green and needed an e2e to catch it.
+    expect([...DRAWABLE_ICON_KEYS].sort()).toEqual([...new Set(ruleKeys)].sort())
   })
 
   it('has no icon nothing can select', () => {
