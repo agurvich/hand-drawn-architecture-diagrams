@@ -15,6 +15,9 @@ import {
   NODE_SHAPE_TYPE,
   CONNECTION_SHAPE_TYPE,
   CONNECTION_BINDING_TYPE,
+  ACTOR_BINDING_TYPE,
+  chosenActorBinding,
+  type ActorBinding,
   type ConnectionBinding,
   type DiagramDocument,
   type ExportableConnection,
@@ -71,6 +74,32 @@ export function exportDocument(editor: Editor): DiagramDocument {
           fromId: binding.fromId,
           toId: binding.toId,
           props: binding.props,
+        })
+      }
+      /*
+       * THE TIE-BREAK IS RESOLVED HERE, not in the format.
+       *
+       * Two actor bindings on one connection is a reachable state -- two clients
+       * attributing at the same moment each delete the one they can see and
+       * create a fresh one, and sync is last-write-wins per record. SPEC-011
+       * settled that the SMALLEST BINDING ID wins, so both screens draw the same
+       * label without coordinating.
+       *
+       * `BindingDescriptor` carries no id, so an attribution reaching the format
+       * through it has already lost that information. Resolving here, with the
+       * same `chosenActorBinding` the canvas uses, is what keeps the file and the
+       * screen agreeing: without it the export takes whatever order
+       * `getBindingsFromShape` returned, and the canvas says "Scheduler" while
+       * the document says "IAM role".
+       */
+      const actor = chosenActorBinding(
+        editor.getBindingsFromShape<ActorBinding>(shape, ACTOR_BINDING_TYPE),
+      )
+      if (actor) {
+        bindings.push({
+          type: ACTOR_BINDING_TYPE,
+          fromId: actor.fromId,
+          toId: actor.toId,
         })
       }
     }
@@ -156,6 +185,11 @@ export function importDocument(editor: Editor, document: DiagramDocument): void 
     )
     editor.createBindings(
       bindings.map((binding) => ({
+        // `props` SPELLED OUT for the actor variant. The descriptor union omits
+        // it -- an attribution has nothing to store -- but `createBindings`
+        // validates the whole record, and a binding arriving with no props at
+        // all takes the canvas down rather than failing quietly.
+        props: {},
         ...binding,
         id: createBindingId(),
         fromId: binding.fromId as TLShapeId,

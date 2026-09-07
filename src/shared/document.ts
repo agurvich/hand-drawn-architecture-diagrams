@@ -6,6 +6,7 @@ import {
 } from './shapes/connection'
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
 import { isShapeId, SHAPE_ID_PREFIX } from './shapes/hierarchy'
+import { ACTOR_BINDING_TYPE } from './bindings/actor'
 import { SCENE_ID_PREFIX } from './scenes/sceneType'
 
 /**
@@ -77,6 +78,14 @@ export interface DocumentConnection {
   id: string
   sourceId: string
   targetId: string
+  /**
+   * The node that PERFORMS this connection, independent of its two ends.
+   *
+   * Optional, and omitted when absent -- an unattributed connection exports
+   * exactly as it did before v3. The thing doing the work is often neither end:
+   * an IAM role copying between two buckets it is not itself connected to.
+   */
+  actorId?: string
 }
 
 /**
@@ -172,12 +181,24 @@ export interface ExportableConnection {
   props: ConnectionShapeProps
 }
 
-export interface BindingDescriptor {
-  type: typeof CONNECTION_BINDING_TYPE
-  fromId: string
-  toId: string
-  props: { terminal: ConnectionTerminal }
-}
+/**
+ * A binding as the format consumes it. A DISCRIMINATED UNION since v3: an
+ * attribution arrives the same way the endpoints do, because it is the same kind
+ * of thing -- a fact about a connection held outside its props.
+ *
+ * The actor variant carries NO id, deliberately. Which of several actor bindings
+ * a connection has is resolved BEFORE this, by `chosenActorBinding` in the
+ * client adapter, so there is one smallest-id rule and not two. Carrying the id
+ * here would invite a second answer.
+ */
+export type BindingDescriptor =
+  | {
+      type: typeof CONNECTION_BINDING_TYPE
+      fromId: string
+      toId: string
+      props: { terminal: ConnectionTerminal }
+    }
+  | { type: typeof ACTOR_BINDING_TYPE; fromId: string; toId: string }
 
 /**
  * Checked against the RAW document, before any upgrade -- so this list is
@@ -189,7 +210,18 @@ export interface BindingDescriptor {
  */
 const TOP_LEVEL_KEYS = ['version', 'nodes', 'connections', 'scenes']
 const NODE_KEYS = ['id', 'label', 'x', 'y', 'w', 'h', 'rotation', 'color', 'collapsed', 'parentId']
-const CONNECTION_KEYS = ['id', 'sourceId', 'targetId']
+/**
+ * SPLIT, and the split is load-bearing.
+ *
+ * One array used to serve as both the allowlist and the list of REQUIRED
+ * strings, which works only while every key is required. Adding an optional one
+ * to it would have made `actorId` mandatory and rejected
+ * `{"id":"a-b","sourceId":"a","targetId":"b"}` -- every document ever written,
+ * the frozen v1 corpus and three of the guide's own examples included. The node
+ * loop above already has the right shape.
+ */
+const CONNECTION_KEYS = ['id', 'sourceId', 'targetId', 'actorId']
+const CONNECTION_REQUIRED_KEYS = ['id', 'sourceId', 'targetId'] as const
 const SCENE_KEYS = ['id', 'name', 'note', 'collapsed', 'highlighted']
 
 /**
@@ -293,6 +325,27 @@ export function parseDocument(input: string): ParseResult {
     return fail('document.version', 'scenes requires version 2')
   }
 
+  /*
+   * PER CONNECTION, and pathed to it. `scenes` is a top-level key so its guard
+   * could name `document.version`; `actorId` sits on one connection out of
+   * possibly forty, and the author needs to know which.
+   *
+   * DEFENSIVE about its own input, because this runs before `connections` has
+   * been checked to be an array of objects -- that check is further down. A
+   * naive loop throws `connections is not iterable` on `{"connections": 5}`,
+   * which is an exception escaping a function whose contract is "the whole
+   * document or a message. Never a partial result". Anything malformed is
+   * skipped here and reported properly below.
+   */
+  if (raw.version !== 3 && Array.isArray(raw.connections)) {
+    for (let i = 0; i < raw.connections.length; i++) {
+      const entry: unknown = raw.connections[i]
+      if (isPlainObject(entry) && 'actorId' in entry) {
+        return fail(`connections[${i}].actorId`, 'requires version 3')
+      }
+    }
+  }
+
   const extraTop = unknownKey(raw, TOP_LEVEL_KEYS)
   if (extraTop !== null) return fail(`document.${extraTop}`, 'unknown key')
 
@@ -385,17 +438,24 @@ export function parseDocument(input: string): ParseResult {
     const extra = unknownKey(entry, CONNECTION_KEYS)
     if (extra !== null) return fail(`${path}.${extra}`, 'unknown key')
 
-    for (const key of CONNECTION_KEYS) {
+    for (const key of CONNECTION_REQUIRED_KEYS) {
       if (typeof entry[key] !== 'string') return fail(`${path}.${key}`, 'must be a string')
     }
     if (!DOCUMENT_ID_PATTERN.test(entry.id as string)) {
       return fail(`${path}.id`, `must match ${String(DOCUMENT_ID_PATTERN)}`)
+    }
+    if (entry.actorId !== undefined) {
+      if (typeof entry.actorId !== 'string') return fail(`${path}.actorId`, 'must be a string')
+      if (!DOCUMENT_ID_PATTERN.test(entry.actorId)) {
+        return fail(`${path}.actorId`, `must match ${String(DOCUMENT_ID_PATTERN)}`)
+      }
     }
 
     connections.push({
       id: entry.id as string,
       sourceId: entry.sourceId as string,
       targetId: entry.targetId as string,
+      ...(entry.actorId === undefined ? {} : { actorId: entry.actorId as string }),
     })
   }
 
@@ -425,6 +485,21 @@ export function parseDocument(input: string): ParseResult {
     }
   }
   for (const [i, connection] of connections.entries()) {
+    if (connection.actorId !== undefined) {
+      // TWO DIFFERENT ERRORS, because they are two different authoring mistakes:
+      // a typo, and a misunderstanding of what performs a connection. The same
+      // shape a scene's `collapsed` keys already use.
+      const kind = seen.get(connection.actorId)
+      if (kind === undefined) {
+        return fail(
+          `connections[${i}].actorId`,
+          `no node with id ${JSON.stringify(connection.actorId)}`,
+        )
+      }
+      if (kind === 'connection') {
+        return fail(`connections[${i}].actorId`, 'names a connection, which cannot perform another')
+      }
+    }
     for (const key of ['sourceId', 'targetId'] as const) {
       if (!nodeIds.has(connection[key])) {
         return fail(
@@ -643,7 +718,14 @@ export function toDocument(
   // linearity nobody had checked, while two others carry measurements in their
   // comments.
   const bindingsByConnection = new Map<string, BindingDescriptor[]>()
+  const actorByConnection = new Map<string, string>()
   for (const b of bindings) {
+    if (b.type === ACTOR_BINDING_TYPE) {
+      // Already resolved to ONE by the client adapter; last one wins here only
+      // as a total-function fallback, never as the tie-break.
+      actorByConnection.set(b.fromId, b.toId)
+      continue
+    }
     const list = bindingsByConnection.get(b.fromId)
     if (list) list.push(b)
     else bindingsByConnection.set(b.fromId, [b])
@@ -662,15 +744,25 @@ export function toDocument(
     // record, not per (shape, terminal). A count test would then export a
     // connection with an undefined targetId, which parseDocument rejects.
     const own = bindingsByConnection.get(connection.id) ?? []
-    const terminal = (want: ConnectionTerminal) => own.find((b) => b.props.terminal === want)
+    // NARROWED on the discriminant: `own` is a union since v3, and an actor
+    // variant has no terminal. The type check is what makes that explicit
+    // rather than a runtime undefined.
+    const terminal = (want: ConnectionTerminal) =>
+      own.find((b) => b.type === CONNECTION_BINDING_TYPE && b.props.terminal === want)
     const source = terminal('start')
     const target = terminal('end')
     if (!source || !target) continue
     if (!documentable.has(source.toId) || !documentable.has(target.toId)) continue
+    // FILTERED AGAINST THE EXPORTED NODES, and for once that is exactly the
+    // right set -- an actor is always a node. An attribution naming something
+    // the document cannot carry is dropped and the connection survives, which is
+    // what keeps export from emitting a document its own validator rejects.
+    const actor = actorByConnection.get(connection.id)
     documentConnections.push({
       id: documentId(connection.id),
       sourceId: documentId(source.toId),
       targetId: documentId(target.toId),
+      ...(actor !== undefined && documentable.has(actor) ? { actorId: documentId(actor) } : {}),
     })
     exportedConnectionIds.add(connection.id)
   }
@@ -825,6 +917,17 @@ export function fromDocument(
       toId: shapeId(connection.targetId),
       props: { terminal: 'end' as const },
     },
+    // The attribution, when the document carries one. Same list as the
+    // endpoints, because it is the same kind of fact.
+    ...(connection.actorId === undefined
+      ? []
+      : [
+          {
+            type: ACTOR_BINDING_TYPE,
+            fromId: shapeId(connection.id),
+            toId: shapeId(connection.actorId),
+          } as const,
+        ]),
   ])
 
   const scenes = document.scenes.map((scene) => ({

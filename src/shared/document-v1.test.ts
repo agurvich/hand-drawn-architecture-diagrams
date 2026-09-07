@@ -356,7 +356,11 @@ describe('the frozen v1 corpus', () => {
   it('binds both ends of every connection', () => {
     const { bindings } = records('connections-and-defaults.json')
     expect(
-      bindings.map((binding) => [binding.fromId, binding.toId, binding.props.terminal]),
+      bindings.map((binding) => [
+        binding.fromId,
+        binding.toId,
+        'props' in binding ? binding.props.terminal : 'actor',
+      ]),
     ).toEqual([
       ['shape:a-b', 'shape:a', 'start'],
       ['shape:a-b', 'shape:b', 'end'],
