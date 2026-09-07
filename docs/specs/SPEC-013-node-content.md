@@ -1,8 +1,8 @@
 # Spec: Hand-drawn content inside a node
 
 **ID:** SPEC-013  
-**Status:** Draft  
-**Last Updated:** 2026-09-06 (rev 2 — post-review)  
+**Status:** Completed  
+**Last Updated:** 2026-09-06 (rev 3 — built)  
 **Depends On:** SPEC-004, SPEC-006, SPEC-008, SPEC-010
 
 ## Overview
@@ -104,16 +104,24 @@ promise can silently fail, so each is asserted.
       cannot fail against this diff; the parenting is the part that could
 - [ ] **Resizing a node leaves its content exactly where it is**, at the size it was — asserted on
       the content's page bounds **and its `parentId`**, through the real resize handle.
-      Both halves, because they fail differently and the position half alone certifies the bug:
-      tldraw's resize completes with `kickoutOccludedShapes`, which reparents a child no longer
-      overlapping its parent to the page — and reparenting **preserves page position**. So content
-      orphaned by a shrink passes a bounds-only assertion. Include the case where the node is made
-      *smaller than its content*, which is where both failures live
+      Both halves, because they fail differently and the position half alone proves nothing:
+      reparenting **preserves page position**, so a bounds-only assertion passes either way.
+- [ ] **Shrinking a node CLEAR OF its content returns that content to the page** — the stated price
+      of content being hand-draggable (settled 2026-09-06). tldraw's kickout cannot tell an explicit
+      drag from an automatic one, so allowing the first allows the second. Rev 2 of this spec
+      asserted the opposite here; it was corrected after the build measured it, rather than left to
+      contradict what ships
 - [ ] **A nested NODE also stays put on resize**, asserted the same way. This is the SPEC-004
       behaviour change above, and it is a criterion rather than a note because a future reader will
       otherwise read it as a regression
 - [ ] Dragging content out of a node returns it to the page, and dragging it into another node
-      re-parents it — both through real pointer input, not by calling `reparentShapes`
+      re-parents it — both through real pointer input, not by calling `reparentShapes`. **Built and
+      confirmed as tldraw's own behaviour (2026-09-06), after three false starts that each made it
+      look broken: the test content was an UNFILLED rectangle, which is only hit on its outline, so
+      the drag fell through to the box behind it; the draw tool was still current after drawing, so
+      the drag drew instead of moving; and a hand-written escape rule fired mid-drag, which tldraw's
+      translate then undid by restoring the parent it recorded at drag start. With those fixed,
+      nothing of ours is needed.**
 
 ### FR-003: It does not fight sketch recognition
 

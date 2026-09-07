@@ -461,3 +461,76 @@ export async function setSketchMode(page: Page, on: boolean) {
   if (pressed !== on) await button.click()
   await expect(button).toHaveAttribute('aria-pressed', String(on))
 }
+
+/** A shape's parent id, or null when the shape is not there (yet). */
+export async function parentOf(page: Page, id: string): Promise<string | null> {
+  return page.evaluate(
+    (sid) => (window.__editor!.getShape(sid as never)?.parentId as string) ?? null,
+    id,
+  )
+}
+
+/** A shape's page bounds, rounded, as a comparable object. */
+export async function pageBounds(page: Page, id: string) {
+  return page.evaluate((sid) => {
+    const b = window.__editor!.getShapePageBounds(sid as never)!
+    return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) }
+  }, id)
+}
+
+/**
+ * Create a plain tldraw shape at a page point, letting TLDRAW choose its parent.
+ *
+ * No `parentId`, deliberately: the parent scan is the mechanism under test, and
+ * naming a parent would bypass it entirely.
+ *
+ * Size props only where the type takes them: `geo` does, and `text` and `note`
+ * size themselves -- passing `w`/`h` to either fails validation with
+ * "Unexpected property".
+ */
+export async function addTldrawShape(
+  page: Page,
+  type: string,
+  at: { x: number; y: number },
+  size = 40,
+): Promise<string> {
+  return page.evaluate(
+    ({ type, at, size }) => {
+      const ed = window.__editor!
+      const id = `shape:${Math.random().toString(36).slice(2, 12)}`
+      const sized = type === 'geo'
+      ed.createShape({
+        id: id as never,
+        type,
+        x: at.x,
+        y: at.y,
+        // FILLED, so a click in its middle hits it rather than falling through
+        // to whatever is behind. An unfilled rectangle is only hit on its
+        // outline, which made a drag-out test look like the feature was broken.
+        ...(sized ? { props: { w: size, h: size, fill: 'solid' } } : {}),
+      } as never)
+      return id
+    },
+    { type, at, size },
+  )
+}
+
+/** Drag a shape's bottom-right corner by (dx, dy) in screen pixels. */
+export async function dragCorner(page: Page, id: string, dx: number, dy: number) {
+  await page.evaluate((sid) => {
+    window.__editor!.setCurrentTool('select')
+    window.__editor!.setSelectedShapes([sid as never])
+  }, id)
+  await page.waitForTimeout(200)
+  const corner = await page.evaluate((sid) => {
+    const ed = window.__editor!
+    const b = ed.getShapePageBounds(sid as never)!
+    const p = ed.pageToScreen({ x: b.maxX, y: b.maxY })
+    return { x: p.x, y: p.y }
+  }, id)
+  await page.mouse.move(corner.x, corner.y)
+  await page.mouse.down()
+  await page.mouse.move(corner.x + dx, corner.y + dy, { steps: 15 })
+  await page.mouse.up()
+  await page.waitForTimeout(200)
+}
