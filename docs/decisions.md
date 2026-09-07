@@ -35,6 +35,7 @@ until the first real decision lands.
 - [Secondary features deferred pending real use](#secondary-features-deferred-pending-real-use)
 - [Derived views are computed, never materialized](#derived-views-are-computed-never-materialized)
 - [Scope says who sees a record; history is decided per write](#scope-says-who-sees-a-record-history-is-decided-per-write)
+- [A folded view shows every answer, never none](#a-folded-view-shows-every-answer-never-none)
 
 ---
 
@@ -213,3 +214,38 @@ accompanies) into two session records, and the boundary between them is exactly 
 
 **Do NOT** assume session scope implies "not undoable", and **do not** put two fields in one record
 before checking they want the same answer.
+
+### A folded view shows every answer, never none
+
+**Settled 2026-09-07 (SPEC-015, on the user's decision), reversing part of SPEC-011.** When a derived
+view folds several records into one — a collapsed container's merged edge is the case that forced it —
+and those records disagree about some attribute, the folded view shows **all** of their answers. It
+does not pick one, and it does not show nothing.
+
+SPEC-011 got the first half right and the second half wrong. Picking one member's actor and drawing it
+as the line's is a silent misattribution, so it was ruled out; from there, showing none looked like the
+conservative choice — claim nothing rather than claim wrongly. It is not conservative, it is lossy.
+**Folding a container is the gesture for asking what crosses its boundary**, and "which resources do
+the crossing" is most of that answer. The old rule made the fold *destroy* the very information the
+fold was performed to see, and it did so most often exactly when there was most to see.
+
+The general shape:
+
+- **A fold that cannot answer with one value answers with the set**, ordered by the same total order
+  the derivation already uses to pick a representative — plain `<` on the id, so two clients agree
+  without coordinating, per [*Derived views are computed, never
+  materialized*](#derived-views-are-computed-never-materialized). `Set` iteration order is insertion
+  order, which is store order, which is precisely what differs between clients.
+- **The cap is a rendering decision, not a derivation one.** How many fit on a line is a question
+  about a canvas; the derivation says what the line stands for. A derivation that truncated would also
+  be deciding what the JSON export carries. SPEC-015 draws the first two and then `+N more`.
+- **A panel that describes the folded thing must be able to say the same sentence.** The `<select>`
+  in the actor control has no value for "several", so it grew an option for it. Leaving it empty would
+  have put the panel back into disagreeing with the canvas — the same class of defect as reading the
+  representative's own binding, only with the reading too empty rather than too confident.
+
+**The old rule is still described where it was decided.** SPEC-011's unit tests for the disagreement
+case were rewritten in place — the cases stay, the expectation reverses — rather than deleted, and its
+spec and delivery doc carry superseded markers. A reversal that erases its own history reads, later,
+as a bug.
+

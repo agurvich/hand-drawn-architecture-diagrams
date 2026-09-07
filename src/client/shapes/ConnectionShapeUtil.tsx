@@ -23,6 +23,7 @@ import {
   type ConnectionShape,
   type ConnectionBinding,
   visibleStandInFor,
+  resolveNodeIcon,
   type ConnectionTerminal,
 } from '@shared/shapes'
 
@@ -249,9 +250,27 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             {`\u00d7${count}`}
           </text>
         )}
-        {actors.length > 0 && (
+        {count === 1 && actors.length === 1 && (
+          // UNMERGED, so there is exactly one and the NAME is the more precise
+          // thing to show -- SPEC-011's rendering, unchanged. Icons are the
+          // answer to "several", not a replacement for a name that fits.
+          //
+          // STACKED BELOW the count, not on top of it. Both want the midpoint.
+          <text
+            className="diagram-connection__actor"
+            data-testid="diagram-connection-actor"
+            data-actor={actors[0]!.id}
+            aria-label={`Performed by ${actors[0]!.label}`}
+            x={(a.x + b.x) / 2}
+            y={(a.y + b.y) / 2 + 16}
+            textAnchor="middle"
+          >
+            {actors[0]!.label}
+          </text>
+        )}
+        {count > 1 && actors.length > 0 && (
           /*
-           * EVERY DISTINCT ACTOR, as icons, stacked below the count.
+           * MERGED: every distinct actor, as icons, stacked below the count.
            *
            * Icons rather than names because a merged edge can stand for five
            * connections, and five names on one line is a wall of text where five
@@ -274,7 +293,14 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
               {actors.slice(0, MAX_ACTOR_ICONS).map((entry) => (
                 <span
                   key={entry.id}
-                  className="diagram-connection__actor-icon"
+                  // An actor PINNED TO NO ICON still crosses the boundary, so it
+                  // keeps its slot and its name -- but a halo around nothing
+                  // reads as a blank tile, so the chip loses its background.
+                  className={`diagram-connection__actor-icon${
+                    resolveNodeIcon(entry.icon, entry.label) === null
+                      ? ' diagram-connection__actor-icon--bare'
+                      : ''
+                  }`}
                   data-testid="diagram-connection-actor"
                   data-actor={entry.id}
                   // The glyph is the visual channel; the NAME is what a screen

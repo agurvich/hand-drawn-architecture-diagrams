@@ -6,6 +6,18 @@ import { defineConfig, devices } from '@playwright/test'
  * (Input.dispatchTouchEvent / dispatchMouseEvent with pointerType 'pen'), and
  * newCDPSession is Chromium-only.
  */
+/*
+ * The dev server's port, overridable.
+ *
+ * Several agent sessions share this repo through separate worktrees, and
+ * `reuseExistingServer` cannot tell one worktree's dev server from another's --
+ * so a second session's run silently tests the FIRST session's build, passes or
+ * fails on code it never wrote, and leaves no trace saying so. One `E2E_PORT`
+ * per session is the whole fix.
+ */
+const PORT = Number(process.env.E2E_PORT ?? 4173)
+const ORIGIN = `http://127.0.0.1:${PORT}`
+
 export default defineConfig({
   testDir: './e2e',
   // The corpus capture harness is a TOOL, not a test: it writes fixture files
@@ -16,7 +28,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'list' : 'line',
-  use: { baseURL: 'http://127.0.0.1:4173', trace: 'on-first-retry' },
+  use: { baseURL: ORIGIN, trace: 'on-first-retry' },
   projects: [
     {
       name: 'ipad-chromium',
@@ -34,8 +46,8 @@ export default defineConfig({
   // origin (the Cloudflare plugin), which is the same topology the app assumes
   // in production and the reason there is no sync-URL env var.
   webServer: {
-    command: 'npm run dev -- --port 4173 --host 127.0.0.1',
-    url: 'http://127.0.0.1:4173',
+    command: `npm run dev -- --port ${PORT} --host 127.0.0.1`,
+    url: ORIGIN,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

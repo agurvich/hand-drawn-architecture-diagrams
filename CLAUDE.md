@@ -113,6 +113,10 @@ is refused — each one was a way past the checks.
 - **Derived views are computed, never materialized** — a view that is a pure function of records is
   recomputed per client, not written back; two clients materializing one both write, and neither
   cleans up. Ties break on a total order over data both already have, never on creation order.
+- **A folded view shows every answer, never none** — a merged edge shows every distinct actor of the
+  connections it stands for, ordered by the same total order that picks the representative. Showing
+  none was lossy, not conservative; the cap on how many fit is the renderer's call, not the
+  derivation's.
 - **Scope says who sees a record; history is decided per write** — tldraw records session-scoped
   changes on the shared undo stack too, so two fields wanting opposite undo behaviour cannot share
   one record.

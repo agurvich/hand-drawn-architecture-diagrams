@@ -285,15 +285,11 @@ test.describe('SPEC-011 FR-003 — how an attributed connection reads', () => {
     expect(await actorLabels(page)).toEqual([])
   })
 
-  test('the actor icon HALO IS ACTUALLY PAINTED', async ({ page }) => {
+  test('the label HALO IS ACTUALLY PAINTED', async ({ page }) => {
     // On the running page's computed style. The merge badge shipped with an
     // inert halo because `--color-background` is defined nowhere, and both
     // obvious tests miss it: jsdom cannot resolve var() from a stylesheet, and a
     // screenshot test was weighed and rejected for this glyph.
-    //
-    // SPEC-015 moved the actor from SVG text to an icon in a `foreignObject`, so
-    // the halo moved from stroke/paint-order to a box-shadow ring -- a different
-    // mechanism with the same failure mode, hence the same test rather than none.
     await openRoom(page, roomId('ac14'))
     const a = await addNode(page, 'A', { x: 100, y: 300, w: 160, h: 100 })
     const b = await addNode(page, 'B', { x: 600, y: 300, w: 160, h: 100 })
@@ -304,25 +300,18 @@ test.describe('SPEC-011 FR-003 — how an attributed connection reads', () => {
     const painted = await page.evaluate(() => {
       const el = document.querySelector('[data-testid="diagram-connection-actor"]')!
       const style = getComputedStyle(el)
-      const box = el.getBoundingClientRect()
       return {
-        shadow: style.boxShadow,
-        background: style.backgroundColor,
-        events: getComputedStyle(el.closest('.diagram-connection__actors')!).pointerEvents,
-        width: box.width,
-        height: box.height,
+        stroke: style.stroke,
+        width: parseFloat(style.strokeWidth),
+        order: style.paintOrder,
+        events: style.pointerEvents,
       }
     })
-    // A `var()` that resolves to nothing leaves `box-shadow: 0 0 0 2px` with no
-    // colour, which computes to `none` -- exactly the silent failure this catches.
-    expect(painted.shadow).not.toBe('none')
-    expect(painted.shadow).toMatch(/rgb/)
-    expect(painted.background).toMatch(/rgb/)
-    expect(painted.background).not.toBe('rgba(0, 0, 0, 0)')
-    // And the glyph is actually laid out, not a zero-box `foreignObject` child.
-    expect(painted.width).toBeGreaterThan(8)
-    expect(painted.height).toBeGreaterThan(8)
-    // A tap near the icons must still reach the line behind them.
+    expect(painted.stroke).not.toBe('none')
+    expect(painted.stroke).toMatch(/rgb/)
+    expect(painted.width).toBeGreaterThan(0)
+    expect(painted.order).toBe('stroke')
+    // A tap near the label must still reach the line behind it.
     expect(painted.events).toBe('none')
   })
 
@@ -573,6 +562,91 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     expect(await actorOverflow(page)).toBe(null)
   })
 
+  test('the merged ICONS have their own painted halo, and take no taps', async ({ page }) => {
+    // A different mechanism from the unmerged label's stroke halo -- a box-shadow
+    // ring on a `foreignObject` chip -- with the same failure mode: a `var()`
+    // that resolves to nothing computes to `none` and the glyph sits bare over
+    // whatever the line crosses.
+    await openRoom(page, roomId('ac29'))
+    const { box, k1, k2, one, two } = await merged(page)
+    await attribute(page, k1, one)
+    await attribute(page, k2, two)
+    await setCollapsed(page, box, true)
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
+
+    const painted = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="diagram-connection-actor"]')!
+      const style = getComputedStyle(el)
+      const box = el.getBoundingClientRect()
+      return {
+        shadow: style.boxShadow,
+        background: style.backgroundColor,
+        events: getComputedStyle(el.closest('.diagram-connection__actors')!).pointerEvents,
+        w: box.width,
+        h: box.height,
+      }
+    })
+    expect(painted.shadow).not.toBe('none')
+    expect(painted.shadow).toMatch(/rgb/)
+    expect(painted.background).toMatch(/rgb/)
+    expect(painted.background).not.toBe('rgba(0, 0, 0, 0)')
+    // Actually laid out, not a zero-box `foreignObject` child.
+    expect(painted.w).toBeGreaterThan(8)
+    expect(painted.h).toBeGreaterThan(8)
+    expect(painted.events).toBe('none')
+  })
+
+  test('an actor pinned to NO ICON still counts and still has its name', async ({ page }) => {
+    // It is a resource crossing the boundary whether or not it has a glyph. It
+    // keeps its slot and its accessible name; only the halo goes, because a ring
+    // around nothing reads as a blank tile.
+    await openRoom(page, roomId('ac30'))
+    const { box, k1, k2, one, two } = await merged(page)
+    await attribute(page, k1, one)
+    await attribute(page, k2, two)
+    await page.evaluate((id) => {
+      window.__editor!.updateShape({
+        id: id as never,
+        type: 'diagramNode',
+        props: { icon: 'none' },
+      })
+    }, one)
+    await setCollapsed(page, box, true)
+
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+    const glyphs = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map((el) => ({
+        actor: el.getAttribute('data-actor'),
+        hasGlyph: !!el.querySelector('[data-testid="diagram-node-icon"]'),
+        shadow: getComputedStyle(el).boxShadow,
+      })),
+    )
+    expect(glyphs).toHaveLength(2)
+    const bare = glyphs.find((g) => g.actor === one)!
+    expect(bare.hasGlyph).toBe(false)
+    expect(bare.shadow).toBe('none')
+    expect(glyphs.find((g) => g.actor === two)!.hasGlyph).toBe(true)
+  })
+
+  test('an UNMERGED line still shows the actor NAME, not an icon', async ({ page }) => {
+    // Icons answer "several". Where there is exactly one, the name is the more
+    // precise thing and there is room for it -- SPEC-011's rendering, unchanged.
+    await openRoom(page, roomId('ac31'))
+    const a = await addNode(page, 'A', { x: 100, y: 300, w: 160, h: 100 })
+    const b = await addNode(page, 'B', { x: 600, y: 300, w: 160, h: 100 })
+    const role = await addNode(page, 'Role', { x: 350, y: 60, w: 160, h: 100 })
+    await attribute(page, await addConnection(page, a, b), role)
+
+    const drawn = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="diagram-connection-actor"]')!
+      return { tag: el.tagName, text: el.textContent, icons: el.querySelectorAll('svg').length }
+    })
+    expect(drawn.tag).toBe('text')
+    expect(drawn.text).toBe('Role')
+    expect(drawn.icons).toBe(0)
+    expect(await actorLabels(page)).toEqual(['Role'])
+  })
+
   test('EXPANDING restores each line its own attribution', async ({ page }) => {
     await openRoom(page, roomId('ac19'))
     const { box, k1, k2, one, two } = await merged(page)
@@ -589,12 +663,22 @@ test.describe('SPEC-011 FR-004 — merging', () => {
 
     await setCollapsed(page, box, false)
     await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
-    // Now two lines with one each, which is what "its own" means.
+    // Now two lines with one each -- which is what "its own" means -- and each
+    // back to a NAME, since a line standing for one connection is not the case
+    // icons exist for.
+    const drawn = await page.evaluate(() =>
+      [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map((el) => ({
+        tag: el.tagName,
+        text: el.textContent,
+      })),
+    )
+    expect(drawn.map((d) => d.tag)).toEqual(['text', 'text'])
+    expect(drawn.map((d) => d.text).sort()).toEqual(['One', 'Two'])
     expect(
       await page.evaluate(
         () => document.querySelectorAll('[data-testid="diagram-connection-actors"]').length,
       ),
-    ).toBe(2)
+    ).toBe(0)
   })
 
   test('the CONTROL agrees with the line: a merged line names ALL of them', async ({ page }) => {

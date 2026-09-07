@@ -1,7 +1,7 @@
 # Spec: Actors on a merged edge
 
 **ID:** SPEC-015  
-**Status:** Draft  
+**Status:** Completed  
 **Last Updated:** 2026-09-07  
 **Depends On:** SPEC-006, SPEC-011, SPEC-014
 
@@ -79,7 +79,8 @@ Icons at the midpoint, stacked clear of the `×N` count, capped.
 #### Acceptance Criteria:
 
 - [ ] A merged line whose members name **one** actor shows that one icon
-- [ ] A merged line whose members name **three** shows three icons
+- [ ] A merged line whose members name **three** shows two icons and `+1 more` — the cap is two,
+      settled with the user (2026-09-07), so three is already over it
 - [ ] **Five shows two icons and `+3 more`** — the cap, asserted on the count in the text so an
       off-by-one is visible
 - [ ] Each icon resolves through SPEC-014's `resolveNodeIcon`, so an actor with a pinned icon shows
