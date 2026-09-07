@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "nodes": [
+    { "id": "client", "label": "Client", "x": 0, "y": 0, "w": 200, "h": 120 },
+    {
+      "id": "platform",
+      "label": "Platform",
+      "x": 400,
+      "y": 0,
+      "w": 400,
+      "h": 320,
+      "collapsed": true
+    },
+    {
+      "id": "gateway",
+      "label": "Gateway",
+      "x": 40,
+      "y": 40,
+      "w": 180,
+      "h": 100,
+      "parentId": "platform"
+    },
+    { "id": "db", "label": "Postgres", "x": 900, "y": 0, "w": 200, "h": 120 }
+  ],
+  "connections": [
+    { "id": "client-gateway", "sourceId": "client", "targetId": "gateway" },
+    { "id": "gateway-db", "sourceId": "gateway", "targetId": "db" }
+  ],
+  "scenes": [
+    {
+      "id": "outline",
+      "name": "The shape of it",
+      "note": "Three things, one folded.",
+      "collapsed": { "platform": true }
+    },
+    {
+      "id": "inside",
+      "name": "Inside the platform",
+      "collapsed": { "platform": false },
+      "highlighted": ["gateway", "gateway-db"]
+    }
+  ]
+}

@@ -16,7 +16,7 @@ to status only — no prose.
 | SPEC-009 | Scenes in the JSON document | Completed | SPEC-007, SPEC-008 |
 | SPEC-010 | Sketch to clean shape | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-011 | Actors on connections | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
-| SPEC-012 | Actors in the JSON document | Planned | SPEC-009, SPEC-011 |
+| SPEC-012 | Actors in the JSON document | Draft | SPEC-009, SPEC-011 |
 | SPEC-013 | Hand-drawn content inside a node | Completed | SPEC-004, SPEC-006, SPEC-008, SPEC-010 |
 
 ## Arcs (build order)
