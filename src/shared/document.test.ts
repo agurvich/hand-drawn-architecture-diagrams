@@ -1158,6 +1158,22 @@ describe('actorId — a connection can say who performs it', () => {
     }
   })
 
+  it('SCENES wins when a v1 document breaks both rules at once', () => {
+    // Two guards, one document, one message. Which one is not obvious and is
+    // not derivable from either guard alone -- swapping them leaves the whole
+    // suite green, which is why this is pinned rather than assumed.
+    expect(
+      errorFrom(
+        json({
+          version: 1,
+          nodes: [node('a'), node('b')],
+          connections: [{ id: 'k', sourceId: 'a', targetId: 'b', actorId: 'a' }],
+          scenes: [],
+        }),
+      ),
+    ).toBe('document.version: scenes requires version 2')
+  })
+
   it('does not THROW on a malformed connections key it has not validated yet', () => {
     // The guard runs before `Array.isArray(connections)`, so a naive loop throws
     // `connections is not iterable` -- an exception escaping a function whose
@@ -1203,6 +1219,19 @@ describe('toDocument / fromDocument — actors', () => {
     ]
     const out = toDocument(inside, [exportableConnection('k')], [...ends, actorBinding('role')])
     expect(out.connections[0]!.actorId).toBe('role')
+  })
+
+  it('DROPS an attribution naming a node that is gone entirely', () => {
+    // The third case the spec enumerated: not undescribable, just absent -- a
+    // node deleted after the binding was made, which `onBeforeDeleteToShape`
+    // makes transient but a synced room can still hold.
+    const out = toDocument(
+      [exportableNode('a'), exportableNode('b')],
+      [exportableConnection('k')],
+      [...ends, actorBinding('vanished')],
+    )
+    expect(out.connections[0]).toEqual({ id: 'k', sourceId: 'a', targetId: 'b' })
+    expect(parseDocument(json(out)).ok).toBe(true)
   })
 
   it('rebuilds the binding on the way back in', () => {

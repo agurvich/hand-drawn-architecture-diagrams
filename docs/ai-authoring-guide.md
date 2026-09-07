@@ -319,6 +319,21 @@ in the same document.
 the time, and it is the difference between a diagram that shows the wiring and one that answers "who
 does this".
 
+### Actors and collapse
+
+Folding a container merges several connections into one drawn line, and that raises a question the
+format answers one way and the canvas answers another — deliberately.
+
+**The document always keeps every attribution**, whatever is folded. Collapse is a way of looking;
+it never edits. So a diagram exported while a container is folded loses nothing, and expanding it
+again gives every line its own actor back.
+
+**The drawn line is more careful.** It names an actor only when *every* connection it stands for
+names the same one. If they disagree — including "some attributed, some not" — it names nobody,
+rather than picking one and misattributing the rest.
+
+So: attribute freely, and do not worry about what is folded when you write the document.
+
 ## What a round trip does not carry
 
 Export is faithful except in three ways, all deliberate:

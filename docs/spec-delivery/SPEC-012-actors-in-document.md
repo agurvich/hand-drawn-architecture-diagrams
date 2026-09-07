@@ -64,6 +64,27 @@ version equals the constant" stays green under an `upgradeV1` taught to jump to 
 the mistake that leaves two functions both claiming to produce "the latest". What falsifies it is
 pinning each step to its own target and asserting a v1 document passes through both.
 
+**A data-loss path, found by using it.** A merged line is drawn by one of its members — the
+representative — and that is the only member you can hit-test, so selecting a `×2` line selects it.
+The "Performed by" control read that member's own binding and answered with its actor while the
+canvas, one click away, correctly claimed nobody. Worse: choosing "Nobody in particular" from that
+reading called `clearActor` on the representative and destroyed its real attribution while every
+other member kept theirs — a person correcting a reading that was wrong to begin with, and losing
+data doing it. The control now reads through the merge index, and is **read-only on a merged line**
+with a note to expand the container. Attributing every member at once is a coherent alternative, but
+it is a bulk edit nobody asked for and SPEC-015 changes what a merged edge shows.
+
+**Two criteria were ticked with no test behind them**, both singled out by the spec as invisible to
+everything else. Replacing `chosenActorBinding` with `[0]` in the export left 367 unit and 248 e2e
+tests green while the canvas said one actor and the file said another; there is now a test that
+plants two bindings **in both insertion orders**, because one of them agrees with `[0]` by accident.
+And swapping the two version guards left the whole suite green; the document that breaks both rules
+at once now pins which message wins.
+
+**The guide said nothing about actors and collapse**, which is the one interaction a model authoring
+"who does what" diagrams would hit. It now says the document always keeps every attribution whatever
+is folded, and that the drawn line names an actor only when every connection it stands for agrees.
+
 **Not covered:** downgrading — there is no v3 → v2 export, and a v2 build handed a v3 document
 reports `expected 1 or 2, got 3`. `icon` joins v3 in SPEC-014; SPEC-015 then reverses SPEC-011's
 merged-edge rule, and this spec's per-connection export is what makes that reversal cheap.

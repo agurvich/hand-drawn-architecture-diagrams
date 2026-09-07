@@ -8,6 +8,8 @@ import {
   newParticipant,
   addScene,
   viewScene,
+  attributeConnection as attribute,
+  actorLabels,
 } from './helpers'
 
 /** Every binding on the page, as `type from->to`. */
@@ -18,23 +20,6 @@ async function bindings(page: Page): Promise<string[]> {
       .filter((r) => r.typeName === 'binding')
       .map((r) => `${r.type as string} ${r.fromId as string}->${r.toId as string}`)
       .sort(),
-  )
-}
-
-/** Attribute the selected connection through the real control. */
-async function attribute(page: Page, connectionId: string, nodeId: string | null) {
-  await page.evaluate((id) => {
-    window.__editor!.setSelectedShapes([id as never])
-  }, connectionId)
-  await page.getByTestId('actor-control').waitFor()
-  await page.getByTestId('actor-select').selectOption(nodeId ?? '')
-}
-
-async function actorLabels(page: Page): Promise<string[]> {
-  return page.evaluate(() =>
-    [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map(
-      (el) => el.textContent ?? '',
-    ),
   )
 }
 
@@ -509,6 +494,70 @@ test.describe('SPEC-011 FR-004 — merging', () => {
 
     await setCollapsed(page, box, false)
     await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+  })
+
+  test('the CONTROL agrees with the line: a merged line reads as claiming nobody', async ({
+    page,
+  }) => {
+    /*
+     * Found by using it. A merged line is drawn by one of its members -- the
+     * representative -- and that is the only member you can hit-test, so
+     * selecting a `x2` line selects it. The control read that member's own
+     * binding and answered "One" while the canvas, one click away, correctly
+     * showed no actor. Worse, choosing "Nobody in particular" from that reading
+     * cleared the representative's REAL attribution and left every other
+     * member's alone -- data lost by a person correcting something that was
+     * wrong to begin with.
+     */
+    await openRoom(page, roomId('ac24'))
+    const { box, k1, k2, one, two } = await merged(page)
+    await attribute(page, k1, one)
+    await attribute(page, k2, two)
+    await setCollapsed(page, box, true)
+    await expect.poll(() => actorLabels(page)).toEqual([])
+
+    // Select the drawn line -- whichever member is representing it.
+    const drawn = await page.evaluate(() => {
+      const ed = window.__editor!
+      const visible = ed
+        .getCurrentPageShapes()
+        .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
+      ed.setSelectedShapes([visible[0]!.id])
+      return visible[0]!.id as string
+    })
+    await page.getByTestId('actor-control').waitFor()
+
+    // It says what the LINE says, and it refuses to edit only one member.
+    expect(await page.getByTestId('actor-select').inputValue()).toBe('')
+    await expect(page.getByTestId('actor-select')).toBeDisabled()
+    await expect(page.getByTestId('actor-control-merged')).toContainText('2 connections')
+
+    // And both attributions are still there.
+    await setCollapsed(page, box, false)
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+    void drawn
+  })
+
+  test('a merged line whose members AGREE reads as that actor, still read-only', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('ac25'))
+    const { box, k1, k2, one } = await merged(page)
+    await attribute(page, k1, one)
+    await attribute(page, k2, one)
+    await setCollapsed(page, box, true)
+    await expect.poll(() => actorLabels(page)).toEqual(['One'])
+
+    await page.evaluate(() => {
+      const ed = window.__editor!
+      const visible = ed
+        .getCurrentPageShapes()
+        .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
+      ed.setSelectedShapes([visible[0]!.id])
+    })
+    await page.getByTestId('actor-control').waitFor()
+    expect(await page.getByTestId('actor-select').inputValue()).toBe(one)
+    await expect(page.getByTestId('actor-select')).toBeDisabled()
   })
 
   test('the actor label and the xN count DO NOT COLLIDE', async ({ page }) => {

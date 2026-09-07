@@ -698,6 +698,67 @@ test.describe('SPEC-012 — actors in the document', () => {
     expect(doc.connections.map((c) => labelOf(c.actorId)).sort()).toEqual(['One', 'Two'])
   })
 
+  test('the EXPORT and the CANVAS name the same actor when two bindings exist', async ({
+    page,
+  }) => {
+    /*
+     * Two clients attributing the same connection at once each delete the
+     * binding they can see and create a fresh one, and sync is last-write-wins
+     * per record -- so both survive. SPEC-011 settled that the SMALLEST binding
+     * id wins, so both screens draw the same label without coordinating.
+     *
+     * `BindingDescriptor` carries no id, so an attribution reaching the format
+     * through it has already lost that. Without `chosenActorBinding` in
+     * `documentIO`, export takes whatever order `getBindingsFromShape` returned
+     * -- and a review measured exactly that: replacing it with `[0]` left 367
+     * unit and 248 e2e tests green while the canvas said "Alpha" and the file
+     * said "Zeta".
+     *
+     * BOTH INSERTION ORDERS, because one of them agrees with `[0]` by accident.
+     */
+    for (const [first, second] of [
+      ['binding:aaaaaaaa', 'binding:zzzzzzzz'],
+      ['binding:zzzzzzzz', 'binding:aaaaaaaa'],
+    ] as const) {
+      await openRoom(page, roomId(`ac-tie-${first.slice(-4)}`))
+      const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
+      const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+      const alpha = await addNode(page, 'Alpha', { x: 250, y: 100, w: 160, h: 100 })
+      const zeta = await addNode(page, 'Zeta', { x: 550, y: 100, w: 160, h: 100 })
+      const k = await addConnection(page, a, b)
+
+      await page.evaluate(
+        ({ k, alpha, zeta, first, second }) => {
+          const ed = window.__editor!
+          const to = (id: string) => (id === 'binding:aaaaaaaa' ? alpha : zeta)
+          ed.run(() => {
+            for (const id of [first, second]) {
+              ed.createBinding({
+                id: id as never,
+                type: 'connectionActor',
+                fromId: k as never,
+                toId: to(id) as never,
+                props: {},
+              })
+            }
+          })
+        },
+        { k, alpha, zeta, first, second },
+      )
+      await page.waitForTimeout(150)
+
+      // `binding:aaaaaaaa` is the smallest id, and it points at Alpha.
+      expect(await actorLabels(page)).toEqual(['Alpha'])
+      const doc = JSON.parse(await exportedJson(page)) as {
+        connections: Array<{ actorId?: string }>
+        nodes: Array<{ id: string; label: string }>
+      }
+      const named = doc.nodes.find((n) => n.id === doc.connections[0]!.actorId)?.label
+      expect(named, `insertion order ${first} then ${second}`).toBe('Alpha')
+      void zeta
+    }
+  })
+
   test('ONE undo restores the previous room, attributions included', async ({ page }) => {
     await openRoom(page, roomId('ac-doc3'))
     const { role, k } = await scene(page)
