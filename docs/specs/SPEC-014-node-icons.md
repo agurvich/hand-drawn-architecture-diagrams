@@ -1,7 +1,7 @@
 # Spec: An icon on every node
 
 **ID:** SPEC-014  
-**Status:** Draft  
+**Status:** In Progress  
 **Last Updated:** 2026-09-07  
 **Depends On:** SPEC-004, SPEC-007, SPEC-012
 
