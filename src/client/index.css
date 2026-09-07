@@ -186,18 +186,6 @@ body {
  * being wrong.
  */
 /*
- * The actor label: who performs this connection.
- *
- * Same halo technique and the same reason as the count below it -- and the same
- * trap: `--color-background` is defined NOWHERE, so a plain one leaves
- * paint-order and stroke-width silently inert and the text painted bare over
- * whatever line it crosses. The token name is tldraw's own, and the fallback
- * covers it being renamed rather than the variable being wrong.
- *
- * Lighter and smaller than the count on purpose. The count is a warning that a
- * line stands for several; the actor is an attribute of the one relationship.
- */
-/*
  * The node performing whatever connection is selected.
  *
  * A DASHED ring, deliberately not the solid one a scene highlight uses and not
@@ -210,6 +198,66 @@ body {
   outline-offset: 2px;
 }
 
+/*
+ * The actor icons on a connection: which resources cross this boundary.
+ *
+ * `foreignObject` so the row can be flex-laid-out and the icons can be the same
+ * components the nodes use. Never a pointer target -- a tap near the midpoint
+ * has to reach the line.
+ */
+.diagram-connection__actors {
+  overflow: visible;
+  pointer-events: none;
+}
+.diagram-connection__actors-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+.diagram-connection__actor-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  /* The same halo the count below uses, and the same trap: `--color-background`
+     is defined NOWHERE, so a plain one leaves the glyph painted bare over
+     whatever line it crosses. The token name is tldraw's own, and the fallback
+     covers it being renamed rather than the variable being wrong. */
+  background: var(--tl-color-background, #fff);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--tl-color-background, #fff);
+}
+.diagram-connection__actor-more {
+  font:
+    600 11px/1 system-ui,
+    -apple-system,
+    sans-serif;
+  color: currentColor;
+  background: var(--tl-color-background, #fff);
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--tl-color-background, #fff);
+}
+
+/*
+ * The actor NAME on an unmerged connection: who performs this one relationship.
+ *
+ * Still text, and deliberately: SPEC-015 made a MERGED line show icons because
+ * five names on one line is a wall, but where there is exactly one the name is
+ * the more precise thing and there is room for it.
+ *
+ * Same halo technique and the same reason as the count below it -- and the same
+ * trap: `--color-background` is defined NOWHERE, so a plain one leaves
+ * paint-order and stroke-width silently inert and the text painted bare over
+ * whatever line it crosses. The token name is tldraw's own, and the fallback
+ * covers it being renamed rather than the variable being wrong.
+ *
+ * Lighter and smaller than the count on purpose. The count is a warning that a
+ * line stands for several; the actor is an attribute of the one relationship.
+ */
 .diagram-connection__actor {
   font:
     500 12px/1 system-ui,

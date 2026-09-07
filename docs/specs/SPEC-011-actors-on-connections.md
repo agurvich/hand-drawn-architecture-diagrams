@@ -170,6 +170,9 @@ legible on a diagram where most lines are not attributed.
 SPEC-006 merges several connections into one line when they become the same relationship. If they
 disagree about who performs them, the merged line cannot claim any one of them.
 
+> **SUPERSEDED in part by SPEC-015 (2026-09-07).** "Cannot claim any one of them" stands. "So it
+> claims nobody" does not: the merged line now shows them all. Everything else in this FR is current.
+
 The predecessor was **stricter**: `computeEffectiveGraph` drops the actor whenever more than one raw
 edge contributes, without checking whether they agree. This spec is more permissive on purpose — a
 merged line whose members all name the same actor can honestly say so — and the difference is called
@@ -179,9 +182,14 @@ edge case would look.
 #### Acceptance Criteria:
 
 - [ ] A merged line whose members **all** attribute to the same node shows that actor
-- [ ] A merged line whose members disagree — including "some attributed, some not" — shows **no**
+- [ ] ~~A merged line whose members disagree — including "some attributed, some not" — shows **no**
       actor rather than picking one. Asserted directly, because picking the representative's actor is
-      the natural implementation and it silently misattributes
+      the natural implementation and it silently misattributes~~
+      **SUPERSEDED by SPEC-015 (2026-09-07):** it now shows **every distinct actor**, as icons, first
+      two then `+N more`. Not picking one was right; showing none was not — the point of folding a
+      container is to see what crosses its boundary, and who does the crossing is most of that. The
+      unit tests for this case were rewritten rather than deleted, so the old rule is still described
+      where it was decided
 - [ ] Expanding restores each line's own attribution
 - [ ] The merge derivation stays **pure and Editor-free**: whatever it needs to know about actors is
       passed in, like the endpoints already are. `merge.ts` has no store access and this spec does not
@@ -242,6 +250,10 @@ class ActorBindingUtil extends BindingUtil<ActorBinding> {
 // `ConnectionEndpoints` gains `actorId: string | null`, so the derivation can
 // answer FR-004 without reaching for a store it deliberately cannot see. The
 // merged entry gains `actorId: string | null`, null when the members disagree.
+//
+// SUPERSEDED by SPEC-015 (2026-09-07): the MERGED entry's field is now
+// `actorIds: string[]` -- every distinct actor, ordered by id. `ConnectionEndpoints`
+// is unchanged; one connection still names at most one actor.
 export interface ConnectionEndpoints {
   connectionId: string
   startNodeId: string | null

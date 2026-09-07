@@ -544,11 +544,25 @@ export async function attributeConnection(page: Page, connectionId: string, node
   await page.getByTestId('actor-select').selectOption(nodeId ?? '')
 }
 
-/** The actor labels currently drawn on connections. */
+/**
+ * The actors currently drawn on connections, by NAME.
+ *
+ * From the accessible name, not the text: since SPEC-015 an actor is an ICON,
+ * and the name is what a screen reader has. Reading it here means these tests
+ * assert on the thing that is actually announced, rather than on a glyph.
+ */
 export async function actorLabels(page: Page): Promise<string[]> {
   return page.evaluate(() =>
-    [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map(
-      (el) => el.textContent ?? '',
+    [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].map((el) =>
+      (el.getAttribute('aria-label') ?? '').replace(/^Performed by /, ''),
     ),
+  )
+}
+
+/** The `+N more` text on a merged edge, or null. */
+export async function actorOverflow(page: Page): Promise<string | null> {
+  return page.evaluate(
+    () =>
+      document.querySelector('[data-testid="diagram-connection-actors-more"]')?.textContent ?? null,
   )
 }

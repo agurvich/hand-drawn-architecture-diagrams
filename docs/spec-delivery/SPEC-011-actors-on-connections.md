@@ -65,6 +65,12 @@ could pass. Not this spec's to fix; queued as its own task.
 catches and a single-direction one does not: swapping which member carries the actor must not change
 the answer, or the rule is "the representative's actor" wearing a disguise.
 
+> **SUPERSEDED by SPEC-015 (2026-09-07).** A merged line whose members disagree now shows **every**
+> distinct actor as an icon, first two then `+N more` — not none. The tests named here were rewritten
+> in place, expectation reversed, so the case they describe is still the case that is covered. What
+> survives unchanged is the half that was never in doubt: a merged line must not pick one member's
+> actor and present it as the line's.
+
 **Three things a review caught, all of which were criteria I had recorded as met:**
 
 *FR-003's "the actor node is indicated while the connection is selected" was not built at all.* No

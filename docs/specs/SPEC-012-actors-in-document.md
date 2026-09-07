@@ -159,8 +159,10 @@ because SPEC-011 deliberately keeps an attribution pointing at a node the docume
       the drop case and silently loses this one;
       and an actor naming a node **deleted after the binding was made**, which
       `onBeforeDeleteToShape` makes transient but a synced room can still hold
-- [ ] **A MERGED connection exports its own attribution, not the merged one.** SPEC-011's merge rule
-      blanks the actor when members disagree, and that is a RENDERING decision about one drawn line.
+- [ ] **A MERGED connection exports its own attribution, not the merged one.** What a merged line
+      DRAWS is a rendering decision about one drawn line — SPEC-011 blanked it when the members
+      disagreed and SPEC-015 (2026-09-07) makes it show them all, and neither is the document's
+      business.
       The document carries what each connection actually is, or collapsing a container before an
       export would silently erase attributions from the file. Asserted by collapsing a container
       whose members disagree and checking every attribution is still in the export

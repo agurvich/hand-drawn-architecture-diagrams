@@ -668,10 +668,14 @@ test.describe('SPEC-012 — actors in the document', () => {
 
   test('a MERGED connection exports its OWN attribution, not the merged one', async ({ page }) => {
     /*
-     * SPEC-011 blanks a merged line's actor when its members disagree, and that
-     * is a RENDERING decision about one drawn line. The document records what
-     * each connection IS -- or collapsing a container before an export would
-     * silently erase attributions from the file.
+     * What a merged line DRAWS is a rendering decision about one drawn line. The
+     * document records what each connection IS -- or collapsing a container
+     * before an export would silently erase attributions from the file.
+     *
+     * SPEC-011 blanked the line when its members disagreed and SPEC-015 makes it
+     * show them all, and neither is the document's business: this test is here
+     * because the two must not be the same code path, whichever way the
+     * rendering goes.
      */
     await openRoom(page, roomId('ac-doc2'))
     const box = await addNode(page, 'Platform', { x: 200, y: 100, w: 400, h: 400 })
@@ -686,8 +690,8 @@ test.describe('SPEC-012 — actors in the document', () => {
     await attributeConnection(page, k2, two)
 
     await setCollapsed(page, box, true)
-    // The drawn line claims nobody, correctly.
-    await expect.poll(() => actorLabels(page)).toEqual([])
+    // The drawn line shows both, correctly -- one line standing for two.
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
 
     // The file still knows both.
     const doc = JSON.parse(await exportedJson(page)) as {

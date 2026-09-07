@@ -121,7 +121,7 @@ describe('computeMergeIndex — rule 1, an unbound terminal', () => {
       startNodeId: 'shape:a',
       endNodeId: null,
       count: 1,
-      actorId: null,
+      actorIds: [],
     })
   })
 
@@ -160,7 +160,7 @@ describe('computeMergeIndex — rule 2, a binding pointing at a shape that is go
       startNodeId: 'shape:a',
       endNodeId: 'shape:gone',
       count: 1,
-      actorId: null,
+      actorIds: [],
     })
   })
 })
@@ -450,7 +450,7 @@ describe('computeMergeIndex — actors', () => {
       { id: 'shape:role', parent: PAGE },
     ])
     const index = computeMergeIndex([conn('shape:c1', 'shape:a', 'shape:b', 'shape:role')], get)
-    expect(index.get('shape:c1')?.actorId).toBe('shape:role')
+    expect(index.get('shape:c1')?.actorIds).toEqual(['shape:role'])
   })
 
   it('a merged line whose members AGREE shows that actor', () => {
@@ -464,12 +464,19 @@ describe('computeMergeIndex — actors', () => {
     const shown = [...index.entries()].filter(([, e]) => !e.hidden)
     expect(shown).toHaveLength(1)
     expect(shown[0]![1].count).toBe(2)
-    expect(shown[0]![1].actorId).toBe('shape:role')
+    expect(shown[0]![1].actorIds).toEqual(['shape:role'])
   })
 
-  it('a merged line whose members DISAGREE shows no actor', () => {
-    // Picking the representative's actor is the natural implementation, and it
-    // silently misattributes every other member of the group.
+  it('a merged line whose members DISAGREE shows ALL of them', () => {
+    /*
+     * REVERSED by SPEC-015 (2026-09-07). This used to expect no actor at all --
+     * a defensible way to avoid claiming one of them, and the wrong outcome:
+     * the whole point of folding a container is to see what crosses its
+     * boundary, and who does the crossing is most of that.
+     *
+     * The case is kept and the expectation flipped, deliberately. Deleting it
+     * would remove the only place the old behaviour is described.
+     */
     const index = computeMergeIndex(
       [
         conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
@@ -479,10 +486,13 @@ describe('computeMergeIndex — actors', () => {
     )
     const shown = [...index.entries()].filter(([, e]) => !e.hidden)
     expect(shown).toHaveLength(1)
-    expect(shown[0]![1].actorId).toBeNull()
+    expect(shown[0]![1].actorIds).toEqual(['shape:other', 'shape:role'])
   })
 
-  it('SOME ATTRIBUTED, SOME NOT is a disagreement, not a majority', () => {
+  it('SOME ATTRIBUTED, SOME NOT yields the actors that exist', () => {
+    // Also reversed. This used to expect none, on the reasoning that a partial
+    // answer is a disagreement -- but "one of these two is performed by the
+    // scheduler" is a true and useful thing to show.
     const index = computeMergeIndex(
       [
         conn('shape:k1', 'shape:c1', 'shape:y', 'shape:role'),
@@ -491,10 +501,10 @@ describe('computeMergeIndex — actors', () => {
       folded(),
     )
     const shown = [...index.entries()].filter(([, e]) => !e.hidden)
-    expect(shown[0]![1].actorId).toBeNull()
+    expect(shown[0]![1].actorIds).toEqual(['shape:role'])
   })
 
-  it('the same, whichever member is the representative', () => {
+  it('the same set, whichever member is the representative', () => {
     // The representative is the smallest id. Reversing which member carries the
     // actor must not change the answer -- if it does, the rule is "the
     // representative's actor" wearing a disguise.
@@ -512,10 +522,10 @@ describe('computeMergeIndex — actors', () => {
       ],
       folded(),
     )
-    const actorOf = (i: MergeIndex) =>
-      [...i.values()].filter((e) => !e.hidden).map((e) => e.actorId)
-    expect(actorOf(forward)).toEqual([null])
-    expect(actorOf(backward)).toEqual([null])
+    const actorsOf = (i: MergeIndex) =>
+      [...i.values()].filter((e) => !e.hidden).map((e) => e.actorIds)
+    expect(actorsOf(forward)).toEqual([['shape:role']])
+    expect(actorsOf(backward)).toEqual([['shape:role']])
   })
 
   it('expanding restores each line its own actor', () => {
@@ -532,7 +542,72 @@ describe('computeMergeIndex — actors', () => {
       ],
       expanded,
     )
-    expect(index.get('shape:k1')?.actorId).toBe('shape:role')
-    expect(index.get('shape:k2')?.actorId).toBe('shape:other')
+    expect(index.get('shape:k1')?.actorIds).toEqual(['shape:role'])
+    expect(index.get('shape:k2')?.actorIds).toEqual(['shape:other'])
+  })
+})
+
+describe('computeMergeIndex — the actor SET is deterministic', () => {
+  const folded = () =>
+    world([
+      { id: 'shape:p', parent: PAGE, collapsed: true },
+      { id: 'shape:c1', parent: 'shape:p' },
+      { id: 'shape:c2', parent: 'shape:p' },
+      { id: 'shape:c3', parent: 'shape:p' },
+      { id: 'shape:y', parent: PAGE },
+      // MIXED CASE, and that is the whole point: `localeCompare` and plain `<`
+      // agree on lowercase ids and disagree on these, so an all-lowercase
+      // fixture proves the actors are sorted and NOT which way. The
+      // representative rule 275 lines up uses the same pair for the same reason.
+      { id: 'shape:aB3', parent: PAGE },
+      { id: 'shape:Ab3', parent: PAGE },
+      { id: 'shape:mmm', parent: PAGE },
+    ])
+
+  const shownActors = (members: ConnectionEndpoints[]) => {
+    const index = computeMergeIndex(members, folded())
+    return [...index.values()].filter((e) => !e.hidden)[0]!.actorIds
+  }
+
+  it('SORTS by id, so two clients draw the same line without coordinating', () => {
+    // `Set` iteration order is insertion order, which is store order, which is
+    // exactly what differs between two clients. Every permutation must agree.
+    const permutations = [
+      ['shape:mmm', 'shape:aB3', 'shape:Ab3'],
+      ['shape:aB3', 'shape:Ab3', 'shape:mmm'],
+      ['shape:Ab3', 'shape:mmm', 'shape:aB3'],
+    ]
+    for (const order of permutations) {
+      expect(
+        shownActors([
+          conn('shape:k1', 'shape:c1', 'shape:y', order[0]!),
+          conn('shape:k2', 'shape:c2', 'shape:y', order[1]!),
+          conn('shape:k3', 'shape:c3', 'shape:y', order[2]!),
+        ]),
+        // UTF-16 code-unit order: capitals before lowercase, so `Ab3` sorts
+        // first. `localeCompare` puts `aB3` first, which is the mutation an
+        // all-lowercase fixture cannot see.
+      ).toEqual(['shape:Ab3', 'shape:aB3', 'shape:mmm'])
+    }
+  })
+
+  it('is DISTINCT: two members naming the same actor contribute one entry', () => {
+    expect(
+      shownActors([
+        conn('shape:k1', 'shape:c1', 'shape:y', 'shape:Ab3'),
+        conn('shape:k2', 'shape:c2', 'shape:y', 'shape:Ab3'),
+        conn('shape:k3', 'shape:c3', 'shape:y', 'shape:mmm'),
+      ]),
+    ).toEqual(['shape:Ab3', 'shape:mmm'])
+  })
+
+  it('an unattributed line has an EMPTY set, not a null', () => {
+    // Same field for both cases, so nothing downstream needs a branch.
+    const get = world([
+      { id: 'shape:a', parent: PAGE },
+      { id: 'shape:b', parent: PAGE },
+    ])
+    const index = computeMergeIndex([conn('shape:k', 'shape:a', 'shape:b')], get)
+    expect(index.get('shape:k')?.actorIds).toEqual([])
   })
 })

@@ -10,8 +10,11 @@ import {
   type TLShapeUtilCanBindOpts,
 } from 'tldraw'
 import { getMergeIndex } from '../mergeIndex'
+import { NodeIcon } from '../icons/NodeIcon'
+import { actorsOnScreen, type OnScreenActor } from '../actorsOnScreen'
+import { MAX_ACTOR_ICONS } from '../icons/actorIcons'
 import { nodeAtPoint } from '../nodeAtPoint'
-import { highlightState, sceneAwareGetShape } from '../sceneView'
+import { highlightState } from '../sceneView'
 import {
   CONNECTION_SHAPE_TYPE,
   connectionShapeDefaultProps,
@@ -20,7 +23,6 @@ import {
   CONNECTION_BINDING_TYPE,
   type ConnectionShape,
   type ConnectionBinding,
-  visibleStandInFor,
   type ConnectionTerminal,
 } from '@shared/shapes'
 
@@ -96,34 +98,31 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 
   /**
-   * The label of the node that performs this connection, or null.
+   * The actors to draw, split into the ones with a glyph and the rest.
    *
-   * DERIVED, never copied. Renaming the actor updates every line attributed to
-   * it with no write to any connection -- `decisions.md` -> *Derived views are
-   * computed, never materialized*.
+   * `actorsOnScreen` answers WHO; this decides what fits. Ordered by NAME here
+   * rather than by the id the derivation sorts on: the derivation's order has to
+   * come from data both clients hold with no coordination, and the label is
+   * exactly that -- it is in the store -- so sorting by it is just as
+   * deterministic and gives a reader an order they can predict. Which two of six
+   * icons you see should not look like a coin toss.
    *
-   * Read from the MERGE INDEX rather than from the binding directly, which is
-   * what makes FR-004 fall out: a merged line whose members disagree already has
-   * `actorId: null` there, so there is no second place for the disagreement rule
-   * to be re-implemented differently.
-   *
-   * Resolved through `visibleStandInFor` and the SCENE-AWARE accessor. An actor
-   * inside a collapsed container is not on screen, and naming it would be naming
-   * something invisible -- the container standing in for it is what the reader
-   * can actually see. The scene half is a separate concern from the collapse
-   * half and the natural implementation gets only the first: SPEC-008's finding
-   * was that collapse is read in two places, and this label is the third
-   * consumer.
+   * An actor pinned to NO ICON is not drawn -- there is nothing to draw -- but
+   * it is still counted, per the spec: it crosses the boundary whether or not it
+   * has a glyph. Giving it an empty 20px slot instead, which is what the first
+   * version did, spends the scarce space on a blank tile and quietly makes the
+   * count of visible icons mean nothing.
    */
-  private actorLabel(shape: ConnectionShape): string | null {
-    const actorId = getMergeIndex(this.editor).get(shape.id)?.actorId ?? null
-    if (actorId === null) return null
-    const get = sceneAwareGetShape(this.editor)
-    const actor = get(actorId)
-    if (!actor) return null
-    const onScreen = visibleStandInFor(actor, get)
-    const label = (onScreen.props as { label?: unknown }).label
-    return typeof label === 'string' && label.length > 0 ? label : null
+  private drawableActors(shape: ConnectionShape): {
+    drawn: OnScreenActor[]
+    rest: OnScreenActor[]
+  } {
+    const all = [...actorsOnScreen(this.editor, shape.id)].sort((a, b) =>
+      a.label < b.label ? -1 : a.label > b.label ? 1 : a.id < b.id ? -1 : 1,
+    )
+    const drawn = all.filter((actor) => actor.hasGlyph).slice(0, MAX_ACTOR_ICONS)
+    const shown = new Set(drawn.map((actor) => actor.id))
+    return { drawn, rest: all.filter((actor) => !shown.has(actor.id)) }
   }
 
   /** Page-space endpoints, resolved through the merge index. */
@@ -184,7 +183,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
     const count = this.mergeCount(shape)
-    const actor = this.actorLabel(shape)
+    const { drawn, rest } = this.drawableActors(shape)
     const { ids, dimming } = highlightState(this.editor)
     const accent = !dimming
       ? ''
@@ -228,18 +227,85 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             {`\u00d7${count}`}
           </text>
         )}
-        {actor !== null && (
-          // STACKED BELOW the count, not on top of it. Both want the midpoint,
-          // and a merged line whose members agree shows both at once.
+        {count === 1 && drawn.length + rest.length === 1 && (
+          // UNMERGED, so there is exactly one and the NAME is the more precise
+          // thing to show -- SPEC-011's rendering, unchanged. Icons are the
+          // answer to "several", not a replacement for a name that fits.
+          //
+          // On the WHOLE set, `drawn` plus `rest`. Gating this on `drawn` alone
+          // meant an actor pinned to `icon: 'none'` rendered nothing at all here
+          // -- the glyph filter is a question about icons, and this branch draws
+          // text, so it has no business asking it.
+          //
+          // STACKED BELOW the count, not on top of it. Both want the midpoint.
           <text
             className="diagram-connection__actor"
             data-testid="diagram-connection-actor"
+            data-actor={(drawn[0] ?? rest[0])!.id}
+            aria-label={`Performed by ${(drawn[0] ?? rest[0])!.label}`}
             x={(a.x + b.x) / 2}
             y={(a.y + b.y) / 2 + 16}
             textAnchor="middle"
           >
-            {actor}
+            {(drawn[0] ?? rest[0])!.label}
           </text>
+        )}
+        {count > 1 && drawn.length + rest.length > 0 && (
+          /*
+           * MERGED: every distinct actor, as icons, stacked below the count.
+           *
+           * Icons rather than names because a merged edge can stand for five
+           * connections, and five names on one line is a wall of text where five
+           * icons is a glance -- which is the whole reason SPEC-014 came first.
+           *
+           * FIRST TWO, THEN `+N more`. The cap lives here rather than in the
+           * derivation: the derivation says what the line stands for, and how
+           * many fit is a question about a canvas. A derivation that truncated
+           * would also be making the JSON export's decision for it.
+           */
+          <foreignObject
+            x={(a.x + b.x) / 2 - 60}
+            y={(a.y + b.y) / 2 + 4}
+            width={120}
+            height={26}
+            className="diagram-connection__actors"
+            data-testid="diagram-connection-actors"
+          >
+            <div className="diagram-connection__actors-row">
+              {drawn.map((entry) => (
+                <span
+                  key={entry.id}
+                  className="diagram-connection__actor-icon"
+                  data-testid="diagram-connection-actor"
+                  data-actor={entry.id}
+                  // The glyph is the visual channel; the NAME is what a screen
+                  // reader has, and "which resources cross this boundary" has to
+                  // be answerable without seeing it.
+                  role="img"
+                  aria-label={`Performed by ${entry.label}`}
+                >
+                  <NodeIcon icon={entry.icon} label={entry.label} />
+                </span>
+              ))}
+              {rest.length > 0 && (
+                // NAMED, not just counted. The two glyphs are the glance; this
+                // is the only place the rest of the answer exists, and a bare
+                // "+3 more" tells a reader that they are missing something
+                // without telling them what. `title` would be the obvious home
+                // and it is inert here -- the whole row is `pointer-events:
+                // none` so a tap reaches the line -- so the name goes where
+                // assistive tech will actually read it.
+                <span
+                  className="diagram-connection__actor-more"
+                  data-testid="diagram-connection-actors-more"
+                  role="img"
+                  aria-label={`and ${rest.length} more: ${rest.map((e) => e.label).join(', ')}`}
+                >
+                  {`+${rest.length} more`}
+                </span>
+              )}
+            </div>
+          </foreignObject>
         )}
       </svg>
     )
