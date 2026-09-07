@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { openRoom, roomId, addNode, setCollapsed, newParticipant, shapeCount } from './helpers'
+import { ICON_KEYS } from '../src/shared/icons'
 
 // Read rather than import: Node's ESM loader requires an import attribute for
 // JSON, and Playwright's transform does not add one.
@@ -62,7 +63,7 @@ test.describe('SPEC-014 — an icon on every node', () => {
     expect(await iconKey(page)).toBe('database')
 
     await rename(page, node, 'Kafka queue')
-    expect(await iconKey(page)).toBe('envelope')
+    expect(await iconKey(page)).toBe('queue')
 
     await rename(page, node, 'Lambda')
     expect(await iconKey(page)).toBe('aws:lambda')
@@ -201,7 +202,7 @@ test.describe('SPEC-014 — an icon on every node', () => {
     expect(await iconKey(page)).toBe('database')
   })
 
-  test('every icon in the picker has a NAME, and every target is 44x44', async ({ page }) => {
+  test('the picker lists EVERY icon, each with a name, every target 44x44', async ({ page }) => {
     // A grid of unlabelled pictures is unusable by anyone not looking at it, and
     // unaskable by voice.
     await openRoom(page, roomId('ic12'))
@@ -214,12 +215,123 @@ test.describe('SPEC-014 — an icon on every node', () => {
     const cells = await page.evaluate(() =>
       [...document.querySelectorAll('[data-testid="icon-picker-cell"]')].map((el) => {
         const r = el.getBoundingClientRect()
-        return { name: el.getAttribute('aria-label') ?? '', w: r.width, h: r.height }
+        return {
+          key: el.getAttribute('data-icon') ?? '',
+          name: el.getAttribute('aria-label') ?? '',
+          w: r.width,
+          h: r.height,
+        }
       }),
     )
-    expect(cells.length).toBeGreaterThanOrEqual(90)
+    /*
+     * IDENTITY, not a floor. This was `>= 90` against 97 actual, so slicing
+     * seven icons off the list left the whole suite green and seven icons
+     * unpickable. `ICON_KEYS` is derived from the rule table, and the registry's
+     * unit test already asserts the drawable set equals it in both directions --
+     * so comparing the DOM against it here closes the loop from rule to pixel.
+     */
+    expect(cells.map((c) => c.key).sort()).toEqual([...ICON_KEYS].sort())
     expect(cells.filter((c) => c.name.trim() === '')).toEqual([])
     expect(cells.filter((c) => c.w < 44 || c.h < 44)).toEqual([])
+
+    // The CONTROLS, not only the grid: the launcher and the two choices were
+    // never measured, so a `<div role="button">` at 20px passed.
+    const controls = await page.evaluate(() =>
+      ['icon-picker-open', 'icon-picker-auto', 'icon-picker-none'].map((id) => {
+        const el = document.querySelector(`[data-testid="${id}"]`)!
+        const r = el.getBoundingClientRect()
+        return { id, tag: el.tagName, w: r.width, h: r.height }
+      }),
+    )
+    expect(controls.filter((c) => c.w < 44 || c.h < 44)).toEqual([])
+    // A real button, so it is in the tab order and Enter/Space activate it
+    // without a handler of our own.
+    expect(controls.map((c) => c.tag)).toEqual(['BUTTON', 'BUTTON', 'BUTTON'])
+  })
+
+  test('the picker works FROM THE KEYBOARD, and gives focus back', async ({ page }) => {
+    await openRoom(page, roomId('ic14'))
+    const node = await addNode(page, 'Postgres', { x: 200, y: 200, w: 220, h: 120 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, node)
+
+    // Opened with the keyboard, never touched with a pointer.
+    const open = page.getByTestId('icon-picker-open')
+    await open.focus()
+    await open.press('Enter')
+    await page.getByTestId('icon-picker-sheet').waitFor()
+    // Focus follows the sheet rather than staying behind it.
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(
+      'icon-picker-sheet',
+    )
+
+    // ESCAPE dismisses, and focus comes back to the control that opened it.
+    await page.keyboard.press('Escape')
+    await expect(page.getByTestId('icon-picker-sheet')).toHaveCount(0)
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(
+      'icon-picker-open',
+    )
+
+    // And picking an icon unmounts the button focus is on -- without a handoff
+    // that lands on <body> and a keyboard user is back at the top of the page.
+    await open.press('Enter')
+    await page.getByTestId('icon-picker-cell').first().waitFor()
+    await page.locator('[data-icon="rocket"]').first().click()
+    expect(await iconKey(page)).toBe('rocket')
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(
+      'icon-picker-open',
+    )
+  })
+
+  test('selecting a DIFFERENT node does not re-present the open sheet', async ({ page }) => {
+    await openRoom(page, roomId('ic15'))
+    const first = await addNode(page, 'Postgres', { x: 200, y: 200, w: 220, h: 120 })
+    const second = await addNode(page, 'Redis', { x: 500, y: 200, w: 220, h: 120 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, first)
+    await page.getByTestId('icon-picker-open').click()
+    await page.getByTestId('icon-picker-sheet').waitFor()
+
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, second)
+    // The component stays mounted across the change, so `open` survives unless
+    // it is reset -- and a sheet nobody opened appears over the new selection.
+    await expect(page.getByTestId('icon-picker-sheet')).toHaveCount(0)
+  })
+
+  test('a node too SMALL for both keeps its label and drops the icon', async ({ page }) => {
+    // 40 is the sketch recogniser's own minimum box, so this size is reachable
+    // by drawing one. With the icon in the line, `overflow: hidden` cut the
+    // label's descenders off.
+    await openRoom(page, roomId('ic16'))
+    await addNode(page, 'DB', { x: 200, y: 200, w: 60, h: 40 })
+    expect(await iconKey(page)).toBeNull()
+
+    const fits = await page.evaluate(() => {
+      const label = document.querySelector('.diagram-node__label')!
+      const node = document.querySelector('[data-testid="diagram-node"]')!
+      const l = label.getBoundingClientRect()
+      const n = node.getBoundingClientRect()
+      return l.top >= n.top - 0.5 && l.bottom <= n.bottom + 0.5 && label.textContent === 'DB'
+    })
+    expect(fits).toBe(true)
+  })
+
+  test('a node big enough shows the icon again', async ({ page }) => {
+    await openRoom(page, roomId('ic17'))
+    const node = await addNode(page, 'DB', { x: 200, y: 200, w: 60, h: 40 })
+    expect(await iconKey(page)).toBeNull()
+    await page.evaluate((id) => {
+      window.__editor!.updateShape({
+        id: id as never,
+        type: 'diagramNode',
+        props: { w: 160, h: 90 },
+      })
+    }, node)
+    await expect.poll(() => iconKey(page)).toBe('database')
   })
 
   test('the picker does not cover any other control', async ({ page }) => {
@@ -237,6 +349,10 @@ test.describe('SPEC-014 — an icon on every node', () => {
         '[data-testid="diagram-io-open"]',
         '[data-testid="narration-open"]',
         '[data-testid="sketch-toggle"]',
+        // Shares this exact origin, and is mutually exclusive with the picker by
+        // selection -- so it is here to catch that stopping being true, not
+        // because it can currently collide.
+        '[data-testid="actor-control"]',
         '.tlui-toolbar',
         '.tlui-menu-zone',
         '.tlui-navigation-panel',

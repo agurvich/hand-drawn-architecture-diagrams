@@ -23,7 +23,6 @@ import {
   File,
   FileArchive,
   Filter,
-  Flame,
   FlaskConical,
   Folder,
   Gauge,
@@ -36,6 +35,7 @@ import {
   Hexagon,
   KeyRound,
   Layers,
+  ListOrdered,
   Lock,
   Mail,
   Minus,
@@ -63,6 +63,7 @@ import {
   Waypoints,
   Workflow,
   Wrench,
+  Zap,
 } from 'lucide-react'
 
 /**
@@ -83,6 +84,7 @@ const GENERAL: Record<string, ComponentType<{ size?: number }>> = {
   arrow: ArrowRight,
   aws: Cloud,
   ban: Ban,
+  bolt: Zap,
   box: Box,
   'boxes-stacked': Boxes,
   bridge: Waypoints,
@@ -109,7 +111,6 @@ const GENERAL: Record<string, ComponentType<{ size?: number }>> = {
   envelope: Mail,
   file: File,
   filter: Filter,
-  fire: Flame,
   flask: FlaskConical,
   folder: Folder,
   gauge: Gauge,
@@ -127,6 +128,7 @@ const GENERAL: Record<string, ComponentType<{ size?: number }>> = {
   mobile: Smartphone,
   network: Network,
   package: Package,
+  queue: ListOrdered,
   paste: ClipboardPaste,
   plug: Plug,
   'pull-request': GitPullRequest,
@@ -170,21 +172,49 @@ const AWS: Record<string, string> = Object.fromEntries(
 )
 
 /**
+ * The two sets, as their own key lists.
+ *
+ * Separate rather than one flat list because the drift test asks a question no
+ * flat list can answer: does a key appear in BOTH? Re-partitioning a combined
+ * list by the `aws:` prefix cannot fail -- it just puts each key back where it
+ * came from -- and a test that cannot fail was ticking the criterion.
+ */
+export const GENERAL_ICON_KEYS: readonly string[] = Object.keys(GENERAL)
+export const AWS_ICON_KEYS: readonly string[] = Object.keys(AWS)
+
+/**
  * Every key this registry can DRAW. Deliberately not the same list as
  * `@shared/icons`'s `ICON_KEYS`, which is what the rules can PRODUCE -- the
  * drift test compares the two, and a single shared list would have nothing to
  * compare.
+ *
+ * NOT deduped: a key in both sets is a defect, and silently folding it here
+ * would leave nothing for the overlap test to see.
  */
-export const DRAWABLE_ICON_KEYS: readonly string[] = [...Object.keys(GENERAL), ...Object.keys(AWS)]
+export const DRAWABLE_ICON_KEYS: readonly string[] = [...GENERAL_ICON_KEYS, ...AWS_ICON_KEYS]
 
+/*
+ * `Object.hasOwn` on all three lookups, never a bare index.
+ *
+ * These are ordinary objects, so `AWS['toString']` finds `Object.prototype`'s
+ * method rather than `undefined`. `icon` is a `T.string` with no enum validator,
+ * so a peer in a sync room can write exactly that -- nothing is injected (it
+ * stringifies to source text with no `<` in it) but "an unknown key draws
+ * nothing" would stop being true, which is the contract the import validator and
+ * the picker are both written against.
+ */
+
+/** The Lucide component for a key, or undefined if this is not a general key. */
 export function generalIcon(key: string): ComponentType<{ size?: number }> | undefined {
-  return GENERAL[key]
+  return Object.hasOwn(GENERAL, key) ? GENERAL[key] : undefined
 }
 
+/** The vendored AWS artwork for a key, as raw SVG, or undefined. */
 export function awsIconSvg(key: string): string | undefined {
-  return AWS[key]
+  return Object.hasOwn(AWS, key) ? AWS[key] : undefined
 }
 
+/** Can this registry draw `key` at all? The drift test's one question. */
 export function hasIcon(key: string): boolean {
-  return key in GENERAL || key in AWS
+  return Object.hasOwn(GENERAL, key) || Object.hasOwn(AWS, key)
 }

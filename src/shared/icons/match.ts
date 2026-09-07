@@ -19,10 +19,17 @@ function wordMatches(alternative: string, word: string): boolean {
  * as a plain substring -- a real phrase is not at meaningful risk of hiding
  * inside another word, and requiring word-by-word matching would miss
  * "load balancer" inside "application load balancer".
+ *
+ * The lowered text and its word set are passed IN, not derived here: this runs
+ * once per rule per pass -- 216 times for one label against the current table --
+ * and splitting the same string 216 times was a third of the call's cost.
  */
-function patternMatches(pattern: string, text: string, exactOnly: boolean): boolean {
-  const lowered = text.toLowerCase()
-  const words = new Set(lowered.split(/[^a-z0-9]+/).filter(Boolean))
+function patternMatches(
+  pattern: string,
+  lowered: string,
+  words: ReadonlySet<string>,
+  exactOnly: boolean,
+): boolean {
   for (const alternative of pattern.split('|')) {
     if (alternative.includes(' ')) {
       if (lowered.includes(alternative)) return true
@@ -35,21 +42,12 @@ function patternMatches(pattern: string, text: string, exactOnly: boolean): bool
   return false
 }
 
-/**
- * The first matching rule's key, or the fallback. FIRST, not best -- order decides.
- *
- * TWO PASSES, which is the one place this improves on the port rather than
- * copying it. Plural handling runs in both directions, so `user` and `users` are
- * indistinguishable to a single pass and whichever rule sits first wins both --
- * the predecessor put `users` first deliberately, which meant a node called
- * "User" got the plural icon forever. An exact-word pass first gives each the
- * rule that actually names it, and the fuzzy pass still catches "buckets"
- * against a `bucket` rule.
- */
 export function guessIconKey(label: string): string {
+  const lowered = label.toLowerCase()
+  const words = new Set(lowered.split(/[^a-z0-9]+/).filter(Boolean))
   for (const exactOnly of [true, false]) {
     for (const rule of ICON_MATCH_RULES) {
-      if (patternMatches(rule.pattern, label, exactOnly)) return rule.iconKey
+      if (patternMatches(rule.pattern, lowered, words, exactOnly)) return rule.iconKey
     }
   }
   return FALLBACK_ICON_KEY

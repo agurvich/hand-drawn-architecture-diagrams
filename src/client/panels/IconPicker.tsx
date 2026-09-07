@@ -1,6 +1,12 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useValue, type Editor } from 'tldraw'
-import { NODE_SHAPE_TYPE, resolveNodeIcon, ICON_NONE, guessIconKey } from '@shared/shapes'
+import {
+  NODE_SHAPE_TYPE,
+  resolveNodeIcon,
+  ICON_NONE,
+  guessIconKey,
+  isAwsIconKey,
+} from '@shared/shapes'
 import { DRAWABLE_ICON_KEYS, awsIconSvg, generalIcon } from '../icons/registry'
 
 interface IconPickerProps {
@@ -10,9 +16,9 @@ interface IconPickerProps {
 
 /** A readable name for a key, for the option's accessible name. */
 function iconName(key: string): string {
-  const bare = key.startsWith('aws:') ? key.slice(4) : key
-  const words = bare.replace(/-/g, ' ')
-  return key.startsWith('aws:') ? `AWS ${words}` : words
+  const aws = isAwsIconKey(key)
+  const words = (aws ? key.slice(4) : key).replace(/-/g, ' ')
+  return aws ? `AWS ${words}` : words
 }
 
 function Swatch({ iconKey }: { iconKey: string }) {
@@ -39,6 +45,9 @@ function Swatch({ iconKey }: { iconKey: string }) {
  */
 export function IconPicker({ editor }: IconPickerProps) {
   const [open, setOpen] = useState(false)
+  const launcher = useRef<HTMLButtonElement>(null)
+  const sheet = useRef<HTMLDivElement>(null)
+  const wasOpen = useRef(false)
 
   const node = useValue(
     'selected node',
@@ -53,6 +62,36 @@ export function IconPicker({ editor }: IconPickerProps) {
     },
     [editor],
   )
+
+  const close = useCallback(() => setOpen(false), [])
+
+  // ESCAPE, like the other two dialogs in this app. A `role="dialog"` that
+  // cannot be dismissed from the keyboard is the role without the behaviour.
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [open, close])
+
+  // Opening unmounts nothing but puts 97 tab stops between the user and the
+  // sheet; picking an icon unmounts the button their focus is ON, which drops
+  // focus to <body> and leaves a keyboard user nowhere.
+  useEffect(() => {
+    if (open) sheet.current?.focus()
+    else if (wasOpen.current) launcher.current?.focus()
+    wasOpen.current = open
+  }, [open])
+
+  // A DIFFERENT node selected is a different subject; re-presenting an already
+  // open sheet over it is a sheet nobody opened. The component stays mounted
+  // across the change, so `open` has to be reset explicitly.
+  const nodeId = node?.id ?? null
+  useEffect(() => {
+    setOpen(false)
+  }, [nodeId])
 
   if (!editor || !node) return null
 
@@ -70,6 +109,7 @@ export function IconPicker({ editor }: IconPickerProps) {
     <div className="icon-picker" data-testid="icon-picker">
       <button
         type="button"
+        ref={launcher}
         className="icon-picker__button"
         data-testid="icon-picker-open"
         aria-expanded={open}
@@ -93,7 +133,17 @@ export function IconPicker({ editor }: IconPickerProps) {
       </button>
 
       {open && (
-        <div className="icon-picker__sheet" role="dialog" aria-label="Choose an icon">
+        <div
+          ref={sheet}
+          className="icon-picker__sheet"
+          role="dialog"
+          aria-label="Choose an icon"
+          // Focusable so opening can land here rather than leaving focus on the
+          // launcher with the whole grid to tab through; -1 so it is not itself
+          // a tab stop on the way past.
+          tabIndex={-1}
+          data-testid="icon-picker-sheet"
+        >
           <div className="icon-picker__row">
             <button
               type="button"

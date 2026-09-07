@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { DRAWABLE_ICON_KEYS, hasIcon } from './registry'
-import { ICON_MATCH_RULES, FALLBACK_ICON_KEY } from '@shared/shapes'
+import {
+  AWS_ICON_KEYS,
+  DRAWABLE_ICON_KEYS,
+  GENERAL_ICON_KEYS,
+  awsIconSvg,
+  generalIcon,
+  hasIcon,
+} from './registry'
+import { ICON_MATCH_RULES, FALLBACK_ICON_KEY, isAwsIconKey } from '@shared/shapes'
 
 /**
  * THE RULE TABLE AND THE ARTWORK CANNOT DRIFT.
@@ -23,13 +30,31 @@ describe('the icon registry', () => {
   })
 
   it('keeps the two sets in separate namespaces', () => {
-    // `aws:s3` against `database` -- an un-namespaced key would make the sets one
-    // flat space that silently fights over `lambda`.
-    const aws = DRAWABLE_ICON_KEYS.filter((key) => key.startsWith('aws:'))
-    const general = DRAWABLE_ICON_KEYS.filter((key) => !key.startsWith('aws:'))
-    expect(aws.length).toBeGreaterThanOrEqual(20)
-    expect(general.length).toBeGreaterThanOrEqual(50)
-    expect(aws.some((key) => general.includes(key))).toBe(false)
+    // The REAL question: is any key in both maps? The earlier version of this
+    // test re-partitioned one combined list by the `aws:` prefix and asserted
+    // the halves did not overlap, which is true by construction -- planting
+    // `'aws:s3'` in the general set left the whole suite green while the picker
+    // drew it twice.
+    const both = GENERAL_ICON_KEYS.filter((key) => AWS_ICON_KEYS.includes(key))
+    expect(both, `keys defined in both sets: ${both.join(', ')}`).toEqual([])
+    expect(AWS_ICON_KEYS.length).toBeGreaterThanOrEqual(20)
+    expect(GENERAL_ICON_KEYS.length).toBeGreaterThanOrEqual(50)
+    // And the namespace is what keeps them apart, so it is asserted directly.
+    expect(AWS_ICON_KEYS.every(isAwsIconKey)).toBe(true)
+    expect(GENERAL_ICON_KEYS.some(isAwsIconKey)).toBe(false)
+    // No key is listed twice, in one set or across them.
+    expect(new Set(DRAWABLE_ICON_KEYS).size).toBe(DRAWABLE_ICON_KEYS.length)
+  })
+
+  it('draws NOTHING for a key that is only on Object.prototype', () => {
+    // `icon` is a plain `T.string`, so a peer in a sync room can write
+    // `toString`. A bare `AWS[key]` finds the method and hands it to
+    // `dangerouslySetInnerHTML`.
+    for (const key of ['toString', 'constructor', 'hasOwnProperty', '__proto__']) {
+      expect(hasIcon(key), key).toBe(false)
+      expect(awsIconSvg(key), key).toBeUndefined()
+      expect(generalIcon(key), key).toBeUndefined()
+    }
   })
 
   it('carries the REAL AWS icons, not stand-ins', () => {

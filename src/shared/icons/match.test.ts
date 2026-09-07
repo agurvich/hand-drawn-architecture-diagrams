@@ -38,6 +38,9 @@ const CORPUS: Array<[label: string, key: string]> = [
   ['CloudWatch', 'aws:cloudwatch'],
   ['VPC', 'aws:vpc'],
   ['SageMaker', 'aws:sagemaker'],
+  ['ELB', 'aws:elb'],
+  ['EFS', 'aws:efs'],
+  ['Bedrock', 'aws:bedrock'],
 
   // --- Compute ---
   ['Web server', 'server'],
@@ -45,11 +48,15 @@ const CORPUS: Array<[label: string, key: string]> = [
   ['Kubernetes', 'docker'],
   ['Nightly cron', 'clock'],
   ['Scheduler', 'clock'],
+  // Every shape in this app is a node, so the bare word must NOT reach the
+  // p2p-topology icon.
+  ['Worker node', 'clock'],
+  ['Node', 'box'],
 
   // --- Data ---
   ['Postgres', 'database'],
   ['MongoDB', 'database'],
-  ['Redis cache', 'fire'],
+  ['Redis cache', 'bolt'],
   ['Snowflake', 'warehouse'],
   ['Elasticsearch', 'search'],
   ['dbt pipeline', 'route'],
@@ -57,11 +64,12 @@ const CORPUS: Array<[label: string, key: string]> = [
   // --- Networking ---
   ['Load balancer', 'gauge'],
   ['Reverse proxy', 'bridge'],
+  ['nginx', 'bridge'],
   ['Firewall', 'shield'],
 
   // --- Messaging ---
-  ['Kafka', 'envelope'],
-  ['RabbitMQ', 'envelope'],
+  ['Kafka', 'queue'],
+  ['RabbitMQ', 'queue'],
   ['REST API', 'plug'],
   ['GraphQL endpoint', 'plug'],
 
@@ -163,7 +171,7 @@ describe('resolveNodeIcon — the three states', () => {
     // that wrote the guess at creation would look identical on day one and lose
     // forever.
     expect(resolveNodeIcon('', 'DB')).toBe('database')
-    expect(resolveNodeIcon('', 'Queue')).toBe('envelope')
+    expect(resolveNodeIcon('', 'Queue')).toBe('queue')
   })
 
   it('a pinned icon does NOT change when the label does', () => {

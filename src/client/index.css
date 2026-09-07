@@ -829,6 +829,8 @@ body {
     -apple-system,
     sans-serif;
   color: #444;
+}
+
 /*
  * A node's icon, beside its label.
  *
@@ -856,8 +858,11 @@ body {
  *
  * TOP-LEFT, below tldraw's own menu zone. Every other corner is taken: tldraw
  * owns bottom-left, the sketch toggle is bottom-right, the narration bar is
- * bottom-left-of-centre, and the JSON launcher plus the "performed by" control
- * are top-centre. The e2e asserts on overlap rather than on these numbers.
+ * bottom-left-of-centre, and the JSON launcher is top-centre. The "performed
+ * by" control shares this origin exactly -- the two are mutually exclusive by
+ * selection, one wants a node and the other a connection -- so the e2e asserts
+ * on overlap against the controls that CAN be on screen at the same time,
+ * rather than on these numbers.
  */
 .icon-picker {
   position: absolute;
@@ -939,13 +944,22 @@ body {
   min-width: 44px;
   min-height: 44px;
   background: #fff;
-  border: 1px solid #ddd;
+  /* #767676 like every other control here: #ddd on #fff is 1.36:1, so the cell
+     boundaries were invisible to anyone who needs contrast to see them. */
+  border: 1px solid #767676;
   border-radius: 6px;
   touch-action: manipulation;
 }
-/* The pinned one is a FILL, not a border tint: a 1px difference is not a state
-   anyone can read at arm's length on a tablet. */
+/*
+ * The pinned one, marked on THREE channels.
+ *
+ * The fill alone was the plan and it does not carry the state -- #dce9fa on #fff
+ * is 1.23:1, well under 1.4.11's 3:1, so what was actually doing the work was
+ * the 1px border the comment here dismissed. A thicker border in the same accent
+ * is 4.63:1 against the neighbouring cells and reads at arm's length.
+ */
 .icon-picker__cell[aria-pressed='true'] {
   background: #dce9fa;
-  border-color: #1a5fb4;
+  border: 2px solid #1a5fb4;
+  box-shadow: inset 0 0 0 1px #1a5fb4;
 }

@@ -447,7 +447,12 @@ export function parseDocument(input: string): ParseResult {
       if (typeof entry.icon !== 'string') return fail(`${path}.icon`, 'must be a string')
       // An UNKNOWN key renders nothing and looks exactly like the matcher
       // failing, so it is rejected by name rather than accepted and dropped.
-      if (entry.icon !== ICON_NONE && !ICON_KEYS.includes(entry.icon)) {
+      //
+      // `''` is accepted and means AUTOMATIC, the same thing omitting the field
+      // means. Export omits it, so nothing this app writes spells it that way --
+      // but it is what the record itself holds, and a hand-edited document that
+      // writes the value it can see in the app should not be refused for it.
+      if (entry.icon !== '' && entry.icon !== ICON_NONE && !ICON_KEYS.includes(entry.icon)) {
         return fail(`${path}.icon`, `unknown icon ${JSON.stringify(entry.icon)}`)
       }
       node.icon = entry.icon

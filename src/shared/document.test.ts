@@ -14,6 +14,7 @@ import {
 import { NODE_SHAPE_TYPE, nodeShapeDefaultProps } from './shapes/node'
 import { CONNECTION_SHAPE_TYPE, connectionShapeDefaultProps } from './shapes/connection'
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
+import { ICON_KEYS, ICON_NONE } from './icons'
 
 const PAGE = 'page:main'
 
@@ -1313,9 +1314,11 @@ describe('icon — a decision, not a derivation', () => {
   })
 
   it('accepts every key the rules can produce', () => {
-    // The document and the matcher name the same vocabulary, derived from one
-    // list -- a hand-written second list here would drift on the first new rule.
-    for (const key of ['aws:s3', 'database', 'rocket', 'none']) {
+    // ITERATED, not a handful of literals. The document and the matcher name the
+    // same vocabulary and it is derived from one list, so the test that says so
+    // has to WALK that list -- four names hand-copied here would pass forever
+    // while a newly added key was rejected at the room boundary.
+    for (const key of [...ICON_KEYS, ICON_NONE, '']) {
       const result = parseDocument(
         json({ version: DOCUMENT_VERSION, nodes: [node('a', { icon: key })] }),
       )

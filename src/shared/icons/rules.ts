@@ -77,7 +77,10 @@ export const ICON_MATCH_RULES: readonly IconMatchRule[] = [
       'database|db|sql|nosql|postgres|postgresql|mysql|mariadb|sqlite|oracle|mssql|sql server|mongo|mongodb|dynamodb|dynamo|cassandra|couchbase|cosmos db|cosmosdb|rds',
     iconKey: 'database',
   },
-  { pattern: 'cache|redis|memcached|memcache', iconKey: 'fire' },
+  // The port had this on a FLAME -- "hot cache" -- which reads as an alert on a
+  // canvas where a flame means nothing else. A bolt says fast, which is the
+  // property a cache is on the diagram for.
+  { pattern: 'cache|redis|memcached|memcache', iconKey: 'bolt' },
   { pattern: 'bucket|s3|blob storage', iconKey: 'bucket' },
   { pattern: 'storage|blob|volume|disk|object storage', iconKey: 'hard-drive' },
   { pattern: 'bulk storage|archive|cold storage', iconKey: 'boxes-stacked' },
@@ -91,7 +94,10 @@ export const ICON_MATCH_RULES: readonly IconMatchRule[] = [
   { pattern: 'certificate|cert authority|ca', iconKey: 'certificate' },
   { pattern: 'maintenance|ops|operations|on-call|oncall', iconKey: 'wrench' },
   { pattern: 'architecture|topology|diagram', iconKey: 'diagram-project' },
-  { pattern: 'distributed|nodes|peer to peer|p2p', iconKey: 'hexagon-nodes' },
+  // NOT `nodes`: plural matching runs both directions, so it also claimed the
+  // bare word "node" -- and every shape in this app is a node, so "worker node"
+  // came out as a p2p topology.
+  { pattern: 'distributed|peer to peer|p2p', iconKey: 'hexagon-nodes' },
   { pattern: 'arrow|flow direction|directional', iconKey: 'arrow' },
   { pattern: 'connector|line', iconKey: 'line' },
   { pattern: 'copy|duplicate|clone', iconKey: 'copy' },
@@ -115,7 +121,10 @@ export const ICON_MATCH_RULES: readonly IconMatchRule[] = [
   { pattern: 'signal|status|health check|healthcheck', iconKey: 'signal' },
   { pattern: 'microservice|microservices', iconKey: 'cubes' },
   { pattern: 'load balancer|balancer|lb|alb|nlb|elb', iconKey: 'gauge' },
-  { pattern: 'gateway|proxy|reverse proxy|api gateway', iconKey: 'bridge' },
+  {
+    pattern: 'gateway|proxy|reverse proxy|api gateway|nginx|envoy|traefik|haproxy',
+    iconKey: 'bridge',
+  },
   { pattern: 'network|vpc|subnet|vpn', iconKey: 'network' },
   { pattern: 'route|dns|routing|route53|nameserver|domain', iconKey: 'route' },
   { pattern: 'cdn|edge|cloudfront|fastly|akamai', iconKey: 'globe' },
@@ -125,7 +134,10 @@ export const ICON_MATCH_RULES: readonly IconMatchRule[] = [
   {
     pattern:
       'queue|kafka|rabbitmq|sqs|pubsub|pub sub|messaging|topic|activemq|nats|kinesis|pulsar|stream|streaming',
-    iconKey: 'envelope',
+    // NOT the envelope the port used, which it shared with `email` -- a Kafka
+    // topic and an SMTP inbox drawn the same is the diagram saying they are the
+    // same thing.
+    iconKey: 'queue',
   },
   { pattern: 'api|endpoint|rest|graphql|webhook|grpc|rpc', iconKey: 'plug' },
   { pattern: 'cluster|pool', iconKey: 'layer-group' },

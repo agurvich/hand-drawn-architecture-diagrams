@@ -35,7 +35,7 @@ icon**. Rename it and the icon follows; pick one by hand and it stays picked.
 
 | Mutation | Caught by |
 | --- | --- |
-| AWS rules moved below the generic ones | **33 tests** |
+| AWS rules moved below the generic ones | **19 tests** |
 | The exact-match pass removed | the singular/plural tests |
 | Whole-word matching relaxed to substring | 3 tests |
 | The `service` catch-all back near the top | the "Auth service" case |
@@ -60,3 +60,40 @@ nothing to compare.
 **Not covered:** custom or uploaded icons; matching on anything but the label (the predecessor also
 searched a `metadata` map, which this app does not have); and SPEC-015's merged-edge rendering, which
 is what these icons were built for.
+
+## What review changed
+
+Two reviewers, one reading against the criteria and one building diagrams with it. Four criteria were
+ticked by tests that could not fail, and each of those had a mutation that survived:
+
+| Ticked by a test that could not fail | What it now asserts |
+| --- | --- |
+| "no key appears in both sets" | the two key lists intersected — the old test re-partitioned **one** list by the `aws:` prefix, which is true by construction. `'aws:s3'` planted in the general set left 448/448 green and drew it twice in the picker |
+| "the picker lists every icon" | identity against `ICON_KEYS`, not `>= 90` against 97 — `.slice(0, 90)` had left the suite green with seven icons unpickable |
+| "every target ≥44×44" | the launcher and the two choice buttons too, not only the grid cells — a `<div role="button">` at 20px had passed |
+| "keyboard reachable" | opened with Enter, dismissed with Escape, focus asserted at each step |
+
+And three behaviours the `role="dialog"` implied but did not have: Escape dismisses, focus moves into
+the sheet and back to the launcher, and a different node selected closes it rather than re-presenting
+it. Picking an icon used to unmount the button focus was on and drop focus to `<body>`.
+
+**A node too small for both now keeps its label and drops the icon.** At 60×40 — reachable by hand,
+since the sketch recogniser's own `MIN_BOX_EXTENT` is 40 — the icon pushed the label into
+`overflow: hidden` and cut its descenders off. The icon is a second channel for what the text already
+says, so when only one fits it is the one that goes.
+
+**Four rules retuned** on the evidence of someone drawing real diagrams with them: `cache|redis` off
+the flame (which reads as an alert) onto a bolt; `queue|kafka|stream` off the envelope it shared with
+`email`, so a Kafka topic and an SMTP inbox are no longer the same glyph; `nginx|envoy|traefik|haproxy`
+added to the proxy rule, which had no coverage at all; and the bare word `nodes` dropped from the p2p
+rule — plural matching runs both ways, so it also claimed "node", and every shape in this app is a
+node.
+
+Smaller: the three registry lookups go through `Object.hasOwn`, so `icon: 'toString'` from a sync peer
+no longer finds `Object.prototype`'s method (nothing was injectable — it stringifies with no `<` in
+it — but "an unknown key draws nothing" is the contract the import validator is written against);
+`icon: ''` is accepted on import as automatic, the same thing omitting the field means; the picker's
+cell borders moved to `#767676` like every other control here, since `#ddd` on white is 1.36:1; and
+`guessIconKey` no longer re-splits the label once per rule per pass, which was a third of its cost.
+
+One number in the table above was wrong: the AWS-ordering mutation takes **19** tests down, not 33.
