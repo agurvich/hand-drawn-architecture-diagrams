@@ -18,7 +18,7 @@ to status only — no prose.
 | SPEC-011 | Actors on connections | Completed | SPEC-004, SPEC-005, SPEC-006, SPEC-008 |
 | SPEC-012 | Actors in the JSON document | Completed | SPEC-009, SPEC-011 |
 | SPEC-013 | Hand-drawn content inside a node | Completed | SPEC-004, SPEC-006, SPEC-008, SPEC-010 |
-| SPEC-014 | An icon on every node | Draft | SPEC-004, SPEC-007, SPEC-012 |
+| SPEC-014 | An icon on every node | Completed | SPEC-004, SPEC-007, SPEC-012 |
 | SPEC-015 | Actors on a merged edge | Draft | SPEC-006, SPEC-011, SPEC-014 |
 
 ## Arcs (build order)

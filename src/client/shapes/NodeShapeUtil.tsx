@@ -9,6 +9,8 @@ import {
 import { effectiveCollapsed } from '@shared/scenes'
 import { highlightState, sceneState, takeOffSceneAndToggle } from '../sceneView'
 import { actorsOfSelection } from '../actors'
+import { NodeIcon } from '../icons/NodeIcon'
+import { shouldDrawNodeIcon } from '../icons/iconFit'
 import {
   NODE_SHAPE_TYPE,
   CONNECTION_SHAPE_TYPE,
@@ -255,7 +257,12 @@ export class NodeShapeUtil extends BaseBoxShapeUtil<NodeShape> {
               }
             />
           ) : (
-            <span className="diagram-node__label">{shape.props.label}</span>
+            <span className="diagram-node__label">
+              {shouldDrawNodeIcon(shape.props.w, shape.props.h, shape.props.label) && (
+                <NodeIcon icon={shape.props.icon} label={shape.props.label} />
+              )}
+              {shape.props.label}
+            </span>
           )}
         </div>
       </HTMLContainer>

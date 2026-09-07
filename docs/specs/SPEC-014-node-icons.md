@@ -1,8 +1,8 @@
 # Spec: An icon on every node
 
 **ID:** SPEC-014  
-**Status:** Draft  
-**Last Updated:** 2026-09-07  
+**Status:** Completed  
+**Last Updated:** 2026-09-07 (rev 2 — built)  
 **Depends On:** SPEC-004, SPEC-007, SPEC-012
 
 ## Overview
@@ -87,6 +87,12 @@ alternative matches as a **whole word** with simple plural handling either way, 
 match "carpet"; a multi-word alternative matches as a substring, because a real phrase is not at risk
 of hiding inside another word.
 
+**Amended in build (2026-09-07):** "first match wins" is now *first match in two passes* — an exact
+whole-word pass over the whole table, then the plural-tolerant one. Plural handling runs in both
+directions, so a single pass cannot tell `user` from `users` and whichever rule sits first takes
+both; the port put `users` first, so a node called "User" got the plural icon forever. Order still
+decides within a pass, which is what the load-bearing part of the table means.
+
 The rule table itself is the asset. It is ported as data, and its ordering is load-bearing — specific
 terms before catch-alls.
 
@@ -132,9 +138,12 @@ and until then this is not a decision anybody has to make.
 - [ ] The icon artwork's terms get **one line** in `decisions.md`, beside the tldraw licence and
       fenced the same way — buildable now, re-asked before any deploy
 - [ ] Icon keys are **namespaced**, and a test asserts no key appears in both sets
-- [ ] An `ICONS` registry maps every key to a component, in `src/client/` — icons are rendering, and
+- [ ] A registry maps every key to its artwork, in `src/client/` — icons are rendering, and
       `src/shared/` stays runtime-agnostic. Only the **keys** are shared, because the matcher and the
-      document both name them
+      document both name them. **Built as two maps behind accessors** (`generalIcon`, `awsIconSvg`,
+      `hasIcon`) rather than the single `ICONS: Record<string, ComponentType>` sketched below: the
+      two sets are not the same kind of thing — Lucide gives components, the AWS set is vendored SVG
+      — and one map would have to hold a union every caller then re-narrows
 - [ ] The registry and the rule table cannot drift: a test asserts every rule's key is in the
       registry **and** that every registry key is reachable — an icon nothing can select is dead
       weight, and a rule nothing can render is a bug
@@ -204,7 +213,13 @@ export function resolveNodeIcon(icon: string, label: string): string | null
 
 ```ts
 // src/client/icons/registry.tsx -- the artwork. Keys shared, components not.
-export const ICONS: Record<string, ComponentType>
+// Two maps, because the two sets are not the same kind of thing.
+export const GENERAL_ICON_KEYS: readonly string[]
+export const AWS_ICON_KEYS: readonly string[]
+export const DRAWABLE_ICON_KEYS: readonly string[]
+export function generalIcon(key: string): ComponentType<{ size?: number }> | undefined
+export function awsIconSvg(key: string): string | undefined
+export function hasIcon(key: string): boolean
 ```
 
 ## API / Interface Contract

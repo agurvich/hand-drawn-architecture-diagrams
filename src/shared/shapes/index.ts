@@ -19,6 +19,7 @@ export * from './merge'
 export * from '../document'
 export * from '../bindings/connection'
 export * from '../bindings/actor'
+export * from '../icons'
 
 /**
  * The registry both runtimes consume. The client maps these to ShapeUtils; the

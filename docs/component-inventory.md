@@ -49,4 +49,8 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | e2e content helpers | `e2e/helpers.ts` | `addTldrawShape`, `parentOf`, `pageBounds`, `dragCorner` |
 | v2 corpus | `src/shared/__fixtures__/v2/` | Frozen `"version": 2` documents with scenes; the regression base for version 3 |
 | e2e actor helpers | `e2e/helpers.ts` | `attributeConnection`, `actorLabels` |
+| icon matcher | `src/shared/icons/` | `guessIconKey`, `resolveNodeIcon`, the ported 108-rule table, and the derived `ICON_KEYS` |
+| icon registry | `src/client/icons/registry.tsx` | Lucide for the general set, vendored AWS SVGs for `aws:*` |
+| `NodeIcon` | `src/client/icons/NodeIcon.tsx` | Resolves and draws a node's icon |
+| `IconPicker` | `src/client/panels/IconPicker.tsx` | Pin, clear to automatic, or pin to none |
 

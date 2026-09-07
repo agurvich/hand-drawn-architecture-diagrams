@@ -47,6 +47,9 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 - Vitest + Testing Library (unit, jsdom + a polyfill setup file tldraw needs to mount at all),
   Playwright (e2e — Chromium with an emulated iPad viewport, since the touch/pen specs drive CDP and
   `devices['iPad …']` defaults to WebKit where CDP does not exist)
+- `lucide-react` for the general icon set; the AWS architecture icons are vendored SVG under
+  `src/client/icons/aws/` (see `decisions.md` -- their terms sit inside the same deployment fence as
+  the tldraw licence)
 - oxlint, prettier
 
 **Don't add dependencies without noting them here first.**
@@ -82,7 +85,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-013 are Completed; SPEC-014 and SPEC-015 are Draft.
+**Current work:** none — SPEC-001 through SPEC-014 are Completed; SPEC-015 is Draft.
 
 ---
 
@@ -118,6 +121,8 @@ is refused — each one was a way past the checks.
 
 - **Hobby licence accepted for now; commercial use is unresolved** — localhost needs no key, so this
   fences **deployment**, not development. Settle it before any production deploy spec.
+- **Icon artwork rides the same deployment fence** — the AWS icons are AWS's, not the npm wrapper's;
+  the terms cover architecture diagrams and only bite at deploy. Re-ask with the tldraw one.
 
 ### Scope
 

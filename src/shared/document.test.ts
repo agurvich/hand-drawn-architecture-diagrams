@@ -14,6 +14,7 @@ import {
 import { NODE_SHAPE_TYPE, nodeShapeDefaultProps } from './shapes/node'
 import { CONNECTION_SHAPE_TYPE, connectionShapeDefaultProps } from './shapes/connection'
 import { CONNECTION_BINDING_TYPE, type ConnectionTerminal } from './bindings/connection'
+import { ICON_KEYS, ICON_NONE } from './icons'
 
 const PAGE = 'page:main'
 
@@ -46,7 +47,7 @@ function exportableNode(id: string, over: Partial<ExportableNode> = {}): Exporta
     x: 0,
     y: 0,
     rotation: 0,
-    props: { w: 100, h: 60, label: id, color: 'black', collapsed: false },
+    props: { w: 100, h: 60, label: id, color: 'black', collapsed: false, icon: '' },
     ...over,
   }
 }
@@ -462,14 +463,23 @@ describe('toDocument', () => {
         exportableNode('web', {
           x: 10,
           y: 20,
-          props: { w: 300, h: 200, label: 'Web', color: '#4f8ff7', collapsed: true },
+          props: { w: 300, h: 200, label: 'Web', color: '#4f8ff7', collapsed: true, icon: '' },
         }),
       ],
       [],
       [],
     )
     expect(document.nodes).toEqual([
-      { id: 'web', label: 'Web', x: 10, y: 20, w: 300, h: 200, color: '#4f8ff7', collapsed: true },
+      {
+        id: 'web',
+        label: 'Web',
+        x: 10,
+        y: 20,
+        w: 300,
+        h: 200,
+        color: '#4f8ff7',
+        collapsed: true,
+      },
     ])
   })
 
@@ -488,7 +498,14 @@ describe('toDocument', () => {
     const document = toDocument(
       [
         exportableNode('a', {
-          props: { w: 1, h: 1, label: 'a', color: nodeShapeDefaultProps.color, collapsed: false },
+          props: {
+            w: 1,
+            h: 1,
+            label: 'a',
+            color: nodeShapeDefaultProps.color,
+            collapsed: false,
+            icon: '',
+          },
         }),
       ],
       [],
@@ -616,7 +633,7 @@ describe('fromDocument', () => {
       x: 0,
       y: 0,
       rotation: 0,
-      props: { w: 100, h: 60, label: 'a', color: 'black', collapsed: false },
+      props: { w: 100, h: 60, label: 'a', color: 'black', collapsed: false, icon: '' },
     })
   })
 
@@ -1247,5 +1264,65 @@ describe('toDocument / fromDocument — actors', () => {
       (b) => b.type === 'connectionActor',
     )
     expect(actors).toEqual([{ type: 'connectionActor', fromId: 'shape:k', toId: 'shape:role' }])
+  })
+})
+
+describe('icon — a decision, not a derivation', () => {
+  it('is OMITTED when the node icon is automatic', () => {
+    // A document carries decisions. Writing the guessed key would freeze it, so
+    // a renamed node would keep its old icon after a round trip -- exactly what
+    // the three states exist to prevent.
+    const out = toDocument([exportableNode('a')], [], [])
+    expect(out.nodes[0]!.icon).toBeUndefined()
+  })
+
+  it('is exported when PINNED, and when pinned to none', () => {
+    const pinned = exportableNode('a', {
+      props: { ...exportableNode('a').props, icon: 'rocket' },
+    })
+    const off = exportableNode('b', {
+      props: { ...exportableNode('b').props, icon: 'none' },
+    })
+    const out = toDocument([pinned, off], [], [])
+    expect(out.nodes.map((n) => n.icon)).toEqual(['rocket', 'none'])
+  })
+
+  it('round-trips all three states exactly', () => {
+    const nodes = [
+      exportableNode('auto'),
+      exportableNode('pinned', { props: { ...exportableNode('pinned').props, icon: 'aws:s3' } }),
+      exportableNode('off', { props: { ...exportableNode('off').props, icon: 'none' } }),
+    ]
+    const out = toDocument(nodes, [], [])
+    const parsed = parseDocument(json(out))
+    if (!parsed.ok) throw new Error(parsed.error)
+    // BY ID, not by creation order -- export sorts, so this is auto/off/pinned.
+    expect(fromDocument(parsed.document, PAGE).nodes.map((n) => [n.id, n.props.icon])).toEqual([
+      ['shape:auto', ''],
+      ['shape:off', 'none'],
+      ['shape:pinned', 'aws:s3'],
+    ])
+  })
+
+  it.each([
+    [{ icon: 1 }, 'nodes[0].icon: must be a string'],
+    [{ icon: 'not-a-real-icon' }, 'nodes[0].icon: unknown icon "not-a-real-icon"'],
+  ])('rejects %j', (over, message) => {
+    // An unknown key renders nothing and looks exactly like the matcher failing,
+    // so it is rejected by name rather than accepted and dropped.
+    expect(errorFrom(json({ version: DOCUMENT_VERSION, nodes: [node('a', over)] }))).toBe(message)
+  })
+
+  it('accepts every key the rules can produce', () => {
+    // ITERATED, not a handful of literals. The document and the matcher name the
+    // same vocabulary and it is derived from one list, so the test that says so
+    // has to WALK that list -- four names hand-copied here would pass forever
+    // while a newly added key was rejected at the room boundary.
+    for (const key of [...ICON_KEYS, ICON_NONE, '']) {
+      const result = parseDocument(
+        json({ version: DOCUMENT_VERSION, nodes: [node('a', { icon: key })] }),
+      )
+      expect(result.ok, key).toBe(true)
+    }
   })
 })

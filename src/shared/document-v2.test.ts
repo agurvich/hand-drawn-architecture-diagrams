@@ -62,6 +62,7 @@ const EXPECTED = {
           label: 'Solo',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
@@ -84,6 +85,7 @@ const EXPECTED = {
           label: 'A',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -99,6 +101,7 @@ const EXPECTED = {
           label: 'B',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
@@ -157,6 +160,7 @@ const EXPECTED = {
           label: 'A',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
@@ -187,6 +191,7 @@ const EXPECTED = {
           label: 'Client',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -202,6 +207,7 @@ const EXPECTED = {
           label: 'Platform',
           color: 'black',
           collapsed: true,
+          icon: '',
         },
       },
       {
@@ -217,6 +223,7 @@ const EXPECTED = {
           label: 'Gateway',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
       {
@@ -232,6 +239,7 @@ const EXPECTED = {
           label: 'Postgres',
           color: 'black',
           collapsed: false,
+          icon: '',
         },
       },
     ],
