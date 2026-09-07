@@ -87,11 +87,13 @@ function sameEntry(a: MergeEntry, b: MergeEntry): boolean {
     a.count === b.count &&
     a.startNodeId === b.startNodeId &&
     a.endNodeId === b.endNodeId &&
-    // `actorId` MUST be here. This function is the `isEqual` of a computed, so
-    // a field the derivation produces and this comparator ignores is a field
-    // whose changes are invisible: re-attributing a connection would produce an
-    // index the memo calls unchanged, and the label would never update. No
-    // error, no warning -- just a control that appears to do nothing.
-    a.actorId === b.actorId
+    // BY CONTENT, not by reference. This function is the `isEqual` of a
+    // computed, so a field the derivation produces and this comparator ignores
+    // is a field whose changes are invisible -- re-attributing would produce an
+    // index the memo calls unchanged and nothing would re-render, with no error
+    // and no warning. The array is rebuilt every derivation, so comparing it by
+    // identity would be the same as ignoring it, only harder to notice.
+    a.actorIds.length === b.actorIds.length &&
+    a.actorIds.every((id, i) => id === b.actorIds[i])
   )
 }

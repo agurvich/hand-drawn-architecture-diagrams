@@ -3,6 +3,14 @@ import { CONNECTION_SHAPE_TYPE, NODE_SHAPE_TYPE } from '@shared/shapes'
 import { actorIdOf, attributeTo, clearActor } from '../actors'
 import { getMergeIndex } from '../mergeIndex'
 
+/**
+ * The `<select>` value for "several different actors".
+ *
+ * Not a shape id and not `''`, both of which mean something else here, and
+ * prefixed so it can never collide with one: tldraw ids all start `shape:`.
+ */
+const SEVERAL = '__several__'
+
 interface ActorControlProps {
   /** The mounted editor, or null before `onMount` has run. */
   editor: Editor | null
@@ -79,19 +87,36 @@ export function ActorControl({ editor }: ActorControlProps) {
     [editor, selected],
   )
   const standsForSeveral = (merged?.count ?? 1) > 1
+  const mergedActorIds = standsForSeveral ? (merged?.actorIds ?? []) : []
+  /*
+   * SEVERAL DISTINCT ACTORS is a state a `<select>` has no value for, and since
+   * SPEC-015 it is a state the LINE draws: it shows every one of them. Leaving
+   * the select empty would put the control back into disagreeing with the canvas
+   * -- the exact defect the merge-index read above was written to fix, only with
+   * the reading now too EMPTY rather than too confident. So the several-actor
+   * case gets an option of its own, selected and unpickable.
+   */
+  const several = mergedActorIds.length > 1
   const actorId = useValue(
     'actor',
     () => {
       if (!editor || !selected) return null
-      // The merged answer when it stands for several -- null when they disagree,
-      // which is the same thing the line itself says.
-      if (standsForSeveral) return merged?.actorId ?? null
+      if (standsForSeveral) return mergedActorIds.length === 1 ? (mergedActorIds[0] ?? null) : null
       return actorIdOf(editor, selected)
     },
-    [editor, selected, standsForSeveral, merged],
+    [editor, selected, standsForSeveral, mergedActorIds],
   )
 
   if (!editor || !selected) return null
+
+  const nameOf = (id: string) => nodes.find((node) => node.id === id)?.label ?? 'Untitled'
+  // BY NAME, where the canvas orders the same actors by id: agreement between
+  // the two is about WHICH actors, and a list of names sorted by an id nobody
+  // can see reads as unsorted.
+  const severalLabel = mergedActorIds
+    .map(nameOf)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .join(', ')
 
   return (
     <div className="actor-control" data-testid="actor-control">
@@ -102,15 +127,14 @@ export function ActorControl({ editor }: ActorControlProps) {
         id="actor-control-select"
         className="actor-control__select"
         data-testid="actor-select"
-        value={actorId ?? ''}
+        value={several ? SEVERAL : (actorId ?? '')}
         /*
          * READ-ONLY ON A MERGED LINE. Editing it would rewrite the
          * representative alone and leave every other member as it was -- a
          * silent partial edit with nothing on screen saying only one of several
          * changed. Attributing them all is a coherent alternative, but it is a
-         * bulk edit nobody asked for and SPEC-015 is about to change what a
-         * merged edge shows; expanding the container is the gesture that already
-         * exists.
+         * bulk edit nobody asked for; expanding the container is the gesture
+         * that already exists.
          */
         disabled={standsForSeveral}
         onChange={(event) => {
@@ -120,6 +144,11 @@ export function ActorControl({ editor }: ActorControlProps) {
         }}
       >
         <option value="">Nobody in particular</option>
+        {several && (
+          <option value={SEVERAL} data-testid="actor-select-several">
+            {severalLabel}
+          </option>
+        )}
         {nodes.map((node) => (
           <option key={node.id} value={node.id}>
             {node.label}

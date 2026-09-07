@@ -10,6 +10,8 @@ import {
   type TLShapeUtilCanBindOpts,
 } from 'tldraw'
 import { getMergeIndex } from '../mergeIndex'
+import { NodeIcon } from '../icons/NodeIcon'
+import { MAX_ACTOR_ICONS } from '../icons/actorIcons'
 import { nodeAtPoint } from '../nodeAtPoint'
 import { highlightState, sceneAwareGetShape } from '../sceneView'
 import {
@@ -115,15 +117,34 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
    * was that collapse is read in two places, and this label is the third
    * consumer.
    */
-  private actorLabel(shape: ConnectionShape): string | null {
-    const actorId = getMergeIndex(this.editor).get(shape.id)?.actorId ?? null
-    if (actorId === null) return null
+  private actors(shape: ConnectionShape): Array<{ id: string; label: string; icon: string }> {
+    const ids = getMergeIndex(this.editor).get(shape.id)?.actorIds ?? []
+    if (ids.length === 0) return []
     const get = sceneAwareGetShape(this.editor)
-    const actor = get(actorId)
-    if (!actor) return null
-    const onScreen = visibleStandInFor(actor, get)
-    const label = (onScreen.props as { label?: unknown }).label
-    return typeof label === 'string' && label.length > 0 ? label : null
+    const out: Array<{ id: string; label: string; icon: string }> = []
+    for (const id of ids) {
+      const actor = get(id)
+      if (!actor) continue
+      // The container standing in for an off-screen actor, not the actor: an
+      // actor inside a folded box is not on screen, and naming it would be
+      // naming something invisible. The SCENE-AWARE accessor, because a scene
+      // folds just as thoroughly as the prop and the natural implementation
+      // gets only the first.
+      const onScreen = visibleStandInFor(actor, get)
+      const props = onScreen.props as { label?: unknown; icon?: unknown }
+      const label = typeof props.label === 'string' ? props.label : ''
+      if (label.length === 0) continue
+      out.push({
+        id: onScreen.id,
+        label,
+        icon: typeof props.icon === 'string' ? props.icon : '',
+      })
+    }
+    // DEDUPED AFTER RESOLUTION: two actors inside the same folded container both
+    // stand in as that container, and showing it twice would say two things
+    // cross the boundary when one does.
+    const seen = new Set<string>()
+    return out.filter((actor) => (seen.has(actor.id) ? false : (seen.add(actor.id), true)))
   }
 
   /** Page-space endpoints, resolved through the merge index. */
@@ -184,7 +205,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     const a = inv.applyToPoint(start)
     const b = inv.applyToPoint(end)
     const count = this.mergeCount(shape)
-    const actor = this.actorLabel(shape)
+    const actors = this.actors(shape)
     const { ids, dimming } = highlightState(this.editor)
     const accent = !dimming
       ? ''
@@ -228,18 +249,55 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             {`\u00d7${count}`}
           </text>
         )}
-        {actor !== null && (
-          // STACKED BELOW the count, not on top of it. Both want the midpoint,
-          // and a merged line whose members agree shows both at once.
-          <text
-            className="diagram-connection__actor"
-            data-testid="diagram-connection-actor"
-            x={(a.x + b.x) / 2}
-            y={(a.y + b.y) / 2 + 16}
-            textAnchor="middle"
+        {actors.length > 0 && (
+          /*
+           * EVERY DISTINCT ACTOR, as icons, stacked below the count.
+           *
+           * Icons rather than names because a merged edge can stand for five
+           * connections, and five names on one line is a wall of text where five
+           * icons is a glance -- which is the whole reason SPEC-014 came first.
+           *
+           * FIRST TWO, THEN `+N more`. The cap lives here rather than in the
+           * derivation: the derivation says what the line stands for, and how
+           * many fit is a question about a canvas. A derivation that truncated
+           * would also be making the JSON export's decision for it.
+           */
+          <foreignObject
+            x={(a.x + b.x) / 2 - 60}
+            y={(a.y + b.y) / 2 + 4}
+            width={120}
+            height={26}
+            className="diagram-connection__actors"
+            data-testid="diagram-connection-actors"
           >
-            {actor}
-          </text>
+            <div className="diagram-connection__actors-row">
+              {actors.slice(0, MAX_ACTOR_ICONS).map((entry) => (
+                <span
+                  key={entry.id}
+                  className="diagram-connection__actor-icon"
+                  data-testid="diagram-connection-actor"
+                  data-actor={entry.id}
+                  // The glyph is the visual channel; the NAME is what a screen
+                  // reader has, and "which resources cross this boundary" has to
+                  // be answerable without seeing it.
+                  role="img"
+                  aria-label={`Performed by ${entry.label}`}
+                  title={entry.label}
+                >
+                  <NodeIcon icon={entry.icon} label={entry.label} />
+                </span>
+              ))}
+              {actors.length > MAX_ACTOR_ICONS && (
+                <span
+                  className="diagram-connection__actor-more"
+                  data-testid="diagram-connection-actors-more"
+                  aria-label={`and ${actors.length - MAX_ACTOR_ICONS} more`}
+                >
+                  {`+${actors.length - MAX_ACTOR_ICONS} more`}
+                </span>
+              )}
+            </div>
+          </foreignObject>
         )}
       </svg>
     )

@@ -10,6 +10,7 @@ import {
   viewScene,
   attributeConnection as attribute,
   actorLabels,
+  actorOverflow,
 } from './helpers'
 
 /** Every binding on the page, as `type from->to`. */
@@ -284,11 +285,15 @@ test.describe('SPEC-011 FR-003 — how an attributed connection reads', () => {
     expect(await actorLabels(page)).toEqual([])
   })
 
-  test('the label HALO IS ACTUALLY PAINTED', async ({ page }) => {
+  test('the actor icon HALO IS ACTUALLY PAINTED', async ({ page }) => {
     // On the running page's computed style. The merge badge shipped with an
     // inert halo because `--color-background` is defined nowhere, and both
     // obvious tests miss it: jsdom cannot resolve var() from a stylesheet, and a
     // screenshot test was weighed and rejected for this glyph.
+    //
+    // SPEC-015 moved the actor from SVG text to an icon in a `foreignObject`, so
+    // the halo moved from stroke/paint-order to a box-shadow ring -- a different
+    // mechanism with the same failure mode, hence the same test rather than none.
     await openRoom(page, roomId('ac14'))
     const a = await addNode(page, 'A', { x: 100, y: 300, w: 160, h: 100 })
     const b = await addNode(page, 'B', { x: 600, y: 300, w: 160, h: 100 })
@@ -299,18 +304,25 @@ test.describe('SPEC-011 FR-003 — how an attributed connection reads', () => {
     const painted = await page.evaluate(() => {
       const el = document.querySelector('[data-testid="diagram-connection-actor"]')!
       const style = getComputedStyle(el)
+      const box = el.getBoundingClientRect()
       return {
-        stroke: style.stroke,
-        width: parseFloat(style.strokeWidth),
-        order: style.paintOrder,
-        events: style.pointerEvents,
+        shadow: style.boxShadow,
+        background: style.backgroundColor,
+        events: getComputedStyle(el.closest('.diagram-connection__actors')!).pointerEvents,
+        width: box.width,
+        height: box.height,
       }
     })
-    expect(painted.stroke).not.toBe('none')
-    expect(painted.stroke).toMatch(/rgb/)
-    expect(painted.width).toBeGreaterThan(0)
-    expect(painted.order).toBe('stroke')
-    // A tap near the label must still reach the line behind it.
+    // A `var()` that resolves to nothing leaves `box-shadow: 0 0 0 2px` with no
+    // colour, which computes to `none` -- exactly the silent failure this catches.
+    expect(painted.shadow).not.toBe('none')
+    expect(painted.shadow).toMatch(/rgb/)
+    expect(painted.background).toMatch(/rgb/)
+    expect(painted.background).not.toBe('rgba(0, 0, 0, 0)')
+    // And the glyph is actually laid out, not a zero-box `foreignObject` child.
+    expect(painted.width).toBeGreaterThan(8)
+    expect(painted.height).toBeGreaterThan(8)
+    // A tap near the icons must still reach the line behind them.
     expect(painted.events).toBe('none')
   })
 
@@ -474,14 +486,91 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     ).toBe(1)
   })
 
-  test('members that DISAGREE show no actor rather than picking one', async ({ page }) => {
+  test('members that DISAGREE show EVERY actor rather than none', async ({ page }) => {
+    /*
+     * REVERSED BY SPEC-015, and kept rather than replaced: showing nothing was a
+     * defensible way to avoid claiming one of them, and the wrong outcome. The
+     * whole point of folding a container is to see what crosses its boundary,
+     * and who does the crossing is most of that.
+     */
     await openRoom(page, roomId('ac18'))
     const { box, k1, k2, one, two } = await merged(page)
     await attribute(page, k1, one)
     await attribute(page, k2, two)
     await setCollapsed(page, box, true)
 
-    await expect.poll(() => actorLabels(page)).toEqual([])
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+    // Both on the ONE drawn line, not one each on two lines.
+    expect(
+      await page.evaluate(
+        () => document.querySelectorAll('[data-testid="diagram-connection-actors"]').length,
+      ),
+    ).toBe(1)
+  })
+
+  test('the order is the same on two clients', async ({ browser }) => {
+    // Two clients must draw the same line without coordinating, and the actors
+    // are ordered by id under plain `<` for exactly that reason. Insertion order
+    // is store order, which is the thing that differs between them.
+    const room = roomId('ac26')
+    const p1 = await newParticipant(browser)
+    const p2 = await newParticipant(browser)
+    await openRoom(p1.page, room)
+    await openRoom(p2.page, room)
+
+    const { box, k1, k2, one, two } = await merged(p1.page)
+    await attribute(p1.page, k1, one)
+    await attribute(p1.page, k2, two)
+    await setCollapsed(p1.page, box, true)
+    await expect.poll(() => actorLabels(p1.page), { timeout: 15_000 }).toHaveLength(2)
+    await expect.poll(() => actorLabels(p2.page), { timeout: 15_000 }).toHaveLength(2)
+
+    // Not `.sort()`: the ORDER is the claim.
+    expect(await actorLabels(p2.page)).toEqual(await actorLabels(p1.page))
+
+    await p1.ctx.close()
+    await p2.ctx.close()
+  })
+
+  test('MORE THAN TWO actors collapse to `+N more`', async ({ page }) => {
+    await openRoom(page, roomId('ac27'))
+    const box = await addNode(page, 'Platform', { x: 200, y: 100, w: 400, h: 400 })
+    const c1 = await addNode(page, 'C1', { x: 30, y: 30, w: 140, h: 70, parentId: box })
+    const c2 = await addNode(page, 'C2', { x: 30, y: 150, w: 140, h: 70, parentId: box })
+    const c3 = await addNode(page, 'C3', { x: 30, y: 270, w: 140, h: 70, parentId: box })
+    const y = await addNode(page, 'Y', { x: 750, y: 250, w: 160, h: 100 })
+    const one = await addNode(page, 'One', { x: 150, y: 560, w: 120, h: 70 })
+    const two = await addNode(page, 'Two', { x: 300, y: 560, w: 120, h: 70 })
+    const three = await addNode(page, 'Three', { x: 450, y: 560, w: 120, h: 70 })
+    await attribute(page, await addConnection(page, c1, y), one)
+    await attribute(page, await addConnection(page, c2, y), two)
+    await attribute(page, await addConnection(page, c3, y), three)
+    await setCollapsed(page, box, true)
+
+    // Two icons drawn, the third counted. Which two is the id order, not chance.
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
+    expect(await actorOverflow(page)).toBe('+1 more')
+  })
+
+  test('two actors in the SAME folded container count once', async ({ page }) => {
+    // Both resolve to the container standing in for them, and showing it twice
+    // would say two things cross the boundary when one does.
+    await openRoom(page, roomId('ac28'))
+    const box = await addNode(page, 'Platform', { x: 200, y: 100, w: 400, h: 400 })
+    const c1 = await addNode(page, 'C1', { x: 30, y: 40, w: 140, h: 80, parentId: box })
+    const c2 = await addNode(page, 'C2', { x: 30, y: 200, w: 140, h: 80, parentId: box })
+    const y = await addNode(page, 'Y', { x: 750, y: 250, w: 160, h: 100 })
+    const vault = await addNode(page, 'Vault', { x: 200, y: 560, w: 300, h: 200 })
+    const one = await addNode(page, 'One', { x: 20, y: 40, w: 120, h: 60, parentId: vault })
+    const two = await addNode(page, 'Two', { x: 20, y: 120, w: 120, h: 60, parentId: vault })
+    await attribute(page, await addConnection(page, c1, y), one)
+    await attribute(page, await addConnection(page, c2, y), two)
+    await setCollapsed(page, box, true)
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+
+    await setCollapsed(page, vault, true)
+    await expect.poll(() => actorLabels(page)).toEqual(['Vault'])
+    expect(await actorOverflow(page)).toBe(null)
   })
 
   test('EXPANDING restores each line its own attribution', async ({ page }) => {
@@ -490,52 +579,67 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     await attribute(page, k1, one)
     await attribute(page, k2, two)
     await setCollapsed(page, box, true)
-    await expect.poll(() => actorLabels(page)).toEqual([])
+    // One line, both actors on it.
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+    expect(
+      await page.evaluate(
+        () => document.querySelectorAll('[data-testid="diagram-connection-actors"]').length,
+      ),
+    ).toBe(1)
 
     await setCollapsed(page, box, false)
     await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
+    // Now two lines with one each, which is what "its own" means.
+    expect(
+      await page.evaluate(
+        () => document.querySelectorAll('[data-testid="diagram-connection-actors"]').length,
+      ),
+    ).toBe(2)
   })
 
-  test('the CONTROL agrees with the line: a merged line reads as claiming nobody', async ({
-    page,
-  }) => {
+  test('the CONTROL agrees with the line: a merged line names ALL of them', async ({ page }) => {
     /*
      * Found by using it. A merged line is drawn by one of its members -- the
      * representative -- and that is the only member you can hit-test, so
      * selecting a `x2` line selects it. The control read that member's own
-     * binding and answered "One" while the canvas, one click away, correctly
-     * showed no actor. Worse, choosing "Nobody in particular" from that reading
+     * binding and answered "One" while the canvas, one click away, showed
+     * something else. Worse, choosing "Nobody in particular" from that reading
      * cleared the representative's REAL attribution and left every other
      * member's alone -- data lost by a person correcting something that was
      * wrong to begin with.
+     *
+     * SPEC-015 changed what the canvas says, so it changes what agreeing means:
+     * the line now shows BOTH actors, and a `<select>` has no value for that, so
+     * the several-actor case gets an option of its own. Leaving it empty would
+     * be the same defect again, only with the reading too empty rather than too
+     * confident.
      */
     await openRoom(page, roomId('ac24'))
     const { box, k1, k2, one, two } = await merged(page)
     await attribute(page, k1, one)
     await attribute(page, k2, two)
     await setCollapsed(page, box, true)
-    await expect.poll(() => actorLabels(page)).toEqual([])
+    await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
 
     // Select the drawn line -- whichever member is representing it.
-    const drawn = await page.evaluate(() => {
+    await page.evaluate(() => {
       const ed = window.__editor!
       const visible = ed
         .getCurrentPageShapes()
         .filter((s) => s.type === 'diagramConnection' && !ed.isShapeHidden(s.id))
       ed.setSelectedShapes([visible[0]!.id])
-      return visible[0]!.id as string
     })
     await page.getByTestId('actor-control').waitFor()
 
-    // It says what the LINE says, and it refuses to edit only one member.
-    expect(await page.getByTestId('actor-select').inputValue()).toBe('')
+    // It names what the LINE names, and it refuses to edit only one member.
+    await expect(page.getByTestId('actor-select-several')).toHaveText('One, Two')
+    expect(await page.getByTestId('actor-select').inputValue()).toBe('__several__')
     await expect(page.getByTestId('actor-select')).toBeDisabled()
     await expect(page.getByTestId('actor-control-merged')).toContainText('2 connections')
 
     // And both attributions are still there.
     await setCollapsed(page, box, false)
     await expect.poll(async () => (await actorLabels(page)).sort()).toEqual(['One', 'Two'])
-    void drawn
   })
 
   test('a merged line whose members AGREE reads as that actor, still read-only', async ({
@@ -560,26 +664,28 @@ test.describe('SPEC-011 FR-004 — merging', () => {
     await expect(page.getByTestId('actor-select')).toBeDisabled()
   })
 
-  test('the actor label and the xN count DO NOT COLLIDE', async ({ page }) => {
+  test('the actor icons and the xN count DO NOT COLLIDE', async ({ page }) => {
     await openRoom(page, roomId('ac20'))
-    const { box, k1, k2, one } = await merged(page)
+    const { box, k1, k2, one, two } = await merged(page)
     await attribute(page, k1, one)
-    await attribute(page, k2, one)
+    await attribute(page, k2, two)
     await setCollapsed(page, box, true)
-    await expect.poll(() => actorLabels(page)).toEqual(['One'])
+    await expect.poll(async () => (await actorLabels(page)).length).toBe(2)
 
     const overlap = await page.evaluate(() => {
       const count = document
         .querySelector('[data-testid="diagram-connection-count"]')!
         .getBoundingClientRect()
-      const actor = document
-        .querySelector('[data-testid="diagram-connection-actor"]')!
-        .getBoundingClientRect()
-      return (
-        count.left < actor.right &&
-        count.right > actor.left &&
-        count.top < actor.bottom &&
-        count.bottom > actor.top
+      return [...document.querySelectorAll('[data-testid="diagram-connection-actor"]')].some(
+        (el) => {
+          const actor = el.getBoundingClientRect()
+          return (
+            count.left < actor.right &&
+            count.right > actor.left &&
+            count.top < actor.bottom &&
+            count.bottom > actor.top
+          )
+        },
       )
     })
     expect(overlap).toBe(false)

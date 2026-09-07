@@ -43,17 +43,23 @@ export interface MergeEntry {
    */
   hidden: boolean
   /**
-   * Who the drawn line can honestly say performs it, after resolution. Null when
-   * nothing is attributed, and null on a MERGED line whose members disagree --
-   * including "some attributed, some not". A merged line that picked its
-   * representative's actor would silently misattribute the others, which is the
-   * natural implementation and is why FR-004 asserts against it directly.
+   * EVERY DISTINCT ACTOR among the members, ordered by id under plain `<`.
    *
-   * Deliberately more permissive than the predecessor, which dropped the actor
-   * whenever more than one edge contributed, agreement or not: a merged line
-   * whose members all name the same actor can honestly say so.
+   * Replaced `actorId: string | null` in SPEC-015. That shape said "the one
+   * actor, or none", and a merged line whose members disagreed had to answer
+   * NONE -- a defensible way to avoid claiming one of them, and the wrong
+   * outcome: the whole point of folding a container is to see what crosses its
+   * boundary, and who does the crossing is most of that.
+   *
+   * An unmerged line has zero or one entry, so the same field serves both and
+   * there is no branch. "Some attributed, some not" yields the actors that
+   * exist, which is the reversal.
+   *
+   * ORDERED, because two clients must draw the same line without coordinating
+   * and `Set` iteration order is insertion order, which is store order, which is
+   * exactly what differs between them.
    */
-  actorId: string | null
+  actorIds: string[]
   /**
    * The shapes the line is drawn against, after resolution. Null on a terminal
    * with no binding -- the shape's own start/end prop is used there, as SPEC-005
@@ -112,15 +118,17 @@ interface Member {
 }
 
 /**
- * The one actor a set of connections can honestly claim, or null.
+ * Every distinct actor among a set of connections, in a deterministic order.
  *
- * Null when they disagree, and null when ANY of them has no actor -- "some
- * attributed, some not" is a disagreement, not a majority to be rounded off.
+ * Plain `<` on the id, matching the representative rule above and for the same
+ * reason: the order has to come from data both clients already have.
  */
-function agreedActor(members: readonly { actorId: string | null }[]): string | null {
-  const first = members[0]?.actorId ?? null
-  if (first === null) return null
-  return members.every((m) => m.actorId === first) ? first : null
+function distinctActors(members: readonly { actorId: string | null }[]): string[] {
+  const seen = new Set<string>()
+  for (const member of members) {
+    if (member.actorId !== null) seen.add(member.actorId)
+  }
+  return [...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 }
 
 export function computeMergeIndex(
@@ -141,7 +149,7 @@ export function computeMergeIndex(
         startNodeId: resolveId(c.startNodeId, getShape),
         endNodeId: resolveId(c.endNodeId, getShape),
         count: 1,
-        actorId: c.actorId,
+        actorIds: c.actorId === null ? [] : [c.actorId],
       })
       continue
     }
@@ -158,7 +166,7 @@ export function computeMergeIndex(
         startNodeId: start ? visibleStandInFor(start, getShape).id : c.startNodeId,
         endNodeId: end ? visibleStandInFor(end, getShape).id : c.endNodeId,
         count: 1,
-        actorId: c.actorId,
+        actorIds: c.actorId === null ? [] : [c.actorId],
       })
       continue
     }
@@ -176,7 +184,7 @@ export function computeMergeIndex(
         startNodeId: vs,
         endNodeId: vt,
         count: 1,
-        actorId: c.actorId,
+        actorIds: c.actorId === null ? [] : [c.actorId],
       })
       continue
     }
@@ -213,7 +221,7 @@ export function computeMergeIndex(
           startNodeId: m.startNodeId,
           endNodeId: m.endNodeId,
           count: 1,
-          actorId: m.actorId,
+          actorIds: m.actorId === null ? [] : [m.actorId],
         })
       }
       continue
@@ -226,10 +234,10 @@ export function computeMergeIndex(
     let representative = members[0]!
     for (const m of members) if (m.id < representative.id) representative = m
 
-    // The MERGED line's actor is the one they all agree on, or none. Not the
-    // representative's -- that is the natural implementation and it silently
-    // misattributes every other member of the group.
-    const merged = agreedActor(members)
+    // The MERGED line carries EVERY distinct actor its members name. Not the
+    // representative's -- that silently misattributes the rest -- and not none,
+    // which was the old rule and hid the thing collapse exists to reveal.
+    const mergedActors = distinctActors(members)
 
     for (const m of members) {
       out.set(m.id, {
@@ -237,7 +245,7 @@ export function computeMergeIndex(
         startNodeId: m.startNodeId,
         endNodeId: m.endNodeId,
         count: m === representative ? members.length : 1,
-        actorId: m === representative ? merged : m.actorId,
+        actorIds: m === representative ? mergedActors : m.actorId === null ? [] : [m.actorId],
       })
     }
   }
