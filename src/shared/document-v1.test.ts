@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { parseDocument, fromDocument, upgradeV1, DOCUMENT_VERSION } from './document'
+import { parseDocument, fromDocument, upgradeV1, upgradeV2, DOCUMENT_VERSION } from './document'
 
 /**
  * THE FROZEN v1 CORPUS.
@@ -393,5 +393,36 @@ describe('upgradeV1', () => {
     const before = { version: 1, nodes: [] }
     upgradeV1(before)
     expect(before).toEqual({ version: 1, nodes: [] })
+  })
+
+  /**
+   * THE UPGRADES COMPOSE, and the obvious assertion cannot see it.
+   *
+   * "the parsed version equals the constant" stays green under an `upgradeV1`
+   * taught to jump straight to the current version -- which is the mistake, and
+   * which leaves two functions both claiming to produce "the latest" and
+   * disagreeing the moment a third arrives. What falsifies the jump is pinning
+   * each step to ITS OWN target, plus one assertion that a v1 document goes
+   * through both.
+   */
+  it('upgradeV2 moves a v2 document to 3 and changes nothing else', () => {
+    expect(upgradeV2({ version: 2, nodes: [{ id: 'a' }], scenes: [] })).toEqual({
+      version: 3,
+      nodes: [{ id: 'a' }],
+      scenes: [],
+    })
+  })
+
+  it('a v1 document reaches 3 THROUGH BOTH STEPS, gaining scenes on the way', () => {
+    const v1 = { version: 1, nodes: [{ id: 'a' }], connections: [] }
+    const v2 = upgradeV1(v1)
+    expect(v2).toMatchObject({ version: 2, scenes: [] })
+    expect(upgradeV2(v2)).toMatchObject({ version: 3, scenes: [] })
+  })
+
+  it('does not mutate its input', () => {
+    const before = { version: 2, nodes: [] }
+    upgradeV2(before)
+    expect(before).toEqual({ version: 2, nodes: [] })
   })
 })

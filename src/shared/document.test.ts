@@ -137,10 +137,13 @@ describe('parseDocument — rejection, each naming its path', () => {
   // HARD-CODED, not built from SUPPORTED_DOCUMENT_VERSIONS: a pin that
   // interpolates the implementation's own expression is not a pin. Changing the
   // separator to ', ' would keep a derived assertion green.
+  // 3 is a VALID version now, so the unknown ones move up. Hard-coded, not
+  // built from SUPPORTED_DOCUMENT_VERSIONS: a pin that interpolates the
+  // implementation's own expression is not a pin.
   it.each([
-    [3, 'document.version: expected 1 or 2, got 3'],
-    [0, 'document.version: expected 1 or 2, got 0'],
-    ['2', 'document.version: expected 1 or 2, got "2"'],
+    [4, 'document.version: expected 1 or 2 or 3, got 4'],
+    [0, 'document.version: expected 1 or 2 or 3, got 0'],
+    ['3', 'document.version: expected 1 or 2 or 3, got "3"'],
   ])('rejects version %p', (version, message) => {
     expect(errorFrom(json({ version, nodes: [] }))).toBe(message)
   })
@@ -151,7 +154,7 @@ describe('parseDocument — rejection, each naming its path', () => {
     // checks in either order -- and the mutation that used to prove this went
     // inert the moment `scenes` became a legal top-level key.
     expect(errorFrom(json({ version: 9, bogus: 1 }))).toBe(
-      'document.version: expected 1 or 2, got 9',
+      'document.version: expected 1 or 2 or 3, got 9',
     )
   })
 

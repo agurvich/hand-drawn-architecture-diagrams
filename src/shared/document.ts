@@ -29,13 +29,13 @@ import { SCENE_ID_PREFIX } from './scenes/sceneType'
  * going through the barrel would be circular.
  */
 
-export const DOCUMENT_VERSION = 2
+export const DOCUMENT_VERSION = 3
 
 /**
  * Every version this build can READ. There is no downgrade: a v1 document is
  * upgraded on the way in and comes back as v2.
  */
-export const SUPPORTED_DOCUMENT_VERSIONS = [1, 2] as const
+export const SUPPORTED_DOCUMENT_VERSIONS = [1, 2, 3] as const
 
 /**
  * Ids are ONE namespace across nodes and connections, because both mint
@@ -205,6 +205,25 @@ export function upgradeV1(document: Record<string, unknown>): Record<string, unk
   return { ...document, version: 2, scenes: [] }
 }
 
+/**
+ * A v2 document, as v3: the same document, with the version moved.
+ *
+ * A NO-OP ON CONTENT, deliberately. v3 adds an optional field, so every v2
+ * document is already a valid v3 one and there is nothing to add. It exists
+ * anyway, for two reasons: a version step with no function is a version step
+ * nobody can find later, and the COMPOSITION below is what a v4 extends.
+ *
+ * The composition is the point. `upgradeV1` still returns a v2 document, and a
+ * v1 document reaches v3 by going through both in order -- rather than
+ * `upgradeV1` being taught to jump straight to the current version, which
+ * leaves two functions both claiming to produce "the latest" and disagreeing the
+ * moment a third is added. Invisible until a v4, which is exactly when it would
+ * be expensive.
+ */
+export function upgradeV2(document: Record<string, unknown>): Record<string, unknown> {
+  return { ...document, version: 3 }
+}
+
 function fail(path: string, reason: string): ParseResult {
   return { ok: false, error: `${path}: ${reason}` }
 }
@@ -280,7 +299,10 @@ export function parseDocument(input: string): ParseResult {
   // A NEW binding, not a reassignment: `raw` is declared `unknown` and narrowed
   // by `isPlainObject` above, and assigning to it would throw that narrowing
   // away.
-  const doc: Record<string, unknown> = raw.version === 1 ? upgradeV1(raw) : raw
+  // COMPOSED, in order. A v1 document goes through both steps and lands at 3.
+  let doc: Record<string, unknown> = raw
+  if (doc.version === 1) doc = upgradeV1(doc)
+  if (doc.version === 2) doc = upgradeV2(doc)
 
   // Optional on input, so a node-only document is valid; both are always present
   // on export. ABSENT, not nullish: `?? []` would coalesce an explicit

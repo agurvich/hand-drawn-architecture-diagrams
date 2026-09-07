@@ -23,15 +23,15 @@ that a whiteboard does not.
 
 ```ts
 interface DiagramDocument {
-  version: 2
+  version: 3
   nodes?: DocumentNode[] // defaults to []
   connections?: DocumentConnection[] // defaults to []
   scenes?: DocumentScene[] // defaults to []
 }
 ```
 
-Version 1 documents — the same thing without `scenes` — still import unchanged. You do not need to
-update anything you wrote before; write `2` for anything new.
+Version 1 and version 2 documents still import unchanged — v1 is this without `scenes`, v2 is this
+without `actorId`. You do not need to update anything you wrote before; write `3` for anything new.
 
 That is the entire document. There is no view state, no layout object, and no other top-level key —
 **an unknown key is an error**, not something ignored.
@@ -159,7 +159,7 @@ collapsed, so the diagram opens as "client → platform → database" and expand
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "nodes": [
     { "id": "client", "label": "Mobile client", "x": 80, "y": 260, "w": 200, "h": 120 },
     {
@@ -196,7 +196,7 @@ A minimal document, for reference:
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "nodes": [
     { "id": "a", "label": "Service A", "x": 100, "y": 100, "w": 200, "h": 120 },
     { "id": "b", "label": "Service B", "x": 500, "y": 100, "w": 200, "h": 120 }
@@ -248,7 +248,7 @@ scenes to lose.
 
 ```json
 {
-  "version": 2,
+  "version": 3,
   "nodes": [
     { "id": "client", "label": "Mobile client", "x": 80, "y": 260, "w": 200, "h": 120 },
     {
