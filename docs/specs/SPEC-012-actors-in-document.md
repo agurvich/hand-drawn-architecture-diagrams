@@ -2,7 +2,7 @@
 
 **ID:** SPEC-012  
 **Status:** Draft  
-**Last Updated:** 2026-09-07  
+**Last Updated:** 2026-09-07 (rev 2 — post-review)  
 **Depends On:** SPEC-009, SPEC-011
 
 ## Overview
@@ -69,13 +69,22 @@ exist in a chat window right now.
       `collapsed` and `highlighted` name real ids, since that is what v2 added
 - [ ] Every v2 corpus file imports, and the **`fromDocument` record set** is asserted. The test lives
       beside the v1 one and shares its structure
-- [ ] **The v1 corpus survives untouched.** It goes red only in the phase that changes
-      `fromDocument`'s return, and no other phase may edit it — the rule SPEC-009 established and the
-      thing that makes a corpus evidence rather than a snapshot
+- [ ] **Both corpora stay GREEN in every phase, and any edit to either `EXPECTED` blob is a
+      defect.** Rev 1 borrowed SPEC-009's "goes red in exactly one phase" rule; it does not apply
+      here, and saying it would send a builder looking for a redness that is not coming — or
+      manufacturing one. `fromDocument`'s return gains no key, and no corpus file carries an
+      `actorId`, so the blobs are byte-identical before and after. Staying green is the stronger
+      claim and the true one
 - [ ] **`upgradeV1` composes with the new upgrade rather than being replaced.** A v1 document must
-      reach v3, and the natural mistake is a `upgradeV1` that jumps straight there, leaving two
+      reach v3, and the natural mistake is an `upgradeV1` that jumps straight there, leaving two
       functions that both claim to produce "the current version" and disagree the next time one is
-      added. Stated because it is invisible until a v4
+      added.
+      **Proven by three assertions, because the obvious one cannot see it:**
+      `document-v1.test.ts:374-378` asserts the parsed version equals the constant, which stays green
+      under a jumping `upgradeV1`. What falsifies it is the existing unit test at `:383-390` pinning
+      `upgradeV1(...)` to `version: 2` — kept — plus its new mirror pinning `upgradeV2(...)` to 3
+      with content unchanged, plus one assertion that a v1 document through **both** lands at 3 with
+      `scenes: []`
 - [ ] A **v1 or v2** document carrying `actorId` is rejected naming the **version**, not the key, by
       an explicit check before the upgrade — the same shape as v2's `scenes` guard, and for the same
       reason: after the reorder the version gate passes and `actorId` is a legal v3 key, so without
@@ -83,6 +92,16 @@ exist in a chat window right now.
 - [ ] The rejection reads `connections[0].actorId: requires version 3`. **Pathed to the connection,
       not to `document.version`** — unlike v2's scenes guard, which is a top-level key. An author who
       wrote it on one of forty connections needs to know which
+- [ ] **The guard is DEFENSIVE about its own input**, because it runs before `connections` has been
+      checked. The upgrade is at `document.ts:283` and `Array.isArray(rawConnections)` is not until
+      `:293`, so a naive loop over `raw.connections` throws `connections is not iterable` on
+      `{"version":1,"connections":5}` — an exception escaping a function whose contract
+      (`document.ts:133`) is "the whole document or a message. Never a partial result". It skips
+      anything that is not an array of objects and lets the existing checks report it, with a test
+      for exactly that input
+- [ ] **The order of the two version guards is pinned.** For a v1 document carrying both `scenes` and
+      a connection `actorId`, one message wins and a test says which. `document.test.ts:148-155`
+      exists because that question was once left implicit
 - [ ] A version this build does not know is rejected with
       `document.version: expected 1 or 2 or 3, got 4`. The wording falls out of the existing
       `join(' or ')`; pinned here because the v2 spec pinned its own and a gap reads as oversight
@@ -108,7 +127,14 @@ reference fields already follow.
 - [ ] **A connection may be attributed to one of its own endpoints**, accepted with a test saying so.
       SPEC-011 accepts it on the canvas and a format that refused it would make a legal room
       unexportable
-- [ ] An unknown key on a connection is still rejected, and `CONNECTION_KEYS` grows by exactly one
+- [ ] **`CONNECTION_KEYS` is SPLIT before `actorId` goes anywhere near it.** That one array is doing
+      two jobs today (`document.ts:363` as an allowlist, `:366-368` as a list of REQUIRED strings),
+      so "grows by exactly one" would make `actorId` mandatory and reject
+      `{"id":"a-b","sourceId":"a","targetId":"b"}` with `connections[0].actorId: must be a string`.
+      Every v1 corpus file, three of the guide's examples and half of `document.test.ts` go red at
+      once. The node loop already has the right shape — `NODE_KEYS` is allowlist-only and each field
+      is checked on its own — and the connection loop follows it
+- [ ] An unknown key on a connection is still rejected, by the allowlist half
 
 ### FR-003: Export and import
 
@@ -122,10 +148,17 @@ because SPEC-011 deliberately keeps an attribution pointing at a node the docume
 
 - [ ] Export emits `actorId` with the `shape:` prefix stripped, as every other reference is
 - [ ] **An attribution naming a node the document does not carry is DROPPED, and the result still
-      validates.** Three cases, each its own test, each fed back through `parseDocument`: an actor
-      parented into a tldraw shape; an actor on a connection whose own endpoints were dropped; and an
-      actor that is a node the export omitted for any reason. Filtered against the exported **node**
-      set, which for once is the right set — an actor is always a node
+      validates.** Filtered against the exported **node** set, which for once is the right set — an
+      actor is always a node. **One real case and two that discriminate**, not the three rev 1 listed:
+      rev 1's second case (a connection whose own endpoints were dropped) is vacuous, because such a
+      connection never reaches the export at all (`document.ts:646-647` skips it), and its third was
+      a restatement of the first. So:
+      an actor **parented into a tldraw shape** (the real drop);
+      an actor **inside a collapsed container**, which must SURVIVE — collapse does not affect
+      documentability, and a filter written against visibility rather than documentability passes
+      the drop case and silently loses this one;
+      and an actor naming a node **deleted after the binding was made**, which
+      `onBeforeDeleteToShape` makes transient but a synced room can still hold
 - [ ] **A MERGED connection exports its own attribution, not the merged one.** SPEC-011's merge rule
       blanks the actor when members disagree, and that is a RENDERING decision about one drawn line.
       The document carries what each connection actually is, or collapsing a container before an
@@ -136,8 +169,18 @@ because SPEC-011 deliberately keeps an attribution pointing at a node the docume
 - [ ] The imported attribution renders — asserted on the label, not on the binding, so this covers
       the whole path rather than the write
 - [ ] A round trip is exact: export, import, export again yields an identical document
-- [ ] Two exports of an unchanged room are identical, attributions included
+- [ ] Two exports of an unchanged room are identical, attributions included — **which requires the
+      tie-break below to be resolved, or this criterion flakes rather than fails**
 - [ ] The imported attributions reach a second client
+- [ ] **WHICH actor binding the document records is decided, not left to array order.** SPEC-011
+      established that two actor bindings on one connection is a reachable state — two clients
+      attributing at once — and that the **smallest binding id** wins, so both draw the same label
+      without coordinating. `BindingDescriptor` carries no `id` (`document.ts:175-180`), so an
+      attribution arriving through it loses the tie-break and export picks whatever
+      `getBindingsFromShape` returned. Concrete failure: the canvas says "Scheduler" and the export
+      says "IAM role". `documentIO.ts` resolves it with `chosenActorBinding` **before** building the
+      descriptor — the same function `actorIdOf` uses, so there is one rule and not two — and a test
+      plants two bindings and pins which id is exported
 
 ### FR-004: The guide stops saying the opposite
 
@@ -151,14 +194,30 @@ write one.
 
 - [ ] That paragraph is **removed**, not amended — its whole subject is a limitation that no longer
       exists
-- [ ] `actorId` leaves the "do not write these" list; the remaining keys stay, and the guard that
-      enforces the list is narrowed rather than deleted, as SPEC-009 did for `scenes`
+- [ ] `actorId` leaves the guide's "do not write these" list (`ai-authoring-guide.md:329`). **There
+      is no guard to narrow** — rev 1 said there was, borrowing SPEC-009's shape, but
+      `guide-examples.test.ts:85`'s list is `edgeSets, metadata, icon, isActor, autoLayout` and
+      `actorId` is not in it. The nearest match is `isActor`, which must STAY. What does need
+      attention is `guide-examples.test.ts:98-101`: it loops over `['sourceHandle', 'actorId']`
+      asserting *presence*, under a comment saying they appear "only in the what-this-tool-does-not-
+      have list, never as a field" — which becomes false on merge, and which the assertion could
+      never have detected either way. `actorId` moves to the documented-fields list at `:91-102` and
+      the stale comment goes
 - [ ] The guide documents `actorId`, says an actor is a node, and says what it is FOR — the thing
       performing a connection is often neither of its ends, which is the whole reason the field
       exists and the part a model will otherwise never use
-- [ ] A worked example carries an attribution, picked up by the existing extraction test
+- [ ] A worked example carries an attribution, and a **new** assertion observes it. The existing
+      extraction tests cannot: a guide with zero `actorId` examples passes all of them. SPEC-009 did
+      not do it this way either — it added a dedicated check that its scenes example was a real
+      walkthrough. The equivalent here: at least one parsed block has a connection whose `actorId` is
+      **neither its `sourceId` nor its `targetId`**, which is also the only form that demonstrates
+      the point — the thing performing a connection is often neither of its ends
 - [ ] **Every fenced block declaring a version declares 3**, over ` ```json ` and ` ```ts ` — the
       existing sweep, which already covers the ` ```ts ` block the JSON extractor skips
+- [ ] **The guide's PROSE version claim is updated too**, and it is not covered by that sweep.
+      `ai-authoring-guide.md:32-33` says "write `2` for anything new" — the sweep is deliberately
+      scoped to fenced blocks so prose stays free to say v1 documents still import, which means this
+      sentence would go on telling models to write 2 with nothing noticing
 
 ---
 
@@ -181,9 +240,20 @@ export interface DocumentConnection {
 /**
  * `ExportableConnection` does NOT grow a field: it mirrors the connection SHAPE,
  * and the attribution is a binding, not a prop. It arrives the way the endpoints
- * do -- through `BindingDescriptor` -- so `toDocument` reads it from the same
- * place it already reads `start` and `end` from.
+ * do -- through the binding list -- so `toDocument` reads it from the same place
+ * it already reads `start` and `end` from.
+ *
+ * But `BindingDescriptor` is SINGLE-VARIANT today: `type` is the endpoint type
+ * and `props: { terminal }` is not optional. Carrying an actor binding through
+ * the same array makes it a discriminated union, which then forces narrowing at
+ * `document.ts:643` -- `own.find((b) => b.props.terminal === want)` does not
+ * typecheck against a variant whose props have no terminal -- and touches
+ * `fromDocument`'s return type. Four call sites. Named here because rev 1 said
+ * "arrives the way the endpoints do" and left the type change implicit.
  */
+export type BindingDescriptor =
+  | { type: typeof CONNECTION_BINDING_TYPE; fromId: string; toId: string; props: { terminal: ConnectionTerminal } }
+  | { type: typeof ACTOR_BINDING_TYPE; fromId: string; toId: string }
 ```
 
 **No new record, no new binding type, no migration.** SPEC-011's `connectionActor` binding already
@@ -210,8 +280,10 @@ export function upgradeV2(document: Record<string, unknown>): Record<string, unk
 ```
 
 `toDocument` reads the attribution from the bindings it is already given — `mergeIndex.ts` is not
-involved, and must not be: it answers what a drawn LINE says, and the document records what each
-connection IS.
+involved, and structurally cannot be: `merge.ts` is a shared module with no store access, and
+`exportDocument` never touches `getMergeIndex`. So the merged-connection rule is the DEFAULT
+outcome rather than a hazard to avoid, and its criterion is a regression pin. It needs an Editor, so
+it lives in `e2e/document-io.spec.ts`.
 
 ## Configuration / Environment
 
@@ -229,12 +301,21 @@ src/
 │   ├── __fixtures__/v2/             # NEW -- literal "version": 2, scenes included
 │   └── guide-examples.test.ts       # the deferred-key guard narrowed again
 └── client/
-    └── documentIO.ts                # export reads the actor binding; import creates it
+    └── documentIO.ts                # export resolves the binding via chosenActorBinding, then
+                                     #   builds the descriptor; import creates it
+e2e/
+├── helpers.ts                       # + attribute/actorLabels, which live in actors.spec.ts today
+└── document-io.spec.ts              # + FR-003, including the merged-connection pin
 docs/
 └── ai-authoring-guide.md            # the actors section; the false paragraph removed
-e2e/
-└── document-io.spec.ts              # + FR-003, and its version literals
 ```
+
+**One assertion in `e2e/document-io.spec.ts` breaks, not eight.** Its `version: 1` and `version: 2`
+literals are mostly *inputs*, which stay valid at v3; the one that moves is the `.toBe(2)` on an
+export's version.
+
+`docs/component-inventory.md` gains a row for the v2 corpus at completion, as SPEC-009 added one for
+the v1 corpus.
 
 ## Implementation Phases
 
@@ -248,9 +329,12 @@ e2e/
 - Both corpora green and untouched — the gate on this phase
 
 ### Phase 3: The field
-- `actorId` on `DocumentConnection`, `CONNECTION_KEYS`, the validation and the two reference errors
+- **Split `CONNECTION_KEYS` first**, allowlist from required-fields, with the suite green before
+  `actorId` is added to either. Doing it in the same step hides which change broke what
+- `actorId` on `DocumentConnection`, the validation and the two reference errors
+- The `BindingDescriptor` union, and `chosenActorBinding` resolving the tie-break in `documentIO.ts`
 - The wrong-version guard, pathed to the connection
-- `toDocument`/`fromDocument`; the v1 and v2 corpora go red here and only here
+- `toDocument`/`fromDocument`; **both corpora stay green** — an edit to either is a defect
 
 ### Phase 4: The room, the guide and proof
 - `documentIO.ts` both directions; the merged-connection rule
