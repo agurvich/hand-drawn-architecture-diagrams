@@ -114,6 +114,10 @@ export const MAX_LINE_BACKTRACK_FRACTION = 0.25
  * A hand does not stop dead on the corner it started at -- it carries past. The
  * corpus's `box-overshot-corner` ends 55 units beyond its own start, and that
  * tail reads as two extra corners unless it is trimmed off.
+ *
+ * Applied at BOTH ends, by `trimBothEnds`. The same overshoot sits at the head
+ * of the same stroke drawn the other way round, and a rule that only ever
+ * removed tails made the verdict depend on which corner the pen started at.
  */
 export const CLOSING_TRAVEL_FRACTION = 0.6
 
@@ -150,6 +154,12 @@ export const HEADING_SAMPLE_FRACTION = 0.15
  * none of them is square and the mean error refuses the box; summed, they are
  * the 90 degrees the person drew. Measured: a 200x120 rectangle with 20px
  * corner radii was refused before this and is accepted after.
+ *
+ * The summing is SIGNED (see `turnAngle`), and this constant is why that
+ * matters: a window this wide catches edge either side of the corner as well as
+ * the corner itself, so on a real stroke it is summing tremor along with the
+ * turn. Signed, the tremor cancels and the corner survives. Unsigned it did not,
+ * and the wider the window or the larger the stroke, the worse it got.
  */
 export const CORNER_MERGE_FRACTION = 0.16
 
@@ -217,11 +227,23 @@ function bounds(points: readonly Point[]): { min: Point; max: Point } {
   return { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } }
 }
 
-/** The angle at `b`, in degrees, of the turn from a->b->c. 0 is straight on. */
+/**
+ * The angle at `b`, in degrees, of the turn from a->b->c. 0 is straight on.
+ *
+ * SIGNED: negative is a left turn, positive a right one. That matters because
+ * `closedCorners` SUMS these across a rounded corner. Summed as magnitudes, a
+ * hand's tremor along an edge adds to the corner instead of cancelling against
+ * the tremor that follows it -- and the bigger the stroke, the more samples
+ * survive simplification inside one merge window, so the more the corner
+ * inflates. Measured on 276 pencil strokes: every rectangle in the corpus had
+ * one corner reading between 118.5 and 284.9 degrees where a right angle was
+ * drawn, and ten of the twelve were refused for it.
+ */
 function turnAngle(a: Point, b: Point, c: Point): number {
-  const angle = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x)
-  const degrees = Math.abs((angle * 180) / Math.PI)
-  return degrees > 180 ? 360 - degrees : degrees
+  let angle = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x)
+  while (angle > Math.PI) angle -= 2 * Math.PI
+  while (angle < -Math.PI) angle += 2 * Math.PI
+  return (angle * 180) / Math.PI
 }
 
 /**
@@ -261,7 +283,10 @@ function closedCorners(path: readonly Point[], diagonal: number): number[] {
   if (merged.length > 1 && distance(turns[0]!.at, turns[turns.length - 1]!.at) <= mergeDistance) {
     merged[0] = merged[0]! + merged.pop()!
   }
-  return merged
+  // Magnitude LAST, once each corner is whole. Taking it per-turn is the defect
+  // described on `turnAngle`; taking it here is what makes a corner the turn a
+  // person drew rather than the distance their hand travelled around it.
+  return merged.map(Math.abs)
 }
 
 /** Shoelace area of a closed polygon, always positive. */
@@ -303,6 +328,28 @@ export function trimOvershoot(points: readonly Point[], closeDistance: number): 
     }
   }
   return points
+}
+
+/**
+ * Trim the overshoot off BOTH ends.
+ *
+ * `trimOvershoot` scans forward, so it only ever removes a tail. That was
+ * invisible while every large hand-drawn rectangle was refused anyway: a stroke
+ * carrying its overshoot at the HEAD -- which is what the same stroke reversed
+ * is -- kept it, and both directions were refused, so the two agreed. The moment
+ * the corner fix accepts them the disagreement becomes a verdict difference,
+ * and three corpus rectangles are `box` forwards and `none` backwards.
+ *
+ * SPEC-010 FR-001 guarantees a verdict is stable under reversal, and
+ * `recognise.test.ts` asserts it per fixture. This is what keeps that true.
+ *
+ * No cap on how much the head trim may remove: measured on the corpus it takes
+ * 6.0% to 19.3% of a rectangle's points, so a cap at 25% is inert and one at 10%
+ * puts the reversal failures straight back.
+ */
+export function trimBothEnds(points: readonly Point[], closeDistance: number): readonly Point[] {
+  const head = [...trimOvershoot([...points].reverse(), closeDistance)].reverse()
+  return trimOvershoot(head, closeDistance)
 }
 
 /**
@@ -360,7 +407,7 @@ export function measure(points: readonly Point[]): Measurement | undefined {
   const height = box.max.y - box.min.y
   const diagonal = Math.hypot(width, height)
   const closeDistance = diagonal * CLOSE_FRACTION
-  const path = simplify(trimOvershoot(points, closeDistance))
+  const path = simplify(trimBothEnds(points, closeDistance))
   const first = path[0]!
   const last = path[path.length - 1]!
   if (distance(first, last) > closeDistance) return undefined
@@ -388,7 +435,7 @@ export function recognise(points: readonly Point[]): Verdict {
 
   const diagonal = Math.hypot(width, height)
   const closeDistance = diagonal * CLOSE_FRACTION
-  const trimmed = trimOvershoot(points, closeDistance)
+  const trimmed = trimBothEnds(points, closeDistance)
   const path = simplify(trimmed)
   const first = path[0]!
   const last = path[path.length - 1]!

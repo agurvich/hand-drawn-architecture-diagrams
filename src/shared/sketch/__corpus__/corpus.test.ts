@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, extname, resolve } from 'node:path'
-import { recognise, measure, trimOvershoot, CLOSE_FRACTION, type Point } from '../recognise'
+import {
+  recognise,
+  measure,
+  trimOvershoot,
+  CLOSE_FRACTION,
+  MAX_MEAN_CORNER_ERROR,
+  type Point,
+} from '../recognise'
 import { loadCorpus, CORPUS_FILE } from './loadCorpus'
 import { RECTANGLES } from './labels'
 
@@ -126,7 +133,7 @@ describe('the recorded corpus', () => {
   it('classifies every stroke, and the tally is exactly this', () => {
     const tally = { box: 0, line: 0, none: 0 }
     for (const stroke of loadCorpus()) tally[recognise(stroke.points).kind]++
-    expect(tally).toEqual({ box: 1, line: 82, none: 193 })
+    expect(tally).toEqual({ box: 6, line: 82, none: 188 })
   })
 
   it('emits the report the tuning numbers are read off', () => {
@@ -147,8 +154,45 @@ describe('the recorded corpus', () => {
       .filter((s) => recognise(s.points).kind === 'box')
       .map((s) => s.index)
     // The SET, not the count: a different twelve would satisfy a count.
-    expect(found).toEqual([67])
+    // Six of the twelve, once corners are summed with sign. The other six are
+    // refused by MIN_BOX_FILL, which FR-002 moves.
+    expect(found).toEqual([0, 18, 67, 78, 162, 174])
+    expect(found.every((i) => (RECTANGLES as readonly number[]).includes(i))).toBe(true)
     expect(RECTANGLES).toHaveLength(12)
+  })
+})
+
+describe('the corners of a hand-drawn rectangle', () => {
+  const strokes = loadCorpus()
+
+  it('every rectangle has exactly four of them', () => {
+    for (const index of RECTANGLES) {
+      const m = measure(strokes[index]!.points)
+      expect(m, `corpus#${index} is not closed`).toBeDefined()
+      expect(m!.corners, `corpus#${index}`).toBe(4)
+    }
+  })
+
+  it('and every one is square, by the bar the classifier already used', () => {
+    // The count was never the problem: it is 4 on the current code too. What
+    // was wrong is the ANGLE, inflated by summing tremor as magnitude. Measured
+    // before the fix: 16.2 to 81.3 degrees away from square, ten of the twelve
+    // over the 22 the classifier allows.
+    for (const index of RECTANGLES) {
+      expect(measure(strokes[index]!.points)!.meanCornerError, `corpus#${index}`).toBeLessThan(
+        MAX_MEAN_CORNER_ERROR,
+      )
+    }
+  })
+
+  it('and measures the same square whichever way the stroke was drawn', () => {
+    // SPEC-010 FR-001's stability guarantee, at the level of the number rather
+    // than the verdict: a rectangle drawn backwards is the same rectangle.
+    for (const index of RECTANGLES) {
+      const forward = measure(strokes[index]!.points)!.meanCornerError
+      const backward = measure([...strokes[index]!.points].reverse())!.meanCornerError
+      expect(Math.abs(forward - backward), `corpus#${index}`).toBeLessThanOrEqual(10)
+    }
   })
 })
 
