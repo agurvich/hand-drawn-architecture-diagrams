@@ -48,16 +48,33 @@ It is not that he draws badly. His "AWS Account #1" container is a *single* stro
 left side, along the bottom, up the right, back across the top, and closes within **2.4% of its own
 diagonal**. It was rejected anyway.
 
-**The mechanism.** Every tolerance in `src/shared/sketch/recognise.ts` is an absolute page-unit
+**SUPERSEDED by SPEC-017, 2026-09-08.** The mechanism below is wrong, and it was wrong in a way
+that would have sent the next session after the wrong constant. It is left in place because the
+observation it rests on is real and the correction is only legible beside it.
+
+**What the mechanism actually is.** `turnAngle` returns a *magnitude*, and `closedCorners` sums
+those magnitudes across a rounded corner — so tremor along an edge adds to the corner instead of
+cancelling against the tremor after it. Every one of his rectangles reads one corner between 118.5°
+and 284.9° where he drew 90°. All twelve are closed and all twelve have exactly **four** corners:
+the count was never wrong. Ten are refused for not being *square enough*, one on fill, and one is
+the box he undid. Summed with sign, all twelve sit 3.2°–16.3° from square.
+
+**~~The mechanism.~~** Every tolerance in `src/shared/sketch/recognise.ts` is an absolute page-unit
 constant. His strokes span **107 to 7,625 page units** — a 70× range, because he zoomed in and out
 while drawing. `SIMPLIFY_EPSILON = 8` is a reasonable 7% of a small box and **0.1%** of his account
 container, so on the large one every tremor in his hand survives simplification as a corner: 61 of
 his 170 box-sized strokes reduce to nine or more corners, and "is this four-cornered?" answers no.
 
-The classifier is therefore **scale-dependent**: it works at roughly the zoom its fixtures were
-captured at and is a lottery everywhere else. Every fixture in `src/shared/sketch/__fixtures__/strokes/`
-was drawn by the previous agent **with a mouse**, which is exactly how a recogniser ends up only
-accepting perfect squares.
+That last sentence is the false step. Those 170 "box-sized" strokes are overwhelmingly *handwriting*
+— only twelve strokes in the whole corpus are rectangles — and none of the twelve ever failed the
+corner count. Scale is real, and it *amplifies* the defect above (a larger stroke keeps more sample
+points inside one corner-merge window, so more tremor accumulates), which is why normalisation moved
+the score at all. It is an amplifier, not the cause: all twelve are recovered without touching
+`SIMPLIFY_EPSILON`, and normalising on top of the real fix **adds** 3–6 false positives.
+
+Every fixture in `src/shared/sketch/__fixtures__/strokes/` was drawn by the previous agent **with a
+mouse**, which is exactly how a recogniser ends up only accepting perfect squares. That part was
+right, and SPEC-017 FR-003 fixes it.
 
 **What is NOT yet known.** Normalising each stroke to a common size before classifying — the obvious
 fix — takes it from 1 box to **8**. Better, nowhere near enough. There is at least one more defect
@@ -145,7 +162,7 @@ Each becomes a spec through the normal process. The ordering is a recommendation
 | # | Spec | Why here |
 | --- | --- | --- |
 | 1 | **Selection properties panel** (F2) — `SPEC-016` | Makes every feature built in SPEC-011–015 reachable. Nothing else is worth building while the existing work is invisible. Absorbs `IconPicker` and `ActorControl` rather than adding a ninth floating box (F7). |
-| 2 | **Recognition that works at any scale** (F1) | Unblocks the core loop. Must be written against `docs/corpus/`, and must add a real-pencil fixture path — the capture harness currently produces mouse strokes. |
+| 2 | **Recognition that works on a real hand** (F1) — `SPEC-017` | Unblocks the core loop. Written against `docs/corpus/`, and adds the real-pencil fixture path. Titled "at any scale" here originally; scale turned out to be the amplifier, not the cause — see F1. |
 | 3 | **Edge kinds / edge sets** (§1) | He named the model and reached for colour on his own. Note `CLAUDE.md` → *Out of Scope* currently defers edge sets "pending real use" — **real use has now happened**, so that fence should be lifted in `decisions.md` as part of this spec, not silently ignored. |
 | 4 | **Node as header + body** (F4) | Small, and it is what makes nesting legible. |
 | 5 | **One drawing path** (F3) | Connections from the marker; prune the toolbar to what the loop needs; stop native arrows masquerading as connections. Partly falls out of 2. |
@@ -180,8 +197,13 @@ register entry when it is written.
 ## 5. Things a fresh agent should not redo
 
 - The corpus exists (`docs/corpus/`); do not ask him to redraw.
-- The recogniser's failure is measured, not suspected: 276 strokes, 1 box, and the mechanism in F1.
-- Scale-normalisation alone was tried: 1 → 8 boxes. Not sufficient.
+- The recogniser's failure is measured, not suspected: 276 strokes, 1 box. **The mechanism first
+  recorded in F1 was wrong** — see the superseded marker there, and `SPEC-017`.
+- Scale-normalisation alone was tried: 1 → 8 boxes. Not sufficient. Still true, and now also known
+  to be actively harmful once the real fix is in: it adds false positives.
+- Only **twelve** of the 276 strokes are rectangles; the rest are handwriting, connectors and marks
+  that are correctly not boxes. Scoring the classifier out of 276 is what made the failure look like
+  a different failure.
 - The Safari 16 fix is understood and deliberately not applied.
 - `feat/spec-008-narration-panel` was reset to `origin/main` at one point and then restored to
   `2a90eb0`; it is a merged, dead branch either way.

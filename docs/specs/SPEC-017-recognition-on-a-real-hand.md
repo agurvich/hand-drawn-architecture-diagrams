@@ -316,16 +316,19 @@ loadCorpus(): CorpusStroke[]   // decodes the room snapshot; no network, no edit
 // re-narrow them, which is half the policy restated at the call site. A type
 // predicate cannot do it either: a predicate narrows one parameter, and this
 // decision is about two.
-type Connection =
-  | { connect: true; fromId: string; toId: string }
+// Generic over the id, so tldraw's branded TLShapeId survives the round trip;
+// widening to `string` pushes a cast back to the call site, which is the same
+// leak in a different shape.
+type ConnectionDecision<Id extends string> =
+  | { connect: true; fromId: Id; toId: Id }
   | { connect: false }
 
-shouldConnect(
+shouldConnect<Id extends string>(
   verdict: Verdict,
   purposeful: boolean,
-  fromId: string | undefined,
-  toId: string | undefined,
-): Connection
+  fromId: Id | undefined,
+  toId: Id | undefined,
+): ConnectionDecision<Id>
 ```
 
 ## Configuration / Environment
