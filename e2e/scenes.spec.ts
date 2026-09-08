@@ -1178,6 +1178,49 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     expect(overlaps).toEqual([])
   })
 
+  /*
+   * KNOWN DEFECT, RECORDED ON PURPOSE -- finding F5. This test asserts the bug
+   * EXISTS. Read the assertion before you "fix" it.
+   *
+   * In portrait the Scenes bar covers tldraw's quick actions -- undo, redo,
+   * delete and duplicate -- so on the device this tool is FOR, you cannot undo.
+   * The test above does not catch it, and adding a portrait viewport does not
+   * either: its list names `.tlui-toolbar`, which is not the bottom bar. At
+   * 820px that selector resolves to a row INSIDE the style panel; at 1024px to
+   * the top menu row. The element that actually covers the quick actions is
+   * `.tlui-main-toolbar__extras__controls`, which no overlap test named until
+   * this one. Not `.tlui-main-toolbar` itself -- that is x 0-820 and
+   * `pointer-events: none`, so matching it would make this test pass against a
+   * container rather than against the buttons.
+   *
+   * Left unfixed here on purpose: moving the bar is the iPad-chrome spec's job,
+   * and it belongs with the wider consolidation (F7) rather than being nudged
+   * twice. But a portrait project that goes green while F5 is live reads as
+   * proof of the opposite, so the defect is pinned here instead of left
+   * invisible. WHEN THE CHROME SPEC FIXES IT, THIS TEST GOES RED -- invert it to
+   * `toBe(false)`, move it up beside the test above, and delete this comment.
+   */
+  test('KNOWN DEFECT F5: in portrait the Scenes bar covers tldraw quick actions', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'ipad-portrait', 'F5 is a portrait-only overlap')
+    await openRoom(page, roomId('sa11b'))
+    const covered = await page.evaluate(() => {
+      const bar = document.querySelector('.narration')!.getBoundingClientRect()
+      const box = document
+        .querySelector('.tlui-main-toolbar__extras__controls')
+        ?.getBoundingClientRect()
+      if (!box || box.width === 0) return null
+      return !(
+        bar.right <= box.left ||
+        bar.left >= box.right ||
+        bar.bottom <= box.top ||
+        bar.top >= box.bottom
+      )
+    })
+    expect(covered, 'F5 is fixed — invert this test, see the comment above').toBe(true)
+  })
+
   test('every control is at least 44x44', async ({ page }) => {
     await openRoom(page, roomId('sa12'))
     await page.getByTestId('narration-open').click()

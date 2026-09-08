@@ -144,7 +144,10 @@ test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
   const withContent = async (page: Page) => {
     // Placed LEFT on purpose: SPEC-016 docks a properties panel over the right
     // of the canvas whenever one shape is selected, and `dragCorner` selects.
-    // A bottom-right corner past x 420 is pressed on the dock, not the handle.
+    // The dock starts at x 500 in portrait and x 704 in landscape, so a
+    // bottom-right corner past 500 is pressed on the panel, not the handle.
+    // 420 is the choice, not the threshold -- it leaves 80px of margin so a
+    // later change to the dock's width cannot silently re-break this.
     const node = await addNode(page, 'Box', { x: 20, y: 200, w: 400, h: 300 })
     const content = await addTldrawShape(page, 'geo', { x: 350, y: 300 })
     expect(await parentOf(page, content)).toBe(node)

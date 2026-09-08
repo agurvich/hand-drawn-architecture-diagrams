@@ -67,7 +67,7 @@ test.describe('SPEC-004 FR-001/FR-002 — containment', () => {
       window.__editor!.setCamera({ x: 0, y: 0, z: 1 })
     })
     const container = await addNode(page, 'Container', { x: 80, y: 80, w: 380, h: 260 })
-    const loose = await addNode(page, 'Loose', { x: 560, y: 420, w: 140, h: 90 })
+    const loose = await addNode(page, 'Loose', { x: 260, y: 420, w: 140, h: 90 })
 
     const centre = async (id: string) =>
       page.evaluate((sid) => {
@@ -76,6 +76,12 @@ test.describe('SPEC-004 FR-001/FR-002 — containment', () => {
         return { x: p.x, y: p.y }
       }, id)
 
+    // `loose` is placed left (above) so this press clears the band SPEC-016's
+    // dock occupies in portrait. It would otherwise be safe only by accident --
+    // nothing is selected yet, because `addNode` goes through `createShape`,
+    // which does not select -- and that is the kind of safety that breaks
+    // silently the day anything selects first: the press lands on the panel,
+    // the drag does nothing, and the poll below times out with no hint why.
     const from = await centre(loose)
     await page.mouse.move(from.x, from.y)
     await page.mouse.down()
