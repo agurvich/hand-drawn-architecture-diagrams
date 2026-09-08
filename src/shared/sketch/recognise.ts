@@ -60,38 +60,65 @@ export const CLOSE_FRACTION = 0.28
 /**
  * How far a simplified corner count may stray from four and still be a box.
  *
- * One, not two. At two a triangle (3) and a pentagon-ish scribble (6) both pass
- * the count, and the corpus's `refuse-triangle` is exactly that miss.
+ * One, not two. Re-derived at the current MIN_BOX_FILL: at two, `refuse-l-shape`
+ * -- six corners, every one of them square -- becomes a box. The old note here
+ * credited this with `refuse-triangle`, which signed corner sums now refuse on
+ * squareness instead; the claim was true when written and stopped being true
+ * without anything failing.
  */
 export const CORNER_TOLERANCE = 1
 
 /**
  * How square a box's corners must be, on average, in degrees away from 90.
  *
- * What this actually refuses, measured by relaxing it one constant at a time:
- * `refuse-spiral` and `refuse-triangle`. (An earlier comment here credited it
- * with `refuse-bad-box`, which is in fact refused on its corner COUNT -- the
- * sort of claim that is only ever checked by relaxing the number and seeing
- * what moves.)
+ * ITS JOB MOVED when corners started being summed with sign. It used to refuse
+ * `refuse-spiral` and `refuse-triangle`; relaxing it to 40 now changes NOTHING
+ * in the 24-fixture suite, because those two are refused on their corner count
+ * once tremor stops inflating their angles. Re-derived against the 276-stroke
+ * corpus, where it does still bite: relaxing it to 40 admits strokes 17, 199 and
+ * 248 -- three rounded letters -- as nodes.
+ *
+ * So this is now the test that separates a rectangle from a hand-drawn 'O', and
+ * the fixture suite cannot show that. The corpus is the only evidence for this
+ * number; `__corpus__/corpus.test.ts` is what holds it.
  */
 export const MAX_MEAN_CORNER_ERROR = 22
 
 /**
  * How much of its own bounding box a closed stroke must fill to be a rectangle.
  *
- * This is the test that knows a rectangle from any other quadrilateral-ish
- * closed shape, and the corner count and squareness tests cannot do it: a
- * regular PENTAGON turns 72 degrees at each corner, which is 18 away from
- * square and inside MAX_MEAN_CORNER_ERROR, and CORNER_TOLERANCE admits five
- * corners because real hand-drawn boxes sometimes simplify to five. So a
- * pentagon -- a house, an arrow head, a cloud outline -- passed every other
- * test and became a node.
+ * The pentagon guard. A regular PENTAGON turns 72 degrees at each corner, which
+ * is 18 away from square and inside MAX_MEAN_CORNER_ERROR, and CORNER_TOLERANCE
+ * admits five corners because real hand-drawn boxes sometimes simplify to five.
+ * So a pentagon -- a house, an arrow head, a cloud outline -- clears every other
+ * test, and only this one stops it becoming a node.
  *
- * A rectangle fills its bounding box completely; a pentagon fills about 0.73 of
- * it, a triangle about 0.5. 0.82 leaves room for a hand-drawn box with bowed
- * edges and rounded corners without admitting a shape that is a different shape.
+ * WAS 0.82, WHICH WAS CALIBRATED ON MOUSE STROKES. A mouse-drawn rectangle fills
+ * its box; a pencil one bows, and fills less. At 0.82 half the rectangles in
+ * `docs/corpus/` were refused as "closed and square-ish, but not a rectangle" --
+ * the threshold sat inside the range of what it was supposed to accept.
+ *
+ * THE MARGINS, and both are thin (re-derive them from `__corpus__/corpus.test.ts`):
+ *
+ *   0.7144  the lowest fill any corpus rectangle reaches in any orientation the
+ *           suite checks -- stroke 55, started from its own midpoint. Above us
+ *           by 0.0144.
+ *   0.6838  `refuse-pentagon`, the highest stroke this test refuses. Below us by
+ *           0.0162.
+ *
+ * Quote a margin against the stroke AS DRAWN and it looks comfortable: stroke 55
+ * forwards measures 0.7854, which makes 0.72 look safe and it is not. Fill is
+ * rotation-sensitive at about +/-0.05, because rotating a loop moves where
+ * overshoot trimming cuts it -- so the 0.031-wide band between the pentagon and
+ * the worst-case rectangle is NARROWER THAN THIS MEASUREMENT'S OWN NOISE. The
+ * margin is thin by nature, not by choice, and the durable repair is a
+ * rectangle test that is not area-fill at all.
+ *
+ * Below about 0.75 this is no longer what separates a rectangle from a rounded
+ * letter; MAX_MEAN_CORNER_ERROR is (see its own note). Fill's remaining job is
+ * the pentagon.
  */
-export const MIN_BOX_FILL = 0.82
+export const MIN_BOX_FILL = 0.7
 
 /**
  * How straight a line must be: the greatest distance any point strays from the

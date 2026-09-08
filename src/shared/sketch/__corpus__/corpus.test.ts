@@ -133,7 +133,7 @@ describe('the recorded corpus', () => {
   it('classifies every stroke, and the tally is exactly this', () => {
     const tally = { box: 0, line: 0, none: 0 }
     for (const stroke of loadCorpus()) tally[recognise(stroke.points).kind]++
-    expect(tally).toEqual({ box: 6, line: 82, none: 188 })
+    expect(tally).toEqual({ box: 12, line: 82, none: 182 })
   })
 
   it('emits the report the tuning numbers are read off', () => {
@@ -154,11 +154,10 @@ describe('the recorded corpus', () => {
       .filter((s) => recognise(s.points).kind === 'box')
       .map((s) => s.index)
     // The SET, not the count: a different twelve would satisfy a count.
-    // Six of the twelve, once corners are summed with sign. The other six are
-    // refused by MIN_BOX_FILL, which FR-002 moves.
-    expect(found).toEqual([0, 18, 67, 78, 162, 174])
-    expect(found.every((i) => (RECTANGLES as readonly number[]).includes(i))).toBe(true)
-    expect(RECTANGLES).toHaveLength(12)
+    // The SET, not the count. A different twelve would satisfy a count, and
+    // "twelve boxes" is exactly what a recogniser that had started eating
+    // handwriting would also report.
+    expect(found).toEqual([...RECTANGLES])
   })
 })
 
@@ -182,6 +181,25 @@ describe('the corners of a hand-drawn rectangle', () => {
       expect(measure(strokes[index]!.points)!.meanCornerError, `corpus#${index}`).toBeLessThan(
         MAX_MEAN_CORNER_ERROR,
       )
+    }
+  })
+
+  it('is a box from every direction and every starting corner', () => {
+    /*
+     * SPEC-010 FR-001: a verdict is stable under reversal and rotation. This is
+     * that guarantee against real pencil strokes rather than mouse-drawn ones,
+     * and it is the ONLY thing in the suite that pins `trimBothEnds` -- the
+     * whole-corpus tally above is identical with overshoot trimmed forward-only,
+     * and so are the 24 fixtures.
+     *
+     * Both ways it can fail were live during this spec: forward-only trimming
+     * loses 84, 98 and 162 reversed, and a head trim capped short enough to eat
+     * an edge loses 55 rotated.
+     */
+    for (const index of RECTANGLES) {
+      for (const [i, o] of orientations(strokes[index]!.points).entries()) {
+        expect(recognise(o).kind, `corpus#${index} orientation ${i}`).toBe('box')
+      }
     }
   })
 
