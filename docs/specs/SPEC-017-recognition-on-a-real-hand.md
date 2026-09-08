@@ -15,11 +15,12 @@ behaviour to the strokes that hand actually drew.
 The failure has a cause, and it is not the one `docs/handoff/2026-09-08-ipad-findings.md` recorded.
 A corner is measured by summing the turn angles across a rounded corner, and those angles are summed
 as **magnitudes**, so a hand's tremor along an edge adds to the corner instead of cancelling against
-the tremor that follows it. Each of his rectangles has one corner reading between 119° and 285°
-where he drew 90°. Every one of them is closed, and every one has exactly four corners; eleven of
+the tremor that follows it. Each of his rectangles has one corner reading between 118.5° and 284.9°
+where he drew 90°. Every one of them is closed, and every one has exactly four corners. **Ten** of
 the twelve are refused for not being *square enough*, by a test that is measuring his shakiness
-rather than his corners. (The twelfth, stroke 54, clears squareness and is refused one test later,
-on fill.) Summing the same turns **with sign** puts all twelve between 3° and 17° of square.
+rather than his corners; stroke 54 clears squareness and is refused one test later on fill; and
+stroke 67 is the single box the whole session produced. Summing the same turns **with sign** puts
+all twelve between 3.2° and 16.3° of square.
 
 ## Scope
 
@@ -84,15 +85,18 @@ satisfying them is allowed.
 
 - [ ] Each of the twelve corpus rectangles listed in *Data Model* reports exactly four corners.
 - [ ] Each of the twelve has a mean corner error under `MAX_MEAN_CORNER_ERROR`. Measured today at
-      16.2°–81.3°, so eleven of the twelve fail this on the current code; measured 3.2°–16.3° after
+      16.2°–81.3°, so ten of the twelve fail this on the current code; measured 3.2°–16.3° after
       the change.
-- [ ] Every one of the twelve gets the **same verdict** traversed forwards and traversed backwards.
-      Three of them (84, 98, 162) do not, once corners are summed with sign and overshoot is trimmed
-      forward-only — so this criterion fails on the naive fix as well as on the current code.
+- [ ] Every one of the twelve is `box` in **all five orientations** the existing suite checks a
+      rectangle in: as drawn, reversed, and started from three other points on its own perimeter.
+      Three of them (84, 98, 162) fail *reversed* once corners are summed with sign and overshoot is
+      still trimmed forward-only, and stroke 55 fails one *rotation* if the head trim is allowed to
+      cut an edge — so this criterion fails on the current code and on two plausible fixes.
 - [ ] The mean corner error of each of the twelve differs by no more than 10° between the two
       traversal directions. Measured worst case 7.6°.
 - [ ] No stroke in `src/shared/sketch/__fixtures__/strokes/` changes its verdict, and
-      `recognise.test.ts`'s existing reversal and rotation stability tests stay green.
+      `recognise.test.ts`'s existing reversal and rotation stability tests stay green — including
+      once FR-003 adds the pencil rectangles to the population they run over.
 
 ### FR-002: A hand-drawn rectangle is accepted at the sizes a hand draws
 
@@ -104,28 +108,30 @@ lowest of the twelve encloses 0.7552 of its box. The threshold sits at 0.82 — 
 refusing half of them. It was calibrated on mouse-drawn fixtures, which do not bow.
 
 The threshold's other job is refusing a pentagon, and it must keep doing it: `refuse-pentagon`
-measures 0.6838. So the admissible band is **(0.6838, 0.7552]**, and what this FR forbids is a value
-picked at either edge of it.
+measures 0.6838.
 
-The band's honest reading is narrower than it looks, and the implementer must record why. Nine
-strokes sit **above** any threshold in that band and are refused by other tests, not by fill — the
-nearest being corpus stroke 248 at 0.7538, an 'O' refused on squareness, and `refuse-l-shape` and
-`refuse-bad-box` at 0.744 and 0.743, both refused on corner count. Below roughly 0.75 the fill test
-is no longer what separates a rectangle from a circle; `MAX_MEAN_CORNER_ERROR` and
-`CORNER_TOLERANCE` are. A margin quoted in fill units alone will read comfortable while that is
-true.
+**The margin must be measured across all five orientations, not on the stroke as drawn.** Fill is
+rotation-sensitive at the ±0.05 level, because rotating a loop changes where overshoot trimming cuts
+it. Stroke 54 as drawn measures 0.7552, which makes 0.72 look comfortable; stroke 55 started from
+its own midpoint measures **0.7144**, which makes 0.72 wrong. So the admissible band is
+**(0.6838, 0.7144]** — 0.031 wide, narrower than fill's own rotational noise. A threshold quoted
+against the forward stroke alone will read comfortable while being false.
+
+Below roughly 0.75 the fill test is no longer what separates a rectangle from a rounded 'O';
+`MAX_MEAN_CORNER_ERROR` and `CORNER_TOLERANCE` are. Fill's remaining job is the pentagon.
 
 #### Acceptance Criteria:
 
 - [ ] All twelve corpus rectangles are `box`.
 - [ ] None of the other 264 corpus strokes is `box`.
 - [ ] No stroke in `src/shared/sketch/__fixtures__/strokes/` changes its verdict.
-- [ ] The chosen threshold is at least 0.02 in fill units below the lowest **accepted** rectangle and
-      at least 0.02 above the highest stroke **refused by the fill test itself**. Both numbers are
-      recorded in the comment beside the constant.
-- [ ] That comment also names the strokes sitting above the threshold that are refused by a
-      *different* test, and which test refuses each — so the next person to loosen a corner
-      constant can see what it was holding.
+- [ ] The chosen threshold is at least 0.01 in fill units below the **lowest fill any of the twelve
+      reaches in any of the five orientations**, and at least 0.01 above the highest stroke refused
+      by the fill test itself. Both numbers, and the orientation the low one came from, are recorded
+      in the comment beside the constant. Measured: 0.7144 (stroke 55, rotated to its own midpoint)
+      and 0.6838 (`refuse-pentagon`), which a threshold of 0.70 clears by 0.0144 and 0.0162.
+- [ ] That comment states that the band is narrower than fill's rotational noise, so the next person
+      to move it knows the margin is thin by nature and not by choice.
 
 ### FR-003: The fixture corpus contains strokes drawn by a pencil
 
@@ -145,10 +151,19 @@ check them against the drawing instead of trusting this spec.
 - [ ] Every extracted fixture carries a `via` identifying it as pencil-drawn, and the existing
       assertion that every fixture is `cdp-pen` (`recognise.test.ts`, the `via` expectation) is
       widened rather than deleted.
+- [ ] Fixture names keep the prefixes the existing suite selects on: the rectangles are named
+      `box-…`, so `recognise.test.ts`'s rotation-stability suite — which filters on that prefix —
+      runs over them. Naming them anything else would silently exempt real pencil rectangles from a
+      SPEC-010 guarantee, which FR-001 forbids.
 - [ ] Extracted fixtures cover all three verdicts: the rectangles, at least three strokes that must
       be `line`, and at least six handwritten strokes that must be `none`.
 - [ ] The extractor is re-runnable and rewrites the same files byte-for-byte from an unchanged
-      corpus.
+      corpus, and its output passes `prettier --check` unchanged.
+- [ ] Points are rounded to the precision the existing fixtures use, and the verdict check runs on
+      the **rounded** points, so a fixture always describes the stroke actually written to the file.
+- [ ] Each fixture's `why` is authored, not generated — `recognise.test.ts` requires a real
+      sentence — and the extractor refuses an index that has no note rather than emitting a
+      placeholder.
 - [ ] Running the extractor with a label that does not match the recogniser's verdict fails loudly
       rather than writing a fixture asserting the wrong thing.
 
@@ -169,9 +184,14 @@ context.
 - [ ] A test classifies all 276 corpus strokes and asserts the exact count of each verdict.
 - [ ] The test fails when a rectangle stops being recognised, and fails when a stroke that is not one
       of the twelve becomes a `box`.
-- [ ] The asserted numbers are recorded with the commit they were measured at.
-- [ ] The report prints the per-refusal-reason breakdown and the per-stroke fill of every stroke that
-      reaches the fill test, so FR-002's margins are re-derivable from its output.
+- [ ] The asserted numbers name the commit they were measured **against** — the parent of the commit
+      that records them, since a commit cannot name its own sha — and say that `git log -p` on the
+      file is the durable history.
+- [ ] The report emits the per-refusal-reason breakdown and the per-stroke fill of every stroke that
+      reaches the fill test, so FR-002's margins are re-derivable from its output. Vitest's default
+      reporter swallows `console.log` from a passing test, so the report writes to stdout directly
+      or to a file; a `console.log` that only appears under `--reporter=verbose` does not satisfy
+      this.
 - [ ] The report runs in the normal `npm test` run and needs no network, no browser and no fixtures
       outside the repo.
 
@@ -203,9 +223,15 @@ is a criterion this spec makes true, not one it inherits.
       three fails rather than passing on the count.
 - [ ] The replay calls the **same** policy function the runtime calls, not a copy of it. No unit
       test in this repo drives a live tldraw `Editor` (`App.test.tsx` states why), so extracting
-      that policy out of `convertStroke` into a pure, editor-free function — verdict, purposefulness
-      and two resolved node ids in, a decision out — is in scope, and `convertStroke` must then call
-      it rather than restating it.
+      that policy out of `convertStroke` into a pure, editor-free function is in scope, and
+      `convertStroke` must then call it rather than restating it. Its node parameters are
+      `string | undefined`: "no node under that end" is the common case and the main reason the
+      override does not fire, and a signature that cannot express it pushes half the policy back to
+      the call site.
+- [ ] Resolving *which* node is under a point stays outside that function. The replay supplies node
+      rectangles directly and stands in for `getShapeAtPoint({ hitInside: true })` with innermost
+      containment; the test says so in a comment, because that part is a stand-in and the e2e from
+      SPEC-010 is what covers the real hit test.
 
 ---
 
@@ -258,11 +284,29 @@ returns.
 // src/shared/sketch/recognise.ts — unchanged signature
 recognise(points: readonly Point[]): Verdict
 
+// ...plus ONE new export. FR-001 and FR-002 are stated in corner counts, mean
+// corner error and fill, none of which `Verdict` carries and all of which are
+// computed inside `recognise` from private helpers. A report that recomputed
+// them would be a copy that drifts from the thing it claims to measure, so
+// `recognise` and this share one implementation.
+measure(points: readonly Point[]): Measurement | undefined // undefined if not closed
+
+interface Measurement {
+  corners: number
+  meanCornerError: number
+  fill: number // undefined-ish cases excluded: only set once the fill test is reached
+}
+
 // src/shared/sketch/__corpus__/loadCorpus.ts — new, test-only
 loadCorpus(): CorpusStroke[]   // decodes the room snapshot; no network, no editor
 
 // src/client/sketch/convertPolicy.ts — new, extracted from convertStroke (FR-005)
-shouldConnect(verdict: Verdict, purposeful: boolean, fromId: string, toId: string): boolean
+shouldConnect(
+  verdict: Verdict,
+  purposeful: boolean,
+  fromId: string | undefined,
+  toId: string | undefined,
+): boolean
 ```
 
 ## Configuration / Environment
@@ -272,9 +316,19 @@ extractor needs to be invoked deliberately.
 
 ## File & Folder Structure
 
-`__corpus__` is **test-only**, exactly as `__fixtures__` is: it reads from `docs/` with `node:fs`
-and must never be imported by `src/client` or `src/worker`, which would break CLAUDE.md's
-runtime-agnostic rule for `src/shared`. A test asserts that no file outside `__corpus__` imports it.
+`__corpus__` is **test-only**: it reads from `docs/` with `node:fs`, and CLAUDE.md's
+runtime-agnostic rule for `src/shared` is about code that ships to the client and the worker.
+`src/shared/shapes/shared-imports.test.ts` enforces that rule today with a hardcoded exemption for
+`src/shared/shapes/__fixtures__`, so **it must be widened in the same commit that adds
+`__corpus__`** or Phase 1 lands red. The guard this spec adds is the narrower one: no file that
+ships — anything that is not a test and not the extractor — may import `__corpus__`. FR-005's
+replay is a test and imports it legitimately.
+
+The extractor is a deliberately-run **vitest** tool rather than a `scripts/*.ts` file, following
+`playwright.capture.ts`'s precedent for a harness that is not part of the normal run. A bare `.ts`
+under `scripts/` is covered by no tsconfig here and is `.prettierignore`d, so a type error in it is
+invisible to every gate; it also would not run at all on Node 22.12–22.17, which `package.json`
+admits, since unflagged type stripping arrives in 22.18.
 
 ```
 src/shared/sketch/
@@ -282,17 +336,18 @@ src/shared/sketch/
 ├── recognise.test.ts               # unchanged loader; picks up the new fixtures
 ├── __corpus__/                     # new, test-only
 │   ├── loadCorpus.ts               # decode the room snapshot
-│   ├── labels.ts                   # RECTANGLES, ARROWS
-│   └── corpus.test.ts              # FR-004 the scored population
-└── __fixtures__/strokes/           # FR-003 adds ipad-pencil strokes here
+│   ├── labels.ts                   # RECTANGLES, ARROWS, and each fixture's `why`
+│   ├── corpus.test.ts              # FR-004 the scored population
+│   └── extract.tool.test.ts        # FR-003, run deliberately, excluded from the normal run
+└── __fixtures__/strokes/           # FR-003 adds box-/line-/refuse- pencil strokes here
+
+src/shared/shapes/
+└── shared-imports.test.ts          # exemption widened for __corpus__ (Phase 1)
 
 src/client/sketch/
 ├── convertPolicy.ts                # FR-005, extracted from convertStroke
 ├── recogniseOnDraw.ts              # calls it rather than restating it
 └── convertPolicy.test.ts           # FR-005 replay against the twelve nodes
-
-scripts/
-└── extract-corpus-fixtures.ts      # FR-003, run deliberately, not in CI
 ```
 
 ## Implementation Phases
@@ -300,13 +355,21 @@ scripts/
 ### Phase 1: The corpus becomes readable
 
 - `loadCorpus.ts`: decode `docs/corpus/*.room.json` to page-space points via `b64Vecs.decodePoints`.
-- `labels.ts` with `RECTANGLES` and `ARROWS`; the import guard described above.
-- The FR-004 report, asserting **today's** numbers first, so the fix is scored by moving them.
+- `labels.ts` with `RECTANGLES` and `ARROWS`; the import guard described above; and the widening of
+  `shared-imports.test.ts`, without which this phase is red.
+- The FR-004 report, asserting **today's** numbers first, so the fix is scored by moving them. Those
+  first numbers are a baseline, not the FR-004 deliverable — FR-004's criterion about a rectangle
+  regressing cannot bite at Phase 1, where eleven of twelve are already unrecognised. The report is
+  re-pinned at the end of Phase 2 and again at the end of Phase 3.
 
 ### Phase 2: The corner fix and the trim it exposes
 
 - Signed turn summation in `closedCorners`; magnitude taken once per merged corner.
-- Symmetric overshoot trimming, and the FR-001 reversal criteria that pin it.
+- Symmetric overshoot trimming, and the FR-001 reversal criteria that pin it. Note the ordering:
+  with `MIN_BOX_FILL` still at 0.82 only stroke 162 shows the reversal split — 84 and 98 are refused
+  in both directions until Phase 3 moves the threshold — so this phase's reversal evidence is
+  partial by construction, and FR-001's criteria only bite in full after Phase 3.
+- The `measure` export the report needs, sharing one implementation with `recognise`.
 - Re-derive the comments on `MAX_MEAN_CORNER_ERROR`, `CORNER_MERGE_FRACTION` and
   `CLOSING_TRAVEL_FRACTION`, which describe the behaviour of the code being replaced.
 - Update the FR-004 assertions to the new counts.
@@ -326,6 +389,8 @@ scripts/
 ### Phase 5: The override guard
 
 - Extract the conversion policy; have `convertStroke` call it; replay the corpus against the twelve.
-- Correct `docs/handoff/2026-09-08-ipad-findings.md` at **both** sites that state the F1 mechanism —
-  §2's F1 entry and §5's "things not to redo". §5's other claim, that scale-normalisation alone
-  moved the corpus from 1 box to 8, is true and stays; only the attribution of the cause is wrong.
+- Correct `docs/handoff/2026-09-08-ipad-findings.md` at **three** sites that state or assume the F1
+  mechanism: §2's F1 entry, §5's "things not to redo", and §3's proposed-work row, which titles this
+  work "Recognition that works at any scale" — the phrasing this spec's Out of Scope rejects. §5's
+  other claim, that scale-normalisation alone moved the corpus from 1 box to 8, is true and stays;
+  only the attribution of the cause is wrong.
