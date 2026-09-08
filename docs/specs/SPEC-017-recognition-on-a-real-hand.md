@@ -1,7 +1,7 @@
 # Spec: Recognition that works on a real hand
 
 **ID:** SPEC-017
-**Status:** Draft
+**Status:** In Progress
 **Last Updated:** 2026-09-08
 **Depends On:** SPEC-010
 
