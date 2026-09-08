@@ -3,7 +3,7 @@
 **ID:** SPEC-016
 **Status:** Draft
 **Last Updated:** 2026-09-08
-**Depends On:** SPEC-008, SPEC-011, SPEC-014, SPEC-015
+**Depends On:** SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015
 
 ## Overview
 
@@ -65,6 +65,13 @@ cluster smaller, and the features stop being invisible.
   (`ConnectionShapeUtil.tsx:63,66`), so the handle-clearance machinery an anchored panel needs is dead
   weight on them. A docked panel answers the finding -- something appears on selection, and it says
   what it applies to -- with none of that geometry.
+- **Reclaiming the canvas the dock covers.** The dock occupies 320px of width whenever something is
+  selected — 31% at 1024×768, 39% at 820×1180 — and a selected shape sitting under it cannot be
+  resized or have its endpoints dragged without panning first. This is the same property tldraw's own
+  style panel has today, and the mitigation is the same: two fingers pan. Nudging the camera to clear
+  a selection it occludes is the obvious next move if this bites in use; it is deliberately not built
+  here, because adding behaviour in response to a late review finding is how a spec's least-scrutinised
+  work gets written.
 - **A collapsible or resizable dock.** The panel is a fixed-width column, present only while something
   is selected. Letting the user drag or collapse it is not built here.
 - **Repositioning the Scenes bar, the JSON launcher or the sketch toggle** (findings F5/F7). This
@@ -104,13 +111,20 @@ by `document.querySelectorAll` on each interactive cluster:
 | | landscape 1024x768 | portrait 820x1180 |
 |---|---|---|
 | menu zone + its toolbar | x 0-297, y 0-42 | x 0-117, y 0-42 |
-| style panel | x 868-1016, y 6-50 | x 664-812, y 6-50 |
+| style panel (node selected) | x 868-1016, y 6-50 | x 664-812, y 6-50 |
 | JSON launcher | x 481-543, y 8-52 | x 379-441, y 8-52 |
 | narration bar | x 8-324, y 662-712 | x 8-324, y 1074-1124 |
 | sketch toggle | x 925-1016, y 662-712 | x 721-812, y 1074-1124 |
 | quick actions | (in the top bar) | x 199-387, y 1082-1126 |
 | main toolbar | x 293-731, y 712-760 | x 191-629, y 1124-1172 |
 | navigation panel | x 0-96, y 728-768 | x 0-60, y 1140-1180 |
+
+**The style panel's height depends on the selection, and the dock's `top` depends on that.** Measured
+with a `diagramNode` selected it is 44px tall (y 6-50), because a node shares no style props with
+tldraw's own shapes. With nothing selected it is far taller — y 6-290 at 820×1180, the rect FR-007
+quotes. The two figures are both true and do not conflict: the dock exists **only** while exactly one
+node or connection is selected, which is exactly the condition that shrinks the panel. Stated here
+because a reader comparing the two tables otherwise concludes one is wrong.
 
 Everything on the right edge below the style panel is free until the sketch toggle, in both. A column
 inset from the right, starting below the style panel and ending above the lowest of the bottom-edge
@@ -130,10 +144,34 @@ why.
 - [ ] Selecting one node renders the panel; selecting one connection renders the panel.
 - [ ] Selecting two or more shapes renders no panel; selecting one tldraw `geo`, `draw` or `arrow`
       shape renders no panel.
-- [ ] The panel's header names the subject: the node's label (or "Untitled" when empty), or for a
-      connection the labels of the two nodes it joins. Renaming through FR-002 updates the header.
+- [ ] The panel's header names the subject. For a node: its label, or "Untitled" when empty. For a
+      connection: the labels of its two endpoints **as the canvas resolves them** — through
+      `ConnectionShapeUtil.nodeIdFor`, which returns the container a folded endpoint is drawn as, and
+      **not** the raw binding (`boundNodeIds`, `:369`), which names the hidden child. This is the same
+      rule `ActorControl` follows for a *reading* (`ActorControl.tsx:93-107`), and picking the raw
+      binding would reproduce one row higher in the same panel the exact defect that read exists to
+      prevent: the panel and the canvas saying different sentences about one line.
+- [ ] A **half-bound** connection — `nodeIdFor` returns `null` for one terminal, the state
+      `e2e/helpers.ts`'s `addHalfConnection` exists to create — shows the bound endpoint's label and
+      says the other end is unattached. It does not render "undefined" or fall back to the raw binding.
+- [ ] An endpoint whose label is empty reads "Untitled", as a node subject does.
+- [ ] On a **merged** line the header names the group's endpoints, and the panel says the line stands
+      for several connections. `ActorField` already says this two rows down; the header must not
+      contradict it by presenting the line as a single connection.
+- [ ] Renaming a node through FR-002 updates the header, including when that node is an endpoint of a
+      selected connection.
 - [ ] The panel's bounding box intersects none of the rects `chromeRects()` returns, at 1024x768 and
-      at 820x1180, with the icon sheet closed **and** open.
+      at 820x1180, with the icon sheet closed **and** open, **with the JSON panel expanded**, and
+      **after a sketch recognition has announced**. The last two are the states that actually collide:
+      `.diagram-io` is `left: 50%` and `width: min(420px, 100vw - 16px)` (`index.css:327`), so at
+      820px it spans x 208-612 and the dock's left edge at 500 cuts 112px off it; and
+      `.sketch-toggle`'s status region is written by `recogniseOnDraw.ts` and never cleared, so
+      `:not(:empty)` padding (`index.css:805`) permanently raises the cluster's top edge for the rest
+      of the session. A clearance test run only in a fresh room measures the one state that cannot
+      fail — the failure mode FR-007's own quick-actions argument describes.
+- [ ] The panel declares `z-index: 1000`, as every other floating sibling in `index.css` does
+      (`:86, :309, :480, :757`). `.tl-container` sets no z-index and tldraw's UI layer is 300, so an
+      `auto` dock paints beneath the whole tldraw UI.
 - [ ] The panel's bounding box lies entirely within the viewport at both sizes, and its presence does
       not change `document.documentElement.scrollWidth`.
 - [ ] Content taller than the dock scrolls **inside** the panel: with the icon sheet open at 1024x768,
@@ -216,11 +254,21 @@ what covers this, and it belongs to the panel, not the field.
       and make the existing `nodeId` reset effect dead code, and that effect is what orders the reset
       before the focus effect re-runs. FR-002 needs no key either, since its field is controlled.
 - [ ] On a node too small to draw an icon beside its label, the explanatory note still appears.
-- [ ] The sheet renders **inside the dock's scroll flow** -- it does not float over the canvas and
-      does not overflow the dock. Its `width: min(320px, 100vw - 16px)` and
+- [ ] The sheet renders **inside the dock's scroll flow**. Its `width: min(320px, 100vw - 16px)` and
       `max-height: min(420px, 100dvh - 140px)` (`index.css:951`) were both calibrated for a launcher
-      pinned at `top: 60px` over open canvas; inside a fixed-width column they are replaced by the
-      column's own width and by letting the column scroll (FR-001).
+      pinned at `top: 60px` over open canvas. **Both are removed, not recomputed**: the sheet takes the
+      column's width and no max-height of its own, and the column scrolls. A sheet that caps and
+      scrolls itself would keep the panel's `scrollHeight` equal to its `clientHeight` and red
+      FR-001's scroll criterion, so the two are not interchangeable.
+- [ ] The sheet's 320px width is removed rather than inherited: `min(320px, calc(100vw - 16px))`
+      resolves to 320px at both viewport widths, and `overflow-y: auto` forces `overflow-x` to compute
+      to `auto`, so leaving it would give the dock a horizontal scrollbar. A test asserts the dock's
+      `scrollWidth` equals its `clientWidth` with the sheet open.
+- [ ] The sheet drops `role="dialog"`. Over open canvas it was a popover; inside the column it is an
+      inline expanded region with the launcher and every other field still visible and operable around
+      it, and a dialog role there is the role without the behaviour. The launcher keeps
+      `aria-expanded`, and Escape still closes and returns focus — `e2e/icons.spec.ts:252` holds
+      either way, since the listener is on `window` and the panel is a sibling of `<Tldraw>`.
 - [ ] Every assertion in `e2e/icons.spec.ts` about icon *state* passes unchanged. Exactly one test is
       rewritten: `e2e/icons.spec.ts:420` *"the picker does not cover any other control"*, which
       contains no state assertion at all — it is wholly positional, and one of the selectors it
@@ -246,6 +294,9 @@ option, and the folded stand-in note.
 - [ ] Duplicate node labels are still disambiguated in the list.
 - [ ] The `id="actor-control-select"` / `htmlFor` pair still associates label and control, and appears
       exactly once in the document.
+- [ ] The control stacks rather than sitting in a row. `.actor-control` is `display: flex;
+      align-items: center` — a label, a select and two notes side by side, which was legible across a
+      full-viewport bar and is not inside a 312px column.
 - [ ] Every assertion in `e2e/actors.spec.ts` about attribution *behaviour* passes unchanged. Exactly
       three tests are rewritten, all of them measuring the old fixed position or a width the panel no
       longer has: `:353` *"the control does not cover the JSON launcher or any tldraw UI"* (replaced
@@ -355,8 +406,19 @@ defect. That baseline sizes the *viewport* change only — the edits FR-003, FR-
 - [ ] `playwright.config.ts` defines a second project named `ipad-portrait` at 820×1180 with the same
       touch and CDP settings as `ipad-chromium`, and both projects run by default.
 - [ ] The whole e2e suite passes in both projects.
-- [ ] `e2e/node-content.spec.ts:332` passes in portrait because the node it places is clear of the
-      style panel's rect, not because the assertion was weakened or the test skipped in one project.
+- [ ] `e2e/node-content.spec.ts:332` passes in portrait because the node it places is clear of **both**
+      the style panel and the dock, at both viewport sizes — not because the assertion was weakened or
+      the test skipped in one project. Clearing the style panel alone is not enough: in portrait the
+      style panel is x 664-812 and the dock is x 500-812, so the click point must fall left of 500.
+- [ ] **Six existing sites that pointer-down under the dock with a single shape selected are moved,
+      and the fix is a sweep rather than a sample.** They are `node-content.spec.ts:216, :237, :263`
+      (`dragCorner` on nodes whose bottom-right corner lands in the dock), `node-content.spec.ts:357`
+      (a `dblclick` at a point the preceding click selected), `connections.spec.ts:322` and
+      `merged-connections.spec.ts:477` (`dragEndpoint`, where the endpoint resolves into the band).
+      `dragCorner` and `dragEndpoint` drive raw `page.mouse`, so there is no actionability error — the
+      press lands on the dock and the drag silently does nothing, failing a downstream assertion about
+      parentage or bindings. Two of these clear the landscape dock by 4px, so the sweep is re-run
+      whenever the dock's width or inset changes.
 - [ ] A clearance test asserts the selection panel's bounding box intersects **none** of the rects
       `chromeRects()` returns, for a selected node and for a selected connection, with the icon sheet
       closed and open, and it runs in both projects.
@@ -406,10 +468,16 @@ above the viewport floor in both.
   right: 8px;
   width: 312px;      /* landscape leaves 704px of canvas; portrait leaves 500px */
   bottom: 114px;     /* clears the narration bar and sketch toggle, which start 106px up */
+  z-index: 1000;     /* as every other floating sibling in this file */
   overflow-y: auto;
   touch-action: pan-y;
 }
 ```
+
+`width` is written `min(312px, calc(100vw - 96px))` rather than a bare `312px`: `e2e/actors.spec.ts`
+exercises a **375px** viewport, where a fixed 312px dock would leave 55px of canvas, and the
+`min(320px, 100vw - 16px)` rule that used to handle narrow widths is being deleted with
+`.icon-picker__sheet`. Two measured widths do not justify a rule at a third the suite already visits.
 
 These numbers are a **starting point derived from the measurements, not a result**. FR-007's
 clearance test is what decides whether they are right, and it runs in both orientations.
@@ -466,6 +534,12 @@ export const CHROME_SELECTORS = [
   '.narration',
   '.sketch-toggle',
   '[data-testid="diagram-io-open"]',
+  // The EXPANDED panel, not only its launcher. The launcher is 62px at top
+  // centre and the dock could never reach it; `.diagram-io` is
+  // `left: 50%; width: min(420px, 100vw - 16px)` (`index.css:327`), so at 820px
+  // it spans x 208-612 and the dock's left edge at 500 cuts 112px off it.
+  // `e2e/actors.spec.ts:353` records this corner being fought over three times.
+  '[data-testid="diagram-io"]',
 ] as const
 
 /** Zero-size and detached elements are skipped. Viewport-relative. */
@@ -525,7 +599,8 @@ regression.
 
 - `NameField` (FR-002), marking history on the first keystroke of a session.
 - `IconField` (FR-003): move `IconPicker.tsx` in, keep its test ids and its `nodeId` reset effect, do
-  **not** key it on the node id, and compute the sheet's `max-height` from available room.
+  **not** key it on the node id, and remove the sheet's own width and `max-height` so the column
+  scrolls (FR-003).
 - `NodeStatus` (FR-005) and `connectionsPerformedBy` in `actors.ts`.
 - **Delete `IconPicker.tsx` and its mount in the same commit**, and rewrite `icons.spec.ts:420`.
 
