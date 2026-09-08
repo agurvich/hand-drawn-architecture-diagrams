@@ -191,9 +191,12 @@ context.
       the record of when each number changed and why. A commit cannot name its own sha, and the
       numbers a phase pins are only true *after* that phase's change, so naming a parent commit
       would be wrong at every re-pin.
-- [ ] The report emits the per-refusal-reason breakdown and, for each stroke that reaches the fill
-      test, its fill in **all five orientations** together with the minimum of them — so FR-002's
-      margins are re-derivable from its output. A forward-only fill column does not satisfy this:
+- [ ] The report emits the per-refusal-reason breakdown and, for each stroke that **decides a
+      margin** — the twelve, which set the upper edge, and every stroke the fill test itself
+      refuses, which sets the lower — its fill in **all five orientations** together with the
+      minimum of them, so FR-002's margins are re-derivable from its output. The remaining ~250
+      strokes are refused before fill is consulted; they stay behind a flag rather than burying the
+      report in every test run. A forward-only fill column does not satisfy this:
       FR-002's low margin is 0.7144, which stroke 55 reaches only when rotated, and a reviewer
       handed forward fills could tick the criterion while the number justifying the threshold is
       absent. Vitest's default reporter swallows `console.log` from a passing test, so the report

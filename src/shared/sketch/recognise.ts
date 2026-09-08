@@ -306,6 +306,68 @@ export function trimOvershoot(points: readonly Point[], closeDistance: number): 
 }
 
 /**
+ * What the closed-shape tests measured, for a report rather than for a verdict.
+ *
+ * SPEC-017's requirements are stated in corner counts, mean corner error and
+ * fill, none of which `Verdict` carries and all of which are computed from
+ * helpers private to this module. A report that recomputed them would be a copy
+ * that drifts from the thing it claims to measure -- which is how a tuning
+ * number ends up describing code that no longer exists -- so `recognise` and
+ * `measure` share one implementation and this is its result.
+ */
+export interface Measurement {
+  /** Merged turns of more than 45 degrees. A hand-drawn edge bends; a corner turns. */
+  corners: number
+  /** Mean degrees away from square, over those corners. */
+  meanCornerError: number
+  /** Fraction of its own bounding box the closed path encloses. */
+  fill: number
+}
+
+function closedMeasurement(
+  path: readonly Point[],
+  first: Point,
+  last: Point,
+  diagonal: number,
+  width: number,
+  height: number,
+): Measurement {
+  // Drop a duplicated closing point so the cycle is not judged twice.
+  const cycle = distance(first, last) < SIMPLIFY_EPSILON ? path.slice(0, -1) : path
+  // A "corner" is a turn of more than 45 degrees. Below that a hand-drawn
+  // edge is bending, not turning.
+  const corners = closedCorners(cycle, diagonal).filter((a) => a > 45)
+  const meanCornerError = corners.length
+    ? corners.reduce((sum, a) => sum + Math.abs(a - 90), 0) / corners.length
+    : Infinity
+  return {
+    corners: corners.length,
+    meanCornerError,
+    // FILLS ITS BOUNDING BOX. The corner tests admit any closed shape with
+    // roughly four square-ish turns, and a pentagon clears both of them.
+    fill: polygonArea(cycle) / Math.max(width * height, 1),
+  }
+}
+
+/**
+ * Measure a stroke without judging it. `undefined` if it is not a closed path,
+ * which is the only case where none of these numbers is defined.
+ */
+export function measure(points: readonly Point[]): Measurement | undefined {
+  if (points.length < 3) return undefined
+  const box = bounds(points)
+  const width = box.max.x - box.min.x
+  const height = box.max.y - box.min.y
+  const diagonal = Math.hypot(width, height)
+  const closeDistance = diagonal * CLOSE_FRACTION
+  const path = simplify(trimOvershoot(points, closeDistance))
+  const first = path[0]!
+  const last = path[path.length - 1]!
+  if (distance(first, last) > closeDistance) return undefined
+  return closedMeasurement(path, first, last, diagonal, width, height)
+}
+
+/**
  * Classify a stroke.
  *
  * Order is box-then-line, and that is safe ONLY because the client adapter
@@ -333,34 +395,23 @@ export function recognise(points: readonly Point[]): Verdict {
   const closed = distance(first, last) <= closeDistance
 
   if (closed) {
-    // Drop a duplicated closing point so the cycle is not judged twice.
-    const cycle = distance(first, last) < SIMPLIFY_EPSILON ? path.slice(0, -1) : path
-    const angles = closedCorners(cycle, diagonal)
-    // A "corner" is a turn of more than 45 degrees. Below that a hand-drawn
-    // edge is bending, not turning.
-    const corners = angles.filter((a) => a > 45)
-    if (Math.abs(corners.length - 4) > CORNER_TOLERANCE) {
-      return { kind: 'none', because: `closed, but ${corners.length} corners` }
+    const m = closedMeasurement(path, first, last, diagonal, width, height)
+    if (Math.abs(m.corners - 4) > CORNER_TOLERANCE) {
+      return { kind: 'none', because: `closed, but ${m.corners} corners` }
     }
-    if (corners.length === 4) {
-      const meanError = corners.reduce((sum, a) => sum + Math.abs(a - 90), 0) / corners.length
-      if (meanError > MAX_MEAN_CORNER_ERROR) {
-        return { kind: 'none', because: 'closed with four corners, but not square enough' }
-      }
-    } else {
-      // 3 or 5 corners: admitted by the tolerance, so hold them to the same
-      // squareness bar rather than waving them through on the count alone.
-      const meanError = angles
-        .filter((a) => a > 45)
-        .reduce((sum, a, _, all) => sum + Math.abs(a - 90) / all.length, 0)
-      if (meanError > MAX_MEAN_CORNER_ERROR) {
-        return { kind: 'none', because: 'closed, but not a rectangle' }
+    if (m.meanCornerError > MAX_MEAN_CORNER_ERROR) {
+      // Two messages for one test, kept because they say which shape the stroke
+      // nearly was: four square-ish corners is a failed rectangle, three or five
+      // is something else that the tolerance let as far as this line.
+      return {
+        kind: 'none',
+        because:
+          m.corners === 4
+            ? 'closed with four corners, but not square enough'
+            : 'closed, but not a rectangle',
       }
     }
-    // FILLS ITS BOUNDING BOX. The corner tests above admit any closed shape with
-    // roughly four square-ish turns, and a pentagon clears both of them.
-    const fill = polygonArea(cycle) / Math.max(width * height, 1)
-    if (fill < MIN_BOX_FILL) {
+    if (m.fill < MIN_BOX_FILL) {
       return { kind: 'none', because: 'closed and square-ish, but not a rectangle' }
     }
     if (width < MIN_BOX_EXTENT || height < MIN_BOX_EXTENT) {
