@@ -62,13 +62,22 @@ predates this spec and the silence is deliberate ("nothing is the default"), but
 nothing converted at any zoom, so this is newly reachable. Recorded in the handoff for the drawing-path
 spec rather than changed here.
 
+**"Started from a different point" is synthesised, and the synthesiser is arbitrary.** No recorded
+stroke shows a person starting the same rectangle elsewhere; `orientations` re-cuts one recorded
+loop, trimming overshoot forward-only to mirror the suite SPEC-010 shipped. Rebuild it with
+`trimBothEnds` — the loop the classifier actually judges — and the fences move: the accept-side
+witness for `MIN_BOX_FILL_WITHOUT_FOUR_CORNERS` stops existing, that bar refuses `corpus#55`, a
+four-cornered false positive appears, and `corpus#207` fails the *pre-existing* squareness bar.
+Neither model is obviously right. The rule the second bar encodes survives either; its number does
+not. Settling this belongs with the rectangle test that is not area-fill.
+
 **The twelve labels are human judgement.** Nothing derives them and no test checks them. A
 mislabelled stroke tunes the classifier at the wrong target, silently — see `decisions.md` → *A
 classifier is scored against a labelled population*.
 
 ## Verification
 
-Local: `npm run build`, `npm test` (551 passed, 1 skipped), `npm run lint` (4 pre-existing
+Local: `npm run build`, `npm test` (552 passed, 1 skipped), `npm run lint` (4 pre-existing
 warnings), `npm run format:check`, `spec-lint.sh`, `docs-lint.sh`, `docs-lint-test.sh` (44 cases).
 
 Every threshold this spec sets or moves is fenced in both directions, checked by moving it: `MIN_BOX_FILL`

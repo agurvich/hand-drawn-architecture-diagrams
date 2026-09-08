@@ -82,7 +82,13 @@ export const CORNER_TOLERANCE = 1
  * an earlier version of this note claimed. Measured across every orientation the
  * suite checks, the two populations OVERLAP on this axis: the rectangles reach
  * 19.85 degrees of error and the letters get as low as 11.65, so no value here
- * separates them. `MIN_BOX_FILL_WITHOUT_FOUR_CORNERS` is what does.
+ * separates them.
+ *
+ * Nor does any other constant on its own -- the JOINT region does. Among
+ * FOUR-cornered shapes the fill axis inverts: `corpus#248` as drawn is a 'D'
+ * with four corners filling 0.7538, higher than the worst genuine rectangle at
+ * 0.7144, and this bar is the only thing refusing it, by 7.75 degrees. Loosen
+ * either constant alone and the other does not cover for it.
  */
 export const MAX_MEAN_CORNER_ERROR = 22
 
@@ -145,6 +151,27 @@ export const MIN_BOX_FILL = 0.7
  * the letters get as low as 11.65), and requiring exactly four corners refuses
  * three genuine rectangles -- `box-clockwise`, `box-overshot-corner` and
  * `box-pencil-067` -- when they are started elsewhere.
+ *
+ * THE NUMBER IS FITTED TO A ROTATION MODEL; THE RULE IS NOT. "Started from a
+ * different point" has no recorded stroke behind it -- it is synthesised by
+ * `__corpus__/corpus.test.ts`'s `orientations`, which re-cuts one recorded loop.
+ * That synthesiser trims overshoot FORWARD-ONLY, mirroring the suite SPEC-010
+ * shipped, so it splices the head overshoot into the middle of an edge. Build the
+ * rotations with `trimBothEnds` instead -- the loop this classifier actually
+ * judges -- and the evidence moves: the accept-side margin's only witness
+ * (`corpus#67` at 0.8392) stops existing, `corpus#55` presents five corners at
+ * 0.7416 and this bar refuses a genuine rectangle, and a FOUR-cornered false
+ * positive appears that this bar cannot catch. That model is not obviously the
+ * better one -- it also refuses `corpus#207` on the pre-existing squareness bar --
+ * which is the point: both are arbitrary, and this margin is not robust across
+ * them.
+ *
+ * What survives either model is the RULE, and it is the conservative direction:
+ * a shape with less evidence of being a rectangle is asked to look more like
+ * one, and refusing is the safe way to be wrong here. On every stroke anyone has
+ * actually drawn -- all 45 fixtures, all 276 corpus strokes as drawn -- this bar
+ * changes nothing. The durable repair is still a rectangle test that is not
+ * area-fill, and settling the rotation model belongs with it.
  */
 export const MIN_BOX_FILL_WITHOUT_FOUR_CORNERS = 0.8
 

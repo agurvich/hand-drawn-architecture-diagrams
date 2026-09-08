@@ -38,6 +38,17 @@ const ROOT = process.cwd()
  * trimming the overshoot before rotating -- you cannot start a stroke halfway
  * through your own overshoot, so rotating an untrimmed list produces a gesture
  * no hand can make.
+ *
+ * IT IS A MODEL, AND IT IS ARBITRARY. Nobody recorded the same rectangle started
+ * somewhere else; this re-cuts one recorded loop. It trims FORWARD-ONLY, which is
+ * what the SPEC-010 suite does and what `recognise` itself stopped doing in
+ * SPEC-017 -- so the head overshoot survives and the rotation splices it into the
+ * middle of an edge. Rebuilt with `trimBothEnds` the verdicts move on four
+ * readings, one of them a rectangle refused by a constant that predates
+ * SPEC-017. Neither model is obviously the better one; what matters is that
+ * `MIN_BOX_FILL_WITHOUT_FOUR_CORNERS`'s margin is measured against THIS one and
+ * does not survive the other. Changing it means re-deriving SPEC-010's rotation
+ * methodology as well, which is its own piece of work.
  */
 export function orientations(points: readonly Point[]): Point[][] {
   let minX = Infinity
@@ -153,7 +164,6 @@ describe('the recorded corpus', () => {
     const found = loadCorpus()
       .filter((s) => recognise(s.points).kind === 'box')
       .map((s) => s.index)
-    // The SET, not the count: a different twelve would satisfy a count.
     // The SET, not the count: "twelve boxes" is also what a recogniser that had
     // started eating handwriting would report.
     expect(found).toEqual([...RECTANGLES])
