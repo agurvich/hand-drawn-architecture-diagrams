@@ -612,7 +612,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  min-width: 44px;
+  min-width: 0;
   overflow: hidden;
   min-height: 44px;
   padding: 0 10px;
@@ -843,7 +843,7 @@ body {
   white-space: nowrap;
 }
 .actor-control__select {
-  min-width: 0;
+  min-width: 44px;
   min-height: 44px;
   padding: 0 8px;
   font:
@@ -1033,7 +1033,12 @@ body {
   top: var(--dock-top, 58px);
   right: 8px;
   width: min(312px, calc(100vw - 96px));
-  bottom: 160px;
+  /* A MAXIMUM, not a height. `bottom` alone made the dock viewport-tall
+     whatever it held -- with a connection selected that is one heading and one
+     select above ~860px of opaque card in portrait, covering 80% of the height
+     of an iPad held to sketch. The clearance this buys is the same; the empty
+     card is not. */
+  max-height: calc(100% - var(--dock-top, 58px) - 160px);
   z-index: 1000;
   overflow-y: auto;
   /* `.canvas-host` sets `touch-action: none` and the used value is intersected

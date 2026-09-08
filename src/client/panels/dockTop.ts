@@ -36,9 +36,12 @@ export function observeDockTop(host: HTMLElement): () => void {
 
   apply()
 
-  // The style panel is re-created when the tool changes, not merely resized, so
-  // observing the element alone would stop firing the first time it is replaced.
-  // The layout container it lives in persists, so observe both.
+  // MEASURED, because the obvious guess is wrong: across select -> draw ->
+  // eraser -> select the style panel is the SAME element, resized in place
+  // (44 -> 284 -> absent -> 44). So the ResizeObserver below is what carries the
+  // load, and the zone observers are redundancy for the case where tldraw does
+  // replace or remount it. Recorded because a maintainer trimming one of these
+  // would otherwise keep the wrong one.
   const observer = new ResizeObserver(apply)
   const panel = document.querySelector(STYLE_PANEL)
   if (panel) observer.observe(panel)

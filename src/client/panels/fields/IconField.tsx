@@ -159,6 +159,13 @@ export function IconField({ editor, id }: IconFieldProps) {
         <div
           ref={sheet}
           className="icon-picker__sheet"
+          // `role="group"`, not `dialog`: inside the properties column the
+          // launcher and every other field stay visible and operable around
+          // this, so dialog is the role without the behaviour. But the role had
+          // to be replaced rather than simply dropped -- `aria-label` is ignored
+          // on a role-less div, so removing it outright discarded the name, and
+          // opening moves focus here.
+          role="group"
           aria-label="Choose an icon"
           // Focusable so opening can land here rather than leaving focus on the
           // launcher with the whole grid to tab through; -1 so it is not itself

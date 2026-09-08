@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { NODE_SHAPE_TYPE } from '@shared/shapes'
 
@@ -19,6 +19,20 @@ import { NODE_SHAPE_TYPE } from '@shared/shapes'
  */
 export function NameField({ editor, id }: { editor: Editor; id: TLShapeId }) {
   const marked = useRef(false)
+
+  /*
+   * A NEW SUBJECT ENDS THE SESSION, even without a blur.
+   *
+   * `marked` is otherwise cleared only on blur, and the selection can move to
+   * another node while this input still holds focus -- the field silently
+   * rebinds and the next keystroke reuses the PREVIOUS node's history mark, so
+   * one undo reverts both renames. Reachability is narrow (every pointer path
+   * blurs the input) but the cost of being wrong is a lost edit on a shape the
+   * user was not looking at.
+   */
+  useEffect(() => {
+    marked.current = false
+  }, [id])
 
   const label = useValue(
     'node label',

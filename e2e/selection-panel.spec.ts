@@ -4,6 +4,7 @@ import {
   addNode,
   addScene,
   attributeConnection,
+  newParticipant,
   offSceneNodeIds,
   openRoom,
   roomId,
@@ -383,5 +384,231 @@ test.describe('SPEC-016 FR-005 — what the node already is', () => {
       (await offSceneNodeIds(page)).length,
       'the node must still be off-scene, or this proves nothing',
     ).toBeGreaterThan(0)
+  })
+})
+
+test.describe('SPEC-016 FR-002 — renaming from the panel', () => {
+  test('the field names the node, types through to the canvas, and syncs', async ({
+    page,
+    browser,
+  }) => {
+    const room = roomId('sp14')
+    await openRoom(page, room)
+    const node = await addNode(page, 'Before', { x: 100, y: 200, w: 200, h: 120 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, node)
+
+    const field = page.getByTestId('selection-name')
+    await expect(field).toHaveAccessibleName('Name')
+    await expect(field).toHaveValue('Before')
+
+    const other = await newParticipant(browser)
+    await openRoom(other.page, room)
+    await field.fill('After')
+    await expect(page.getByTestId('selection-heading')).toHaveText('After')
+    // Straight through to the shape, so it syncs -- there is no local buffer.
+    await expect
+      .poll(() =>
+        other.page.evaluate(
+          (id) => (window.__editor!.getShape(id as never)!.props as { label: string }).label,
+          node,
+        ),
+      )
+      .toBe('After')
+    await other.ctx.close()
+  })
+
+  test('a typing session is ONE undo, and the mark is not taken on focus alone', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('sp15'))
+    const node = await addNode(page, 'Start', { x: 100, y: 200, w: 200, h: 120 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, node)
+    const label = () =>
+      page.evaluate(
+        (id) => (window.__editor!.getShape(id as never)!.props as { label: string }).label,
+        node,
+      )
+
+    // FOCUS AND LEAVE WITHOUT TYPING. Marking on focus would push an empty
+    // stopping point here, and the undo below would be a press that does
+    // nothing instead of reverting the rename.
+    await page.getByTestId('selection-name').focus()
+    await page.getByTestId('selection-name').blur()
+
+    await page.getByTestId('selection-name').focus()
+    await page.keyboard.type('XYZ')
+    await page.getByTestId('selection-name').blur()
+    expect(await label()).toBe('StartXYZ')
+
+    await page.evaluate(() => {
+      window.__editor!.undo()
+    })
+    expect(await label()).toBe('Start')
+  })
+
+  test('a SUBJECT CHANGE ends the typing session, so one undo does not eat two renames', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('sp16'))
+    const a = await addNode(page, 'Aaa', { x: 100, y: 200, w: 180, h: 100 })
+    const b = await addNode(page, 'Bbb', { x: 100, y: 380, w: 180, h: 100 })
+    const labels = () =>
+      page.evaluate(
+        ({ x, y }) => {
+          const ed = window.__editor!
+          const get = (id: string) => (ed.getShape(id as never)!.props as { label: string }).label
+          return [get(x), get(y)]
+        },
+        { x: a, y: b },
+      )
+
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, a)
+    await page.getByTestId('selection-name').focus()
+    await page.keyboard.type('1')
+
+    // The selection moves WITHOUT the input blurring, which is the whole point:
+    // the field rebinds to another node while still focused. If the history
+    // mark survived that, the two renames would collapse into one step.
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, b)
+    await expect(page.getByTestId('selection-name')).toHaveValue('Bbb')
+    await page.getByTestId('selection-name').focus()
+    await page.keyboard.type('2')
+    expect(await labels()).toEqual(['Aaa1', 'Bbb2'])
+
+    await page.evaluate(() => {
+      window.__editor!.undo()
+    })
+    expect(await labels(), 'one undo must revert ONE rename').toEqual(['Aaa1', 'Bbb'])
+  })
+
+  test('clearing to empty is allowed, and a different node rebinds cleanly', async ({ page }) => {
+    await openRoom(page, roomId('sp17'))
+    const a = await addNode(page, 'Aaa', { x: 100, y: 200, w: 180, h: 100 })
+    const b = await addNode(page, 'Bbb', { x: 100, y: 380, w: 180, h: 100 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, a)
+    await page.getByTestId('selection-name').fill('')
+    await expect(page.getByTestId('selection-heading')).toHaveText('Untitled')
+
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, b)
+    await expect(page.getByTestId('selection-name')).toHaveValue('Bbb')
+  })
+})
+
+test.describe('SPEC-016 FR-001 / FR-006 — the things that could pass without the code', () => {
+  test('the dock clears the style panel ON ITS FIRST APPEARANCE, with no interaction between', async ({
+    page,
+  }) => {
+    // The regression this exists for: reading `ref.current` during render meant
+    // the observer attached only when some unrelated re-render came along, so
+    // the dock sat at its 58px fallback under a DRAW tool -- whose style panel
+    // runs to y~290 -- until something else happened to re-render it. Every
+    // other clearance case in this file opens a sheet or toggles a mode first,
+    // and each of those heals it. This one measures the very first paint.
+    await openRoom(page, roomId('sp18'))
+    const node = await addNode(page, 'Alpha', { x: 100, y: 200, w: 180, h: 100 })
+    await page.evaluate((id) => {
+      const ed = window.__editor!
+      ed.setCurrentTool('draw')
+      ed.setSelectedShapes([id as never])
+    }, node)
+
+    const overlap = await page.evaluate(() => {
+      const p = document.querySelector('[data-testid="selection-panel"]')?.getBoundingClientRect()
+      const sp = document.querySelector('.tlui-style-panel')?.getBoundingClientRect()
+      if (!p || !sp) return { panel: !!p, style: !!sp, hit: null }
+      return {
+        panel: true,
+        style: true,
+        hit: !(
+          p.right <= sp.left ||
+          p.left >= sp.right ||
+          p.bottom <= sp.top ||
+          p.top >= sp.bottom
+        ),
+        top: Math.round(p.top),
+        styleBottom: Math.round(sp.bottom),
+      }
+    })
+    expect(overlap.panel, 'the panel must exist or this measures nothing').toBe(true)
+    expect(overlap.style, 'the draw tool must show a style panel or this proves nothing').toBe(true)
+    expect(overlap.hit).toBe(false)
+  })
+
+  test('focus lands on the canvas when the panel goes WITHOUT a canvas tap', async ({ page }) => {
+    // Deliberately not "type, then tap the canvas": tldraw focuses `.tl-container`
+    // on pointerdown by itself, so that version passes with the handoff deleted.
+    // Deselecting programmatically is the case only this code can satisfy.
+    await openRoom(page, roomId('sp19'))
+    const node = await addNode(page, 'Alpha', { x: 100, y: 200, w: 180, h: 100 })
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, node)
+    await page.getByTestId('selection-name').focus()
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe(
+      'selection-name',
+    )
+
+    await page.evaluate(() => {
+      window.__editor!.selectNone()
+    })
+    await expect(page.getByTestId('selection-panel')).toHaveCount(0)
+    expect(
+      await page.evaluate(() => document.activeElement?.className ?? ''),
+      'focus must not be dropped to <body>',
+    ).toContain('tl-container')
+  })
+
+  test('neither absorbed field is positioned any more — asserted on the DOM, not the CSS text', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('sp20'))
+    const a = await addNode(page, 'Alpha', { x: 100, y: 200, w: 180, h: 100 })
+    const b = await addNode(page, 'Beta', { x: 100, y: 380, w: 180, h: 100 })
+    const conn = await addConnection(page, a, b)
+
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, a)
+    await expect(page.getByTestId('icon-picker')).toHaveCount(1)
+    expect(
+      await page.evaluate(
+        () => getComputedStyle(document.querySelector('[data-testid="icon-picker"]')!).position,
+      ),
+    ).toBe('static')
+
+    await page.evaluate((id) => {
+      window.__editor!.setSelectedShapes([id as never])
+    }, conn)
+    await expect(page.getByTestId('actor-control')).toHaveCount(1)
+    expect(
+      await page.evaluate(
+        () => getComputedStyle(document.querySelector('[data-testid="actor-control"]')!).position,
+      ),
+    ).toBe('static')
+
+    // A source grep cannot see a rule arriving from another selector; this can.
+    const small = await page.evaluate(() => {
+      const panel = document.querySelector('[data-testid="selection-panel"]')!
+      const bad: string[] = []
+      panel.querySelectorAll('button, input, select, a').forEach((el) => {
+        const r = el.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return
+        if (r.width < 44 || r.height < 44) bad.push(el.tagName)
+      })
+      return bad
+    })
+    expect(small, 'the connection panel controls must meet the touch target too').toEqual([])
   })
 })

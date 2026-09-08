@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE } from '@shared/shapes'
 import { selectionSubject, type SelectionSubject } from './selectionSubject'
@@ -38,7 +38,19 @@ function labelOf(editor: Editor, id: TLShapeId | null): string | null {
  * <SelectionPanel editor={editor} ioOpen={ioOpen} />
  */
 export function SelectionPanel({ editor, ioOpen }: SelectionPanelProps) {
-  const panel = useRef<HTMLDivElement>(null)
+  /*
+   * A CALLBACK REF, not `useRef`, and both effects below depend on it.
+   *
+   * Assigning `ref.current` schedules no render, so `panel.current` read during
+   * render is `null` on the very render that mounts the div -- and this panel
+   * renders `null` on its first commit anyway, because `Room` sets `editor` in
+   * `onMount`. An effect keyed on `[panel.current]` therefore sees `null`, early
+   * returns, and never re-runs: the observer attaches only if some unrelated
+   * re-render happens to come along, and the focus cleanup never registers at
+   * all. State makes the div's arrival and departure a render, which is what
+   * both effects actually need.
+   */
+  const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null)
   const hadFocus = useRef(false)
 
   /*
@@ -61,14 +73,15 @@ export function SelectionPanel({ editor, ioOpen }: SelectionPanelProps) {
     [editor],
   )
 
-  const host = panel.current
   useEffect(() => {
-    if (!host) return
-    return observeDockTop(host)
-  }, [host])
+    if (!panelEl) return
+    return observeDockTop(panelEl)
+  }, [panelEl])
 
   /*
-   * FOCUS HANDOFF, tracked by listener rather than captured in the effect body.
+   * FOCUS HANDOFF, tracked by listener rather than captured in the effect body,
+   * and keyed on the ELEMENT so cleanup runs when the div goes -- not when this
+   * component unmounts, which only happens when the room tears down.
    *
    * Effect bodies run on commit and a focus move causes no render, so a value
    * read there is stale by the time cleanup runs: click the name field, tap the
@@ -77,11 +90,20 @@ export function SelectionPanel({ editor, ioOpen }: SelectionPanelProps) {
    * asked either. A focusin/focusout pair is the only thing that knows.
    */
   useEffect(() => {
-    const el = panel.current
+    const el = panelEl
     if (!el) return
     const onIn = () => (hadFocus.current = true)
     const onOut = (event: FocusEvent) => {
-      if (!el.contains(event.relatedTarget as Node | null)) hadFocus.current = false
+      const next = event.relatedTarget as Node | null
+      /*
+       * A NULL relatedTarget means focus went NOWHERE -- the focused control was
+       * removed, or the browser dropped it to <body>. That is precisely the case
+       * this handoff exists to recover, so it must not clear the flag. Clearing
+       * on it made the whole mechanism dead: unmounting fires focusout with a
+       * null relatedTarget before cleanup runs, so the flag was always false by
+       * the time anyone looked.
+       */
+      if (next && !el.contains(next)) hadFocus.current = false
     }
     el.addEventListener('focusin', onIn)
     el.addEventListener('focusout', onOut)
@@ -89,16 +111,17 @@ export function SelectionPanel({ editor, ioOpen }: SelectionPanelProps) {
       el.removeEventListener('focusin', onIn)
       el.removeEventListener('focusout', onOut)
       if (hadFocus.current) {
+        hadFocus.current = false
         const canvas = document.querySelector<HTMLElement>('.tl-container')
         canvas?.focus()
       }
     }
-  }, [])
+  }, [panelEl])
 
   if (!editor || !state || ioOpen) return null
 
   return (
-    <div ref={panel} className="selection-panel" data-testid="selection-panel">
+    <div ref={setPanelEl} className="selection-panel" data-testid="selection-panel">
       <h2 className="selection-panel__heading" data-testid="selection-heading">
         {state.header.title}
       </h2>
