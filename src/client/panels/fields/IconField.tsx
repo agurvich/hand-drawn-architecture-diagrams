@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useValue, type Editor } from 'tldraw'
+import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import {
   NODE_SHAPE_TYPE,
   resolveNodeIcon,
@@ -7,12 +7,14 @@ import {
   guessIconKey,
   isAwsIconKey,
 } from '@shared/shapes'
-import { DRAWABLE_ICON_KEYS, awsIconSvg, generalIcon } from '../icons/registry'
-import { shouldDrawNodeIcon } from '../icons/iconFit'
+import { DRAWABLE_ICON_KEYS, awsIconSvg, generalIcon } from '../../icons/registry'
+import { shouldDrawNodeIcon } from '../../icons/iconFit'
 
-interface IconPickerProps {
-  /** The mounted editor, or null before `onMount` has run. */
-  editor: Editor | null
+interface IconFieldProps {
+  /** The mounted editor. */
+  editor: Editor
+  /** The node this field acts on, resolved by `SelectionPanel`. */
+  id: TLShapeId
 }
 
 /** A readable name for a key, for the option's accessible name. */
@@ -38,25 +40,30 @@ function Swatch({ iconKey }: { iconKey: string }) {
  * can hold and nobody can produce: "Automatic" clears to `''`, "No icon" pins
  * `'none'`, and any icon pins itself.
  *
- * Appears only while exactly one node is selected — an icon control with nothing
- * to apply to is a permanent panel for an occasional act.
+ * WAS a floating panel pinned to the top-left corner, appearing on its own
+ * selection condition with nothing saying what it applied to. It is now a field
+ * inside `SelectionPanel`, which is why it takes the node id rather than reading
+ * the selection itself: the panel resolves the subject once, and no field
+ * repeats that logic.
+ *
+ * The sheet is an inline disclosure here, not a popover over open canvas, so it
+ * carries no `role="dialog"` -- inside a column where the launcher and every
+ * other field stay visible and operable around it, that role is the role without
+ * the behaviour. Escape and the focus moves are kept.
  *
  * @example
- * <IconPicker editor={editor} />
+ * <IconField editor={editor} id={nodeId} />
  */
-export function IconPicker({ editor }: IconPickerProps) {
+export function IconField({ editor, id }: IconFieldProps) {
   const [open, setOpen] = useState(false)
   const launcher = useRef<HTMLButtonElement>(null)
   const sheet = useRef<HTMLDivElement>(null)
   const wasOpen = useRef(false)
 
   const node = useValue(
-    'selected node',
+    'icon field node',
     () => {
-      if (!editor) return null
-      const ids = editor.getSelectedShapeIds()
-      if (ids.length !== 1) return null
-      const shape = editor.getShape(ids[0]!)
+      const shape = editor.getShape(id)
       if (shape?.type !== NODE_SHAPE_TYPE) return null
       const props = shape.props as { icon: string; label: string; w: number; h: number }
       return {
@@ -69,7 +76,7 @@ export function IconPicker({ editor }: IconPickerProps) {
         drawn: shouldDrawNodeIcon(props.w, props.h, props.label),
       }
     },
-    [editor],
+    [editor, id],
   )
 
   const close = useCallback(() => setOpen(false), [])
@@ -109,7 +116,7 @@ export function IconPicker({ editor }: IconPickerProps) {
     wasOpen.current = open
   }, [open])
 
-  if (!editor || !node) return null
+  if (!node) return null
 
   const current = resolveNodeIcon(node.icon, node.label)
   const automatic = node.icon === ''
@@ -152,7 +159,13 @@ export function IconPicker({ editor }: IconPickerProps) {
         <div
           ref={sheet}
           className="icon-picker__sheet"
-          role="dialog"
+          // `role="group"`, not `dialog`: inside the properties column the
+          // launcher and every other field stay visible and operable around
+          // this, so dialog is the role without the behaviour. But the role had
+          // to be replaced rather than simply dropped -- `aria-label` is ignored
+          // on a role-less div, so removing it outright discarded the name, and
+          // opening moves focus here.
+          role="group"
           aria-label="Choose an icon"
           // Focusable so opening can land here rather than leaving focus on the
           // launcher with the whole grid to tab through; -1 so it is not itself

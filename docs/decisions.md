@@ -36,6 +36,7 @@ until the first real decision lands.
 - [Derived views are computed, never materialized](#derived-views-are-computed-never-materialized)
 - [Scope says who sees a record; history is decided per write](#scope-says-who-sees-a-record-history-is-decided-per-write)
 - [A folded view shows every answer, never none](#a-folded-view-shows-every-answer-never-none)
+- [Controls dock; they do not follow the shape](#controls-dock-they-do-not-follow-the-shape)
 
 ---
 
@@ -249,3 +250,36 @@ case were rewritten in place — the cases stay, the expectation reverses — ra
 spec and delivery doc carry superseded markers. A reversal that erases its own history reads, later,
 as a bug.
 
+### Controls dock; they do not follow the shape
+
+**Settled 2026-09-08 (SPEC-016).** The properties panel is a column docked to the right of the canvas,
+present while exactly one node or connection is selected. It is not anchored to the selected shape,
+and no future control should be.
+
+Anchoring was specified first and abandoned after three independent reviews found three different
+classes of defect in the placement machinery. The last of them built an implementation conforming to
+every acceptance criterion the spec then carried, and measured it covering the selected shape and its
+handles in 75% of node positions at 1024x768 with the icon sheet open.
+
+**The decisive reason is structural, not tuning.** A connection's bounds spans both endpoint nodes'
+CENTRES -- `ConnectionShapeUtil.centreOf` resolves each terminal to `getShapePageBounds(nodeId).center`
+-- so for a diagonal edge it is a large, nearly empty box, and "beside the shape" has no meaning
+relative to it. Connections are half of what this panel describes. They also have `canResize() =>
+false` and `hideRotateHandle() => true`, so the handle-clearance machinery an anchored panel needs is
+dead weight on them.
+
+**Rejected: anchored with an obstacle search.** A single inset "safe rect" cannot express the
+obstacles it must miss -- at 820x1180 tldraw's quick actions touch no viewport edge, so no inset
+excludes them and an inset wide enough swallows the viewport. A four-candidate search over an obstacle
+list can, and that is what was built and measured failing.
+
+**Accepted cost:** the dock covers 31-39% of the canvas while something is selected, and a shape under
+it cannot be resized or have its endpoints dragged without panning first. That is the same property
+tldraw's own style panel has. A camera nudge to clear an occluded selection is the obvious next move
+if it bites in use.
+
+**The one exception, and its boundary.** The dock's TOP is measured at runtime from
+`.tlui-style-panel`, because that panel is 44px under the select tool and roughly 284px under a
+drawing tool, and the dock renders under both -- `recogniseOnDraw` selects a freshly recognised node
+without changing tool. One element, one axis, via `ResizeObserver`. That is not the obstacle search
+this entry rejects, and the distinction is what keeps the exception from reopening it.

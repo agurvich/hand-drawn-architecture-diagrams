@@ -45,12 +45,15 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | `actor` binding | `src/shared/bindings/actor.ts` | The attribution binding, and `chosenActorBinding`'s smallest-id rule |
 | `actors` | `src/client/actors.ts` | `actorIdOf`, `attributeTo`, `clearActor` — the one place an attribution is made |
 | `ActorBindingUtil` | `src/client/bindings/ActorBindingUtil.ts` | Deliberately hookless: the absence of a delete hook is the behaviour |
-| `ActorControl` | `src/client/panels/ActorControl.tsx` | Performed-by, on the selected connection |
 | e2e content helpers | `e2e/helpers.ts` | `addTldrawShape`, `parentOf`, `pageBounds`, `dragCorner` |
 | v2 corpus | `src/shared/__fixtures__/v2/` | Frozen `"version": 2` documents with scenes; the regression base for version 3 |
 | e2e actor helpers | `e2e/helpers.ts` | `attributeConnection`, `actorLabels` |
 | icon matcher | `src/shared/icons/` | `guessIconKey`, `resolveNodeIcon`, the ported 108-rule table, and the derived `ICON_KEYS` |
 | icon registry | `src/client/icons/registry.tsx` | Lucide for the general set, vendored AWS SVGs for `aws:*` |
 | `NodeIcon` | `src/client/icons/NodeIcon.tsx` | Resolves and draws a node's icon |
-| `IconPicker` | `src/client/panels/IconPicker.tsx` | Pin, clear to automatic, or pin to none |
-
+| `SelectionPanel` | `src/client/panels/SelectionPanel.tsx` | The properties dock: resolves the subject, names it, and renders its fields |
+| `selectionSubject` | `src/client/panels/selectionSubject.ts` | The one shape the panel is about, or null for none / several / an unsupported type |
+| `dockTop` | `src/client/panels/dockTop.ts` | Keeps `--dock-top` under tldraw's style panel, whose height depends on the current tool |
+| panel fields | `src/client/panels/fields/` | `NameField`, `IconField` (was `IconPicker`), `ActorField` (was `ActorControl`), `NodeStatus` |
+| `connectionsPerformedBy` | `src/client/actors.ts` | The reverse actor read, routed through `actorIdOf` so concurrent attributions are not miscounted |
+| e2e chrome list | `e2e/chromeRects.ts` | `CHROME_SELECTORS` — the clusters the dock must clear, and the layout containers deliberately absent |

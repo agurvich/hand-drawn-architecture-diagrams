@@ -129,3 +129,28 @@ export function actorsOfSelection(editor: Editor): ReadonlySet<string> {
   }
   return set.get()
 }
+
+/**
+ * Every connection this node performs — the reverse of `actorIdOf`.
+ *
+ * ROUTED THROUGH `actorIdOf`, not filtered with `chosenActorBinding`. That
+ * function picks the smallest id from ALL of one connection's actor bindings;
+ * run over the subset that happens to point at THIS node it answers a different
+ * question, and a connection carrying two concurrent attributions -- one here,
+ * one elsewhere with a smaller id -- would be counted here while `actorIdOf`
+ * correctly says it belongs to the other node. The concurrent case is the whole
+ * reason `chosenActorBinding` exists, so it must not be worked around here.
+ *
+ * Sorted by id so two clients list them in the same order without coordinating.
+ */
+export function connectionsPerformedBy(editor: Editor, nodeId: TLShapeId): TLShapeId[] {
+  const node = editor.getShape(nodeId)
+  if (!node) return []
+  const candidates = new Set<TLShapeId>()
+  for (const binding of editor.getBindingsToShape<ActorBinding>(node, ACTOR_BINDING_TYPE)) {
+    candidates.add(binding.fromId as TLShapeId)
+  }
+  return [...candidates]
+    .filter((connectionId) => actorIdOf(editor, connectionId) === nodeId)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+}

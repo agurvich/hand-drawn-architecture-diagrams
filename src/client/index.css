@@ -826,24 +826,13 @@ body {
  * itself off-screen where nothing could scroll to it -- WCAG 1.4.10.
  */
 .actor-control {
-  position: absolute;
-  top: 60px;
-  right: 8px;
-  left: 8px;
-  z-index: 1000;
+  /* A FIELD in the properties dock now, not a bar across the viewport. Stacked
+     rather than a row: label + select + two notes side by side was legible
+     across 1024px and is not inside a 312px column. */
   display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: fit-content;
-  max-width: calc(100vw - 16px);
-  margin: 0 auto;
-  padding: 6px 10px;
-  background: #fff;
-  border: 1px solid #767676;
-  border-radius: 8px;
-  touch-action: manipulation;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
 }
 .actor-control__label {
   font:
@@ -854,7 +843,7 @@ body {
   white-space: nowrap;
 }
 .actor-control__select {
-  min-width: 0;
+  min-width: 44px;
   min-height: 44px;
   padding: 0 8px;
   font:
@@ -913,10 +902,8 @@ body {
  * rather than on these numbers.
  */
 .icon-picker {
-  position: absolute;
-  top: 60px;
-  left: 8px;
-  z-index: 1000;
+  /* A FIELD in the properties dock now. Position comes from the dock. */
+  margin-top: 8px;
   touch-action: manipulation;
 }
 .icon-picker__button {
@@ -949,16 +936,19 @@ body {
   height: 100%;
 }
 .icon-picker__sheet {
-  box-sizing: border-box;
-  width: min(320px, calc(100vw - 16px));
-  max-height: min(420px, calc(100dvh - 140px));
+  /* INSIDE the dock's scroll flow. The old `width: min(320px, 100vw - 16px)`
+     resolves to 320px at every viewport this app targets, which inside a 312px
+     column gives the dock a horizontal scrollbar -- `overflow-y: auto` forces
+     `overflow-x` to compute to `auto`. And `max-height: min(420px, 100dvh -
+     140px)` was calibrated for a launcher pinned at `top: 60px`. Both are gone:
+     the column scrolls instead. */
   margin-top: 6px;
-  padding: 8px;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #767676;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d7d7db;
   border-radius: 8px;
-  touch-action: manipulation;
+  background: #fff;
+  padding: 8px;
 }
 .icon-picker__row {
   display: flex;
@@ -1018,4 +1008,103 @@ body {
   background: #dce9fa;
   border: 2px solid #1a5fb4;
   box-shadow: inset 0 0 0 1px #1a5fb4;
+}
+
+/*
+ * The selection properties dock (SPEC-016).
+ *
+ * DOCKED to the right rather than anchored to the selected shape. Anchoring
+ * failed three independent reviews; the decisive reason is that a connection's
+ * bounds spans both endpoints' CENTRES, so "beside the shape" is meaningless for
+ * half this panel's subjects.
+ *
+ * No orientation media query, and that fell out of measuring rather than being
+ * designed: the style panel ends at the same y in both orientations, and the
+ * bottom-left/bottom-right clusters are both anchored `bottom: 56px`, so they
+ * sit the same distance above the viewport floor whatever its height.
+ *
+ * `bottom` is 160px rather than the 114px a fresh room suggests, because
+ * `.sketch-toggle` GROWS: `recogniseOnDraw` writes its status region and never
+ * clears it, and `:not(:empty)` then adds padding and a border for the rest of
+ * the session.
+ */
+.selection-panel {
+  position: absolute;
+  top: var(--dock-top, 58px);
+  right: 8px;
+  width: min(312px, calc(100vw - 96px));
+  /* A MAXIMUM, not a height. `bottom` alone made the dock viewport-tall
+     whatever it held -- with a connection selected that is one heading and one
+     select above ~860px of opaque card in portrait, covering 80% of the height
+     of an iPad held to sketch. The clearance this buys is the same; the empty
+     card is not. */
+  max-height: calc(100% - var(--dock-top, 58px) - 160px);
+  z-index: 1000;
+  overflow-y: auto;
+  /* `.canvas-host` sets `touch-action: none` and the used value is intersected
+     with ancestors, so a scroll container that stays silent here cannot be
+     scrolled by touch on the device this tool is for. */
+  touch-action: pan-y;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #d7d7db;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+}
+
+.selection-panel__heading {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.selection-panel__note {
+  margin: 0 0 8px;
+  color: #555;
+  font-size: 12px;
+}
+
+.selection-panel button,
+.selection-panel select,
+.selection-panel input {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+.selection-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.selection-field__label {
+  color: #555;
+  font-size: 12px;
+}
+
+.selection-field__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #c9c9cf;
+  border-radius: 6px;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.selection-panel__link {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  touch-action: manipulation;
 }
