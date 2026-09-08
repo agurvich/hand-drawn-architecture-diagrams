@@ -511,7 +511,7 @@ already proves Escape inside the sheet leaves the node selected — so a text in
 not fire tldraw's shortcuts.
 
 ```ts
-// src/client/panels/chromeRects.ts
+// e2e/chromeRects.ts
 
 /**
  * Every interactive control cluster the docked panel must not cover.
@@ -546,9 +546,10 @@ export const CHROME_SELECTORS = [
 export function chromeRects(root?: Document): Rect[]
 ```
 
-`chromeRects` exists **only for the tests** — the dock's position is static CSS and reads nothing at
-runtime. It is exported so FR-007's clearance test asserts against one named list rather than an
-inline copy that drifts. The narration bar is matched by class, not test id: its container is
+`chromeRects` lives in `e2e/`, not `src/`: the dock's position is static CSS and reads nothing at
+runtime, so this is test-only code and shipping it in the client bundle would be dead weight. It is a
+named module rather than an inline literal so FR-007's clearance test and its per-selector resolution
+test assert against one list rather than two copies that drift. The narration bar is matched by class, not test id: its container is
 `<div className="narration">` with no test id (`NarrationPanel.tsx:94`).
 
 Test ids are **preserved from the absorbed panels** so the suites that prove their behaviour keep
@@ -569,13 +570,21 @@ src/client/panels/
 ├── SelectionPanel.tsx          # subject, header, focus handoff
 ├── SelectionPanel.test.tsx
 ├── selectionSubject.ts
-├── chromeRects.ts              # the clusters the dock must clear — for the tests
 └── fields/
     ├── NameField.tsx           # FR-002
+    ├── NameField.test.tsx
     ├── IconField.tsx           # FR-003 — was panels/IconPicker.tsx
     ├── ActorField.tsx          # FR-004 — was panels/ActorControl.tsx
-    └── NodeStatus.tsx          # FR-005
+    ├── NodeStatus.tsx          # FR-005
+    └── NodeStatus.test.tsx
+
+e2e/
+└── chromeRects.ts              # CHROME_SELECTORS + chromeRects(), test-only
 ```
+
+`IconField` and `ActorField` get no new unit tests: their behaviour is already covered end to end by
+`icons.spec.ts` and `actors.spec.ts`, which FR-003 and FR-004 hold to passing unchanged apart from the
+four positional tests they name.
 
 Deleted: `src/client/panels/IconPicker.tsx`, `src/client/panels/ActorControl.tsx`.
 Changed: `src/client/actors.ts` gains `connectionsPerformedBy` (FR-005).
@@ -589,7 +598,7 @@ regression.
 
 ### Phase 1: Subject, dock and chrome list
 
-- `selectionSubject`; `chromeRects` with the full selector list.
+- `selectionSubject`; `e2e/chromeRects.ts` with the full selector list.
 - The `SelectionPanel` shell: the docked column and its CSS, the subject header, internal scrolling,
   rendered only in `select.idle`, with the focus handoff on unmount and explicit `touch-action` on
   the scroll container and every control.
@@ -614,7 +623,8 @@ regression.
 ### Phase 4: Portrait in the matrix
 
 - Add the `ipad-portrait` project at 820×1180.
-- Move the node in `e2e/node-content.spec.ts:332` clear of the style panel.
-- Add the clearance test (sheet closed and open) and the per-selector `CHROME_SELECTORS` resolution
-  test, both running in both projects.
+- Move the node in `e2e/node-content.spec.ts:332` clear of both the style panel and the dock.
+- Move the six sites FR-007 names that now pointer-down under the dock.
+- Add the clearance test — sheet closed and open, JSON panel expanded, and after a recognition has
+  announced — and the per-selector `CHROME_SELECTORS` resolution test, both in both projects.
 - Get the whole suite green in both.
