@@ -11,6 +11,21 @@ import {
 interface DiagramIOPanelProps {
   /** The mounted editor, or null before `onMount` has run. */
   editor: Editor | null
+  /**
+   * Whether the panel is expanded.
+   *
+   * CONTROLLED, and lifted into `Room.tsx`, because SPEC-016's properties dock
+   * must stand down while this panel is open: `.diagram-io` is centred and
+   * 420px wide, so a right-edge dock intersects it in both orientations and no
+   * dock geometry escapes that. Opening this panel does not clear the selection,
+   * so the two would otherwise be live at once, and the dock would paint over
+   * this panel's right edge -- the defect `index.css`'s own comment records as
+   * having been fought over three times.
+   *
+   * Optional so the panel can still be rendered stand-alone in a unit test.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -25,8 +40,17 @@ interface DiagramIOPanelProps {
  * @example
  * <DiagramIOPanel editor={editor} />
  */
-export function DiagramIOPanel({ editor }: DiagramIOPanelProps) {
-  const [open, setOpen] = useState(false)
+export function DiagramIOPanel({ editor, open: openProp, onOpenChange }: DiagramIOPanelProps) {
+  // Uncontrolled fallback: `open` is only controlled when a parent passes it.
+  const [openLocal, setOpenLocal] = useState(false)
+  const open = openProp ?? openLocal
+  const setOpen = useCallback(
+    (next: boolean) => {
+      setOpenLocal(next)
+      onOpenChange?.(next)
+    },
+    [onOpenChange],
+  )
   const [pasted, setPasted] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)

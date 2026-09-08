@@ -21,6 +21,7 @@ import {
 import { shouldHide } from './visibility'
 import { unvalidatedSchemaIfRequested } from './devOnly'
 import { DiagramIOPanel } from './panels/DiagramIOPanel'
+import { SelectionPanel } from './panels/SelectionPanel'
 import { NarrationPanel } from './panels/NarrationPanel'
 import 'tldraw/tldraw.css'
 
@@ -78,6 +79,14 @@ export function Room({ roomId }: { roomId: RoomId }) {
     return handleMount(mounted)
   }, [])
 
+  /*
+   * The JSON panel's open flag lives HERE because two panels need it: the
+   * properties dock stands down while that panel is expanded (SPEC-016 FR-001).
+   * Ephemeral view state, so ordinary React state -- putting it in the tldraw
+   * store would sync one viewer's open panel to everyone in the room.
+   */
+  const [ioOpen, setIoOpen] = useState(false)
+
   const [slow, setSlow] = useState(false)
   useEffect(() => {
     if (store.status !== 'loading') {
@@ -134,11 +143,12 @@ export function Room({ roomId }: { roomId: RoomId }) {
       {/* A sibling of <Tldraw>, not a `components` override: a textarea inside
           the canvas component tree fights the canvas's own pointer and keyboard
           handling, which this panel needs none of. */}
-      <DiagramIOPanel editor={editor} />
+      <DiagramIOPanel editor={editor} open={ioOpen} onOpenChange={setIoOpen} />
       <NarrationPanel editor={editor} />
       <SketchToggle editor={editor} />
       <ActorControl editor={editor} />
       <IconPicker editor={editor} />
+      <SelectionPanel editor={editor} ioOpen={ioOpen} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">
           Offline — your changes are saved locally and will sync when you reconnect

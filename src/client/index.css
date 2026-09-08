@@ -1019,3 +1019,62 @@ body {
   border: 2px solid #1a5fb4;
   box-shadow: inset 0 0 0 1px #1a5fb4;
 }
+
+/*
+ * The selection properties dock (SPEC-016).
+ *
+ * DOCKED to the right rather than anchored to the selected shape. Anchoring
+ * failed three independent reviews; the decisive reason is that a connection's
+ * bounds spans both endpoints' CENTRES, so "beside the shape" is meaningless for
+ * half this panel's subjects.
+ *
+ * No orientation media query, and that fell out of measuring rather than being
+ * designed: the style panel ends at the same y in both orientations, and the
+ * bottom-left/bottom-right clusters are both anchored `bottom: 56px`, so they
+ * sit the same distance above the viewport floor whatever its height.
+ *
+ * `bottom` is 160px rather than the 114px a fresh room suggests, because
+ * `.sketch-toggle` GROWS: `recogniseOnDraw` writes its status region and never
+ * clears it, and `:not(:empty)` then adds padding and a border for the rest of
+ * the session.
+ */
+.selection-panel {
+  position: absolute;
+  top: var(--dock-top, 58px);
+  right: 8px;
+  width: min(312px, calc(100vw - 96px));
+  bottom: 160px;
+  z-index: 1000;
+  overflow-y: auto;
+  /* `.canvas-host` sets `touch-action: none` and the used value is intersected
+     with ancestors, so a scroll container that stays silent here cannot be
+     scrolled by touch on the device this tool is for. */
+  touch-action: pan-y;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid #d7d7db;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 12%);
+  font-size: 13px;
+}
+
+.selection-panel__heading {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.selection-panel__note {
+  margin: 0 0 8px;
+  color: #555;
+  font-size: 12px;
+}
+
+.selection-panel button,
+.selection-panel select,
+.selection-panel input {
+  min-height: 44px;
+  touch-action: manipulation;
+}
