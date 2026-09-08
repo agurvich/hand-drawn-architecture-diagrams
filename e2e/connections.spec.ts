@@ -315,7 +315,10 @@ test.describe('SPEC-005 FR-004 / SPEC-006 FR-005 — re-aiming an endpoint', () 
   test('the same for the target endpoint', async ({ page }) => {
     await openRoom(page, roomId('ra2'))
     const a = await addNode(page, 'A', { x: 100, y: 400, w: 160, h: 100 })
-    const b = await addNode(page, 'B', { x: 700, y: 400, w: 160, h: 100 })
+    // B sits LEFT of where the sibling test puts it: `dragEndpoint` presses on
+    // the END handle, which anchors on B's border facing A, and SPEC-016's dock
+    // covers the right of the canvas whenever one shape is selected.
+    const b = await addNode(page, 'B', { x: 380, y: 400, w: 160, h: 100 })
     const c = await addNode(page, 'C', { x: 400, y: 80, w: 160, h: 100 })
     const conn = await addConnection(page, a, b)
 

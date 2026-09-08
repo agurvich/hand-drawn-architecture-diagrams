@@ -142,7 +142,10 @@ test.describe('SPEC-013 FR-001 — a node adopts what you draw inside it', () =>
 
 test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
   const withContent = async (page: Page) => {
-    const node = await addNode(page, 'Box', { x: 250, y: 200, w: 400, h: 300 })
+    // Placed LEFT on purpose: SPEC-016 docks a properties panel over the right
+    // of the canvas whenever one shape is selected, and `dragCorner` selects.
+    // A bottom-right corner past x 420 is pressed on the dock, not the handle.
+    const node = await addNode(page, 'Box', { x: 20, y: 200, w: 400, h: 300 })
     const content = await addTldrawShape(page, 'geo', { x: 350, y: 300 })
     expect(await parentOf(page, content)).toBe(node)
     return { node, content }
@@ -213,7 +216,13 @@ test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
     const { node, content } = await withContent(page)
     const before = await pageBounds(page, content)
 
+    const nodeBefore = await pageBounds(page, node)
     await dragCorner(page, node, 300, 200)
+    // The resize MUST have happened. Both assertions below are satisfied by a
+    // drag that did nothing at all -- a no-op leaves the content where it was
+    // and still parented -- so without this the test goes silently green the
+    // moment the press lands on something other than the handle.
+    expect(await pageBounds(page, node)).not.toEqual(nodeBefore)
     expect(await pageBounds(page, content)).toEqual(before)
     expect(await parentOf(page, content)).toBe(node)
   })
@@ -228,13 +237,13 @@ test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
     // reparenting preserves page position. Only its ownership changes, which is
     // exactly why a bounds-only assertion here would prove nothing.
     await openRoom(page, roomId('nc11b'))
-    const node = await addNode(page, 'Box', { x: 200, y: 150, w: 600, h: 450 })
-    const content = await addTldrawShape(page, 'geo', { x: 700, y: 520 })
+    const node = await addNode(page, 'Box', { x: 20, y: 150, w: 400, h: 300 })
+    const content = await addTldrawShape(page, 'geo', { x: 300, y: 350 })
     expect(await parentOf(page, content)).toBe(node)
     const before = await pageBounds(page, content)
     const pageId = await page.evaluate(() => window.__editor!.getCurrentPageId() as string)
 
-    await dragCorner(page, node, -420, -320)
+    await dragCorner(page, node, -300, -220)
 
     const apart = await page.evaluate(
       ({ n, c }) => {
@@ -256,11 +265,15 @@ test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
     // a box. A criterion rather than a note, so a later reader does not read it
     // as a regression.
     await openRoom(page, roomId('nc12'))
-    const outer = await addNode(page, 'Outer', { x: 250, y: 200, w: 500, h: 400 })
+    const outer = await addNode(page, 'Outer', { x: 20, y: 200, w: 400, h: 300 })
     const inner = await addNode(page, 'Inner', { x: 40, y: 40, w: 150, h: 100, parentId: outer })
     const before = await pageBounds(page, inner)
+    const outerBefore = await pageBounds(page, outer)
 
     await dragCorner(page, outer, 300, 200)
+    // As above: "the inner node did not move and is still parented" is exactly
+    // what a drag that never reached the handle produces.
+    expect(await pageBounds(page, outer)).not.toEqual(outerBefore)
     expect(await pageBounds(page, inner)).toEqual(before)
     expect(await parentOf(page, inner)).toBe(outer)
   })
@@ -336,8 +349,11 @@ test.describe('SPEC-013 FR-002 — content belongs to its node', () => {
     // test is here so it stays that way, because losing it would make a box you
     // wrote one word in unusable.
     await openRoom(page, roomId('nc13c'))
-    const box = await addNode(page, 'HasContent', { x: 550, y: 150, w: 300, h: 200 })
-    await addTldrawShape(page, 'geo', { x: 600, y: 200 }, 60)
+    // Left of the dock AND left of tldraw's style panel, which at 820px wide
+    // occupies x 664-812 -- the click at (700, 250) landed on it, which is why
+    // this test only ever passed at 1024.
+    const box = await addNode(page, 'HasContent', { x: 60, y: 150, w: 300, h: 200 })
+    await addTldrawShape(page, 'geo', { x: 120, y: 200 }, 60)
 
     const centre = await page.evaluate((id) => {
       const ed = window.__editor!

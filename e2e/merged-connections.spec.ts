@@ -459,9 +459,11 @@ test.describe('SPEC-006 FR-006 — a merged line is not edited as one connection
     // that otherwise survives the whole suite.
     await openRoom(page, roomId('mh2'))
     const y = await addNode(page, 'Y', { x: 80, y: 700, w: 160, h: 100 })
-    const p = await addNode(page, 'P', { x: 600, y: 120, w: 420, h: 300 })
+    // P is placed LEFT of SPEC-016's dock: the start handle anchors on P's
+    // border facing Y, and a press there would otherwise land on the panel.
+    const p = await addNode(page, 'P', { x: 260, y: 120, w: 420, h: 300 })
     const x = await addNode(page, 'X', { x: 30, y: 40, w: 140, h: 70, parentId: p })
-    const c = await addNode(page, 'C', { x: 100, y: 100, w: 160, h: 100 })
+    const c = await addNode(page, 'C', { x: 60, y: 100, w: 160, h: 100 })
     const conn = await addConnection(page, x, y)
 
     await setCollapsed(page, p, true)
