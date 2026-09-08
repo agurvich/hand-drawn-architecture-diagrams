@@ -144,25 +144,36 @@ Each becomes a spec through the normal process. The ordering is a recommendation
 
 | # | Spec | Why here |
 | --- | --- | --- |
-| 1 | **Selection properties panel** (F2) | Makes every feature built in SPEC-011–015 reachable. Nothing else is worth building while the existing work is invisible. Absorbs `IconPicker` and `ActorControl` rather than adding a ninth floating box (F7). |
+| 1 | **Selection properties panel** (F2) — `SPEC-016` | Makes every feature built in SPEC-011–015 reachable. Nothing else is worth building while the existing work is invisible. Absorbs `IconPicker` and `ActorControl` rather than adding a ninth floating box (F7). |
 | 2 | **Recognition that works at any scale** (F1) | Unblocks the core loop. Must be written against `docs/corpus/`, and must add a real-pencil fixture path — the capture harness currently produces mouse strokes. |
 | 3 | **Edge kinds / edge sets** (§1) | He named the model and reached for colour on his own. Note `CLAUDE.md` → *Out of Scope* currently defers edge sets "pending real use" — **real use has now happened**, so that fence should be lifted in `decisions.md` as part of this spec, not silently ignored. |
 | 4 | **Node as header + body** (F4) | Small, and it is what makes nesting legible. |
 | 5 | **One drawing path** (F3) | Connections from the marker; prune the toolbar to what the loop needs; stop native arrows masquerading as connections. Partly falls out of 2. |
 | 6 | **iPad chrome** (F5, F6, F7) | Portrait overlap is a defect and could be pulled forward on its own; the wider consolidation is design work that should follow 1. |
 
-**Testing gap to close in whichever spec goes first:** add a **portrait iPad viewport** to the e2e
-matrix. F5 existed for months behind a suite that only ever measured landscape.
+**Testing gap, now assigned:** the portrait iPad viewport is `SPEC-016` FR-007, and the size of that
+job is measured there rather than guessed. F5 existed for months behind a suite that only ever
+measured landscape.
 
 ---
 
-## 4. Open questions for the user — do not decide these unilaterally
+## 4. Questions for the user — answered 2026-09-08
 
-1. **Do we support Safari 16.x iPads?** (F8) An iPad is a device people keep for years and do not
-   update; "works only on a current one" is a real narrowing. Two lines if yes.
-2. **Is a step-function step and the transfer it performs one edge or two?** He declined to draw both.
-   This decides whether edge kinds are layers over one edge set or genuinely separate edges.
-3. **Priority between F2 and F1** — invisible features versus a broken core loop.
+All three were put to the project owner and answered. Recorded here rather than in
+`docs/decisions.md` because none of them has a spec yet; the spec that acts on each promotes it to a
+register entry when it is written.
+
+1. **Do we support Safari 16.x iPads?** (F8) — **A version guard, not the `safari16` build target.**
+   The two-line `build.target` pin stays backed out; what gets built instead is a readable "this
+   browser is too old" message in place of the blank page. An iPad on 16.2 still cannot run the app,
+   but it is told why rather than showing nothing. Belongs to its own small spec.
+2. **Is a step-function step and the transfer it performs one edge or two?** — **One edge carrying
+   several kinds.** A connection gains a set of kinds (data / permission / sequence) rather than the
+   diagram gaining parallel edge sets, which matches him declining to draw a third layer. The
+   accepted cost, stated so the edge-kinds spec does not rediscover it: one edge has one pair of
+   endpoints, so a step whose endpoints differ from the transfer's cannot be expressed.
+3. **Priority between F2 and F1** — **F2 first.** Recorded with its reasoning in the *iPad readiness*
+   arc in `docs/specs/INDEX.md`, which is where build order lives.
 
 ---
 
