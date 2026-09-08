@@ -1,7 +1,7 @@
 # Spec: Selection properties panel
 
 **ID:** SPEC-016
-**Status:** Draft
+**Status:** In Progress
 **Last Updated:** 2026-09-08
 **Depends On:** SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015
 
