@@ -18,7 +18,15 @@ import {
  * tidier than one a hand actually draws -- so a recogniser tuned against one is
  * tuned against nothing. Every fixture here went through tldraw's real draw
  * tool, its smoothing and its segment encoding, and came back out through the
- * same `decodePoints` the runtime uses. See `e2e/tools/capture-strokes.spec.ts`.
+ * same `decodePoints` the runtime uses.
+ *
+ * TWO PROVENANCES, and each fixture names its own in `via`. The `cdp-pen`
+ * strokes were drawn by an agent through synthesised pen events
+ * (`e2e/tools/capture-strokes.spec.ts`); the `ipad-pencil` ones were drawn by a
+ * person on the target device and promoted out of `docs/corpus/` by
+ * `__corpus__/extract.tool.test.ts`. An earlier version of this note told the
+ * reader every fixture was the first kind, which was true when written and is
+ * the whole reason the classifier only accepted tidy rectangles.
  */
 
 const CORPUS = resolve(process.cwd(), 'src/shared/sketch/__fixtures__/strokes')
@@ -27,7 +35,7 @@ interface Stroke {
   name: string
   expect: 'box' | 'line' | 'none'
   why: string
-  via: string
+  via: 'cdp-pen' | 'ipad-pencil'
   points: Point[]
 }
 
@@ -48,9 +56,15 @@ describe('the stroke corpus', () => {
   })
 
   it('records how each stroke was captured, rather than implying it was a pencil', () => {
-    // The app renders blank on iPad (architecture.md, open defect), so these are
-    // CDP-synthesised pen events. Said per file rather than assumed.
-    for (const stroke of STROKES) expect(stroke.via).toBe('cdp-pen')
+    // Two provenances now, and the distinction is the point rather than
+    // bookkeeping: `cdp-pen` strokes went through tldraw's real draw tool but
+    // were drawn by an agent, so they carry its smoothing and none of a hand's
+    // jitter. `ipad-pencil` strokes came off `docs/corpus/`, drawn on the target
+    // device. Tuning against only the first is how this classifier ended up
+    // accepting only tidy rectangles.
+    for (const stroke of STROKES) expect(['cdp-pen', 'ipad-pencil']).toContain(stroke.via)
+    expect(STROKES.some((s) => s.via === 'ipad-pencil')).toBe(true)
+    expect(STROKES.some((s) => s.via === 'cdp-pen')).toBe(true)
   })
 
   it('says WHY each stroke expects its verdict', () => {

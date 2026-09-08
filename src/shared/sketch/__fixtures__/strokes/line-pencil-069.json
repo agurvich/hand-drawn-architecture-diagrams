@@ -1,0 +1,24 @@
+{
+  "name": "line-pencil-069",
+  "expect": "line",
+  "why": "A horizontal rule under a label, straight enough to be a connection.",
+  "via": "ipad-pencil",
+  "points": [
+    {
+      "x": -8314.16,
+      "y": -2124.46
+    },
+    {
+      "x": -8291.01,
+      "y": -2124.46
+    },
+    {
+      "x": -8261.24,
+      "y": -2124.46
+    },
+    {
+      "x": -8231.48,
+      "y": -2124.46
+    }
+  ]
+}
