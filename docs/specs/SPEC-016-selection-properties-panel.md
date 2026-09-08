@@ -67,7 +67,12 @@ cluster smaller, and the features stop being invisible.
   what it applies to -- with none of that geometry.
 - **Reclaiming the canvas the dock covers.** The dock occupies 320px of width whenever something is
   selected — 31% at 1024×768, 39% at 820×1180 — and a selected shape sitting under it cannot be
-  resized or have its endpoints dragged without panning first. This is the same property tldraw's own
+  resized or have its endpoints dragged without panning first. **Because the panel now renders under
+  a drawing tool too, this includes strokes: after a sketch is recognised the new node is selected, so
+  the dock is up, and a stroke begun inside its band does not reach the canvas.** That is the accepted
+  cost of the panel appearing in the sketch-then-name flow rather than waiting for a tool switch; the
+  decision was made deliberately on 2026-09-08 and is the first thing to revisit if drawing several
+  boxes in a row turns out to fight it. This is the same property tldraw's own
   style panel has today, and the mitigation is the same: two fingers pan. Nudging the camera to clear
   a selection it occludes is the obvious next move if this bites in use; it is deliberately not built
   here, because adding behaviour in response to a late review finding is how a spec's least-scrutinised
@@ -132,6 +137,20 @@ clusters, therefore clears every one of them under a single rule. The two number
 orientations are the dock's bottom edge and its width; both are static CSS, and the clearance test in
 FR-007 is what keeps them honest.
 
+**The dock's TOP is measured; everything else about it is static.** tldraw's style panel is short
+when a `diagramNode` is selected under the select tool (44px, y 6-50 in both orientations) and tall
+when a drawing tool is current, because it then shows that tool's own styles — the y 6-290 rect FR-007
+quotes. Since the panel now renders under any tool, a constant `top` derived from the short case would
+sit underneath the tall one. The dock therefore takes its top edge from
+`.tlui-style-panel`'s measured bottom, plus a gap, via a `ResizeObserver` on that one element, with a
+static fallback when it is absent.
+
+This is a deliberate, bounded exception to "no runtime geometry", and the boundary matters: it is
+**one element on one axis**, not a search. What was deleted after three failed reviews was a
+four-candidate placement search over a list of obstacles; a single `getBoundingClientRect().bottom` is
+not that, and the alternative is a dock that overlaps the style panel whenever a drawing tool is
+active.
+
 **Layout containers are deliberately not obstacles.** `.tlui-layout__top__right` spans x 860-1024,
 y 0-712 in landscape -- the full height of the right side -- while the only thing drawn inside it is
 the 44px-tall style panel. Treating that container as an obstacle would forbid the entire right edge
@@ -189,8 +208,17 @@ why.
       depends on where the selected shape is.
 - [ ] Collapsing an ancestor container so the selected shape becomes hidden removes the panel, because
       the selection is stripped (`stripHiddenFromSelection`).
-- [ ] The panel is not rendered unless the editor is in `select.idle`. (`select.editing_shape` is
-      already not idle, so double-click-to-rename suppresses it without a separate check.)
+- [ ] The panel is rendered whenever a subject exists and **no shape is being text-edited**
+      (`editor.getEditingShapeId() === null`), whatever the current tool. It is deliberately **not**
+      gated on `select.idle`: `recogniseOnDraw.ts:204` selects a freshly recognised node while the
+      **draw** tool is still current (nothing in `src/client/sketch/` calls `setCurrentTool`), so an
+      idle-gated panel would never appear in the sketch-then-name flow this spec exists to serve.
+- [ ] Double-clicking a node opens the in-canvas textarea and the panel disappears; closing it brings
+      the panel back. This is the `getEditingShapeId()` clause, and it is what keeps the two rename
+      surfaces from ever being live together.
+- [ ] **Both conditions are read inside one reactive scope.** `getEditingShapeId()` changing does not
+      change the selection, so a subject-only `useValue` with the edit check in the render body
+      subscribes to nothing and the panel stays mounted beside the open textarea.
 - [ ] A pointer-down anywhere on the canvas outside the panel reaches the canvas: drawing a stroke
       that starts outside the dock is unaffected by the panel being open.
 - [ ] When focus is inside the panel and the panel unmounts for any reason, focus moves to
@@ -430,6 +458,12 @@ defect. That baseline sizes the *viewport* change only — the edits FR-003, FR-
 - [ ] A clearance test asserts the selection panel's bounding box intersects **none** of the rects
       `chromeRects()` returns, for a selected node and for a selected connection, with the icon sheet
       closed and open **and after a sketch recognition has announced**, and it runs in both projects.
+      **Each case asserts the panel is present before measuring it.** A missing panel has no bounding
+      box and "intersects nothing" is then trivially true — the vacuous-pass failure this spec's own
+      quick-actions argument describes, arriving in the test written to prevent it.
+- [ ] The post-recognition case measures with the **draw tool still current**, which is the state
+      `recogniseOnDraw` leaves behind and the one where tldraw's style panel is tall. That case is
+      what proves `--dock-top` follows the style panel rather than sitting at its fallback.
       The post-recognition state is the one a fresh room cannot reach and the reason `bottom` is 160px
       rather than the 114px a closed-state measurement gives.
 - [ ] **Each selector in `CHROME_SELECTORS` is asserted individually**, not as a list. A single
@@ -480,7 +514,7 @@ fresh room and not the one you have after drawing once.
 /* src/client/index.css */
 .selection-panel {
   position: absolute;
-  top: 58px;         /* clears the style panel (ends y 50) and the JSON launcher (ends y 52) */
+  top: var(--dock-top, 58px);  /* measured from .tlui-style-panel; 58px is the fallback */
   right: 8px;
   width: min(312px, calc(100vw - 96px));  /* 312 at 1024 and 820; 279 at 375 */
   bottom: 160px;     /* clears the sketch toggle AFTER its status region fills */
@@ -505,7 +539,23 @@ clearance test is what decides whether they are right, and it runs in both orien
 
 ```tsx
 // src/client/panels/SelectionPanel.tsx
-export function SelectionPanel({ editor }: { editor: Editor | null }): React.JSX.Element | null
+export function SelectionPanel({
+  editor,
+  ioOpen,
+}: {
+  editor: Editor | null
+  /** True while `DiagramIOPanel` is expanded; the dock stands down. Lifted into
+   *  `Room.tsx` as ordinary React state — ephemeral view state, not domain state. */
+  ioOpen: boolean
+}): React.JSX.Element | null
+```
+
+The dock's top edge is published as a CSS custom property from a `ResizeObserver` on
+`.tlui-style-panel`:
+
+```ts
+/** `.tlui-style-panel`'s bottom + 8, or 58 when it is absent. Sets `--dock-top`. */
+function observeDockTop(host: HTMLElement): () => void
 ```
 
 `React.JSX.Element`, not `JSX.Element`: React 19 removed the global `JSX` namespace, and the bare form
