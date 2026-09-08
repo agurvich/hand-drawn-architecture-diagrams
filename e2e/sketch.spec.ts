@@ -571,7 +571,12 @@ test.describe('SPEC-010 FR-005 — the control', () => {
     const covered = await page.evaluate(() => {
       const mine = document.querySelector('[data-testid="sketch-toggle"]')!.getBoundingClientRect()
       const hits: string[] = []
-      for (const selector of ['.tlui-navigation-panel', '.tlui-toolbar', '.tlui-menu-zone']) {
+      for (const selector of [
+        '.tlui-navigation-panel',
+        '.tlui-toolbar',
+        '.tlui-main-toolbar__extras__controls',
+        '.tlui-menu-zone',
+      ]) {
         const el = document.querySelector(selector)
         if (!el) continue
         const r = el.getBoundingClientRect()

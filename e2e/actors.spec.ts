@@ -373,6 +373,13 @@ test.describe('SPEC-011 FR-003 — the control, and what it must not cover', () 
         '[data-testid="narration-open"]',
         '[data-testid="sketch-toggle"]',
         '.tlui-toolbar',
+        // NOT the same element: `.tlui-toolbar` resolves to a row inside the style
+        // panel at 820px and to the top menu row at 1024px. The quick actions --
+        // undo, redo, delete, duplicate -- are `.tlui-main-toolbar__extras__controls`,
+        // which no overlap list named. NOT `.tlui-main-toolbar`: that is x 0-820,
+        // full width, `pointer-events: none`, and matching against it reports an
+        // overlap for anything along the bottom edge.
+        '.tlui-main-toolbar__extras__controls',
         '.tlui-menu-zone',
         '.tlui-navigation-panel',
       ]) {

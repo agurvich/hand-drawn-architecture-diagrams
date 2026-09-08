@@ -40,6 +40,21 @@ export default defineConfig({
         deviceScaleFactor: 2,
       },
     },
+    {
+      /*
+       * PORTRAIT, the way the device is actually held to sketch. Added because
+       * finding F5 -- our Scenes bar covering tldraw's undo/redo/delete/duplicate
+       * -- survived for months behind a suite that only ever measured landscape.
+       */
+      name: 'ipad-portrait',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 820, height: 1180 },
+        hasTouch: true,
+        isMobile: false,
+        deviceScaleFactor: 2,
+      },
+    },
   ],
   // `vite preview` serves the built client but NOT the worker, so sync would
   // have no server to talk to. The dev server runs client and worker on ONE
