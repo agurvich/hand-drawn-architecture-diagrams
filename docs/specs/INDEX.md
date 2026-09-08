@@ -21,7 +21,7 @@ to status only — no prose.
 | SPEC-014 | An icon on every node | Completed | SPEC-004, SPEC-007, SPEC-012 |
 | SPEC-015 | Actors on a merged edge | Completed | SPEC-006, SPEC-011, SPEC-014 |
 | SPEC-016 | Selection properties panel | Completed | SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015 |
-| SPEC-017 | Recognition that works on a real hand | In Progress | SPEC-010 |
+| SPEC-017 | Recognition that works on a real hand | Completed | SPEC-010 |
 
 ## Arcs (build order)
 
