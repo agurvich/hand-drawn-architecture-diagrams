@@ -17,8 +17,8 @@ had. His words: *"When I select a node or an edge, it should have a properties m
 can rename it, select a new icon, identify it as an actor, add it to the scene, whatever. That's what
 I expected and it didn't happen, so I don't know how to use the app if the features are there."*
 
-This spec builds that menu: one panel, anchored to the selected shape, carrying the properties of
-whatever is selected. It **absorbs** the two panels that already do this work from a corner —
+This spec builds that menu: one panel, docked to the right of the canvas, that appears the moment
+you select something and says what it is acting on. It **absorbs** the two panels that already do this work from a corner —
 `IconPicker` and `ActorControl` — rather than adding a ninth independent cluster to chrome that is
 already eight (`docs/handoff/2026-09-08-ipad-findings.md` → F7). Net chrome after this spec is one
 cluster smaller, and the features stop being invisible.
@@ -27,9 +27,8 @@ cluster smaller, and the features stop being invisible.
 
 ### In Scope
 
-- One panel that appears when exactly one node or one connection is selected, anchored to that
-  shape's on-screen bounds, clear of the shape's own manipulation handles and of the editor's
-  controls.
+- One panel, docked to the right edge, that appears when exactly one node or one connection is
+  selected and names its subject in a header.
 - Renaming a node from the panel. **The panel's field is the discoverable rename; the existing
   double-click-to-edit textarea on the shape stays as it is.** They never run at once — FR-001
   suppresses the panel while its shape is being text-edited — so there is one live rename surface at
@@ -55,10 +54,19 @@ cluster smaller, and the features stop being invisible.
   them. That a native arrow looks like a connection and is not one is finding F3, and its own spec.
 - **Multi-select properties.** More than one shape selected shows no panel, exactly as the two
   absorbed panels behave today.
-- **Occlusion of shapes other than the selected one.** A panel anchored to a selection necessarily
-  covers some canvas. It is dismissed by deselecting, which is a tap on empty canvas, and it never
-  covers the *selected* shape or its handles (FR-001). Making it collapsible or draggable is not built
-  here.
+- **Anchoring the panel to the selected shape.** Tried and abandoned. Placement failed three
+  independent reviews in three different ways, the last of which built a conforming implementation
+  that still covered the selected shape and its handles in 75% of node positions at 1024x768 with the
+  icon sheet open. The decisive reason is structural rather than a tuning problem: a connection's
+  bounds spans both endpoint nodes' CENTRES (`ConnectionShapeUtil.centreOf` resolves each terminal to
+  `getShapePageBounds(nodeId).center`), so for a diagonal edge it is a large, nearly empty box that
+  "beside the shape" has no meaning relative to -- and connections are half this panel's subjects.
+  Connections also have `canResize() => false` and `hideRotateHandle() => true`
+  (`ConnectionShapeUtil.tsx:63,66`), so the handle-clearance machinery an anchored panel needs is dead
+  weight on them. A docked panel answers the finding -- something appears on selection, and it says
+  what it applies to -- with none of that geometry.
+- **A collapsible or resizable dock.** The panel is a fixed-width column, present only while something
+  is selected. Letting the user drag or collapse it is not built here.
 - **Repositioning the Scenes bar, the JSON launcher or the sketch toggle** (findings F5/F7). This
   spec adds the portrait viewport the next spec needs and keeps its own panel clear of the chrome; it
   does not move the other clusters. F5 is still present and now measured at 820×1180 on `00c1e47`:
@@ -80,39 +88,41 @@ cluster smaller, and the features stop being invisible.
 
 ## Functional Requirements
 
-### FR-001: The panel appears with the selection, anchored to it
+### FR-001: A docked panel that appears with the selection and names it
 
 #### Description:
 
-A single panel mounts beside `<Tldraw>` and renders only when the current selection is exactly one
-`diagramNode` or one `diagramConnection`. It is placed adjacent to the selected shape, clear of that
-shape's manipulation handles, clear of the editor's chrome, and inside the viewport. It re-anchors
-when the shape moves, the camera changes, or the panel's own size changes; and it is suppressed while
-the editor is doing something other than sitting idle with a selection.
+A single panel mounts beside `<Tldraw>` as a **column docked to the right edge**, rendered only when
+the current selection is exactly one `diagramNode` or one `diagramConnection`. It has a fixed width
+and a fixed top and bottom; it scrolls internally when its content is taller than it is; and its
+header names the subject, so the connection between the selected shape and the controls acting on it
+is stated rather than implied by proximity.
 
-Because the panel floats **over the canvas** rather than in a corner, it must not take gestures that
-belong to the canvas. This is the one genuinely new risk in the change: the two panels it replaces
-were pinned to corners and could never sit over a shape or its handles.
+**Why one dock serves both orientations.** The chrome was measured on `00c1e47` with a node selected,
+by `document.querySelectorAll` on each interactive cluster:
 
-**Placement is a search over candidates, not an offset plus a clamp.** The obstacles it must miss —
-tldraw's style panel, the quick-actions cluster — sit in the middle of an edge or away from every
-edge, so a single "safe rect" cannot express them: a rect inset far enough to exclude the quick
-actions at 820×1180 (which are 76px off the bottom and 201px off the left) would have to swallow most
-of the viewport. `placePanel` therefore generates candidate placements and rejects the ones that
-collide.
+| | landscape 1024x768 | portrait 820x1180 |
+|---|---|---|
+| menu zone + its toolbar | x 0-297, y 0-42 | x 0-117, y 0-42 |
+| style panel | x 868-1016, y 6-50 | x 664-812, y 6-50 |
+| JSON launcher | x 481-543, y 8-52 | x 379-441, y 8-52 |
+| narration bar | x 8-324, y 662-712 | x 8-324, y 1074-1124 |
+| sketch toggle | x 925-1016, y 662-712 | x 721-812, y 1074-1124 |
+| quick actions | (in the top bar) | x 199-387, y 1082-1126 |
+| main toolbar | x 293-731, y 712-760 | x 191-629, y 1124-1172 |
+| navigation panel | x 0-96, y 728-768 | x 0-60, y 1140-1180 |
 
-**The panel is offset from the shape's INTERACTION rect, not its bounds.** tldraw's handles extend
-past the selection on a coarse pointer, and both Playwright projects set `hasTouch: true` because the
-product is an iPad app. At zoom 1, from `SelectionForegroundOverlayUtil.mjs:325-328, 165`:
-`mobileHandleMultiplier = 1.75`, `hitTargetSize = 6/zoom × 1.75 = 10.5`,
-`hitTargetSizeX/Y = 10.5 × (1.75 × 0.75) = 13.78`, `cornerHitHalfSize = 13.78 × 1.5 = 20.67` — so a
-corner handle's hit polygon reaches **20.67px past each edge**, and it is constant in *screen* px
-because the constants scale by `1/zoom` in page space. A 12px offset from the bounds would put the
-panel's top 8.67px inside both bottom corner handles, and the panel — a DOM sibling painted above the
-canvas — would win the pointer. Above the shape it is worse: the mobile rotate handle is centred at
-`cy = -hitTargetSize × 1.5 = -15.75` (`:401`) with its own radius on top. With a fine pointer the
-reach is 6.75px and a small offset looks fine, so **desktop testing cannot see this** — which is why
-the criteria below are drag tests on real handles, not arithmetic.
+Everything on the right edge below the style panel is free until the sketch toggle, in both. A column
+inset from the right, starting below the style panel and ending above the lowest of the bottom-edge
+clusters, therefore clears every one of them under a single rule. The two numbers that differ between
+orientations are the dock's bottom edge and its width; both are static CSS, and the clearance test in
+FR-007 is what keeps them honest.
+
+**Layout containers are deliberately not obstacles.** `.tlui-layout__top__right` spans x 860-1024,
+y 0-712 in landscape -- the full height of the right side -- while the only thing drawn inside it is
+the 44px-tall style panel. Treating that container as an obstacle would forbid the entire right edge
+and there would be no dock. `CHROME_SELECTORS` names interactive clusters only, and this paragraph is
+why.
 
 #### Acceptance Criteria:
 
@@ -120,43 +130,36 @@ the criteria below are drag tests on real handles, not arithmetic.
 - [ ] Selecting one node renders the panel; selecting one connection renders the panel.
 - [ ] Selecting two or more shapes renders no panel; selecting one tldraw `geo`, `draw` or `arrow`
       shape renders no panel.
-- [ ] The panel's rect intersects neither the selected shape's bounds nor its interaction rect
-      (`INTERACTION_INSET`), in every one of `placePanel`'s four candidate sides.
-- [ ] **On a coarse pointer at 820×1180, a drag started on each of the four corner resize handles
-      resizes the shape, and a drag on the mobile rotate handle rotates it** — with the panel
-      rendered. These are the criteria that actually gate the offset; the arithmetic above is the
-      reason, not the test.
-- [ ] A pointer-down inside the selected shape's bounds but *outside* the panel reaches the canvas: a
-      drag begun there moves the shape, and is not interrupted by the panel mounting.
-- [ ] The panel's bounding box intersects none of the rects `chromeRects()` returns, at 1024×768 and
-      at 820×1180, and its presence does not change `document.documentElement.scrollWidth`.
-- [ ] The panel's bounding box lies entirely within the viewport at both sizes.
-- [ ] Panning the camera by 200px moves the panel by the same 200px in the same direction (±2px)
-      **while `clamped` is false and `side` is unchanged between the two placements.** A flip from
-      one side to another is a legitimate placement change and is excluded, not a failure.
-- [ ] Opening the icon sheet re-runs placement: with the panel anchored low in the viewport, the sheet
-      is fully inside the viewport and still clears every chrome rect. (The sheet is up to 320×420 in
-      normal flow below its launcher, so a placement computed on the closed panel is wrong the moment
-      it opens.)
+- [ ] The panel's header names the subject: the node's label (or "Untitled" when empty), or for a
+      connection the labels of the two nodes it joins. Renaming through FR-002 updates the header.
+- [ ] The panel's bounding box intersects none of the rects `chromeRects()` returns, at 1024x768 and
+      at 820x1180, with the icon sheet closed **and** open.
+- [ ] The panel's bounding box lies entirely within the viewport at both sizes, and its presence does
+      not change `document.documentElement.scrollWidth`.
+- [ ] Content taller than the dock scrolls **inside** the panel: with the icon sheet open at 1024x768,
+      the panel's `scrollHeight` exceeds its `clientHeight`, its last control is reachable by
+      scrolling, and the panel's own rect is unchanged by opening the sheet.
+- [ ] Panning or zooming the camera does not move the panel. Nothing about the panel's position
+      depends on where the selected shape is.
 - [ ] Collapsing an ancestor container so the selected shape becomes hidden removes the panel, because
       the selection is stripped (`stripHiddenFromSelection`).
 - [ ] The panel is not rendered unless the editor is in `select.idle`. (`select.editing_shape` is
       already not idle, so double-click-to-rename suppresses it without a separate check.)
+- [ ] A pointer-down anywhere on the canvas outside the panel reaches the canvas: drawing a stroke
+      that starts outside the dock is unaffected by the panel being open.
 - [ ] When focus is inside the panel and the panel unmounts for any reason, focus moves to
-      `.tl-container` — the only focusable canvas element — rather than being dropped to `<body>`
-      (`best-practices/accessibility/accessibility.md` → 2.4.3). The check must capture
+      `.tl-container` -- the only focusable canvas element -- rather than being dropped to `<body>`
+      (`best-practices/accessibility/accessibility.md` -> 2.4.3). The check must capture
       `panelRef.current.contains(document.activeElement)` in the effect body, **before** cleanup runs,
       since by cleanup time `document.activeElement` is already `<body>`.
-- [ ] Every interactive control in the panel is at least 44×44 CSS px, the bar `e2e/scenes.spec.ts`
+- [ ] Every interactive control in the panel is at least 44x44 CSS px, the bar `e2e/scenes.spec.ts`
       already holds the narration controls to. This includes the "Performed by" control, whose current
-      rule is `min-width: 0` (`index.css:857`) and can therefore render narrower.
-- [ ] Every interactive control in the panel sets `touch-action: manipulation`. `.canvas-host` sets
-      `touch-action: none` (`index.css:23`), which descendants inherit, so a control that omits it is
-      dead to touch on the target device while working on desktop.
-- [ ] `placePanel` is pure and unit-tested for: a fit on the first candidate; each of the other three
-      candidates being chosen in turn; every candidate colliding (the least-overlapping one is
-      returned with `overlapping: true`); a panel larger than the viewport (clamped, still inside);
-      and `side` reported correctly in each case.
+      rule is `min-width: 0` (`index.css:857`).
+- [ ] The panel and every scrollable or interactive descendant set an explicit `touch-action`
+      (`manipulation` for controls, `pan-y` for the scroll container). `.canvas-host` sets
+      `touch-action: none` (`index.css:26`) and the used value is intersected with ancestors, so a
+      scroll container that omits it cannot be scrolled by touch on the target device while working
+      under a desktop mouse wheel.
 
 ### FR-002: Rename a node from the panel
 
@@ -213,9 +216,11 @@ what covers this, and it belongs to the panel, not the field.
       and make the existing `nodeId` reset effect dead code, and that effect is what orders the reset
       before the focus effect re-runs. FR-002 needs no key either, since its field is controlled.
 - [ ] On a node too small to draw an icon beside its label, the explanatory note still appears.
-- [ ] The sheet's `max-height` is computed from the room actually available below the launcher, not
-      from `100dvh - 140px` (`index.css:951`), which was calibrated for a launcher pinned at
-      `top: 60px` and over-claims when the panel is low in the viewport.
+- [ ] The sheet renders **inside the dock's scroll flow** -- it does not float over the canvas and
+      does not overflow the dock. Its `width: min(320px, 100vw - 16px)` and
+      `max-height: min(420px, 100dvh - 140px)` (`index.css:951`) were both calibrated for a launcher
+      pinned at `top: 60px` over open canvas; inside a fixed-width column they are replaced by the
+      column's own width and by letting the column scroll (FR-001).
 - [ ] Every assertion in `e2e/icons.spec.ts` about icon *state* passes unchanged. Exactly one test is
       rewritten: `e2e/icons.spec.ts:420` *"the picker does not cover any other control"*, which
       contains no state assertion at all — it is wholly positional, and one of the selectors it
@@ -355,12 +360,16 @@ defect. That baseline sizes the *viewport* change only — the edits FR-003, FR-
 - [ ] A clearance test asserts the selection panel's bounding box intersects **none** of the rects
       `chromeRects()` returns, for a selected node and for a selected connection, with the icon sheet
       closed and open, and it runs in both projects.
-- [ ] **Each selector in `CHROME_SELECTORS` is asserted individually to resolve to at least one
-      element at 820×1180, and `.tlui-toolbar` is asserted to resolve to more than one.** A single
+- [ ] **Each selector in `CHROME_SELECTORS` is asserted individually**, not as a list. A single
       "the list resolves to more than one element" assertion is vacuous — the list has eight entries,
       so it passes with the quick-actions selector matching nothing, which is the very defect this
-      test exists to catch. Per `docs/process.md` §3, a gate owes a case per construct, and a gate
-      tested against the thing it guards is not tested.
+      test exists to catch (`docs/process.md` §3: a gate owes a case per construct, and a gate tested
+      against the thing it guards is not tested). Specifically: at 820×1180 every selector resolves to
+      at least one element and `.tlui-toolbar` to more than one; at 1024×768 the same holds **except
+      `.tlui-main-toolbar__extras__controls`, which correctly resolves to none** — tldraw keeps the
+      quick actions in the top bar in landscape and only moves them to the bottom below its
+      `TABLET_SM` breakpoint. The landscape case is asserted as an expected zero so that a future
+      reader does not "fix" it, and so that the selector going stale in portrait is still caught.
 
 ---
 
@@ -383,55 +392,27 @@ export type SelectionSubject =
 export function selectionSubject(editor: Editor): SelectionSubject | null
 ```
 
-```ts
-// src/client/panels/placePanel.ts
-export interface Rect {
-  x: number
-  y: number
-  w: number
-  h: number
+There is no placement model, no obstacle search and no geometry: the dock's position is CSS, and it
+needs no orientation media query at all. Both orientations take the same four values, which is a
+consequence of the measurements in FR-001 rather than a coincidence: the style panel ends at y 50 in
+both, and the narration bar is `bottom: 56px` (`index.css:478`) and 50px tall, so it starts 106px
+above the viewport floor in both.
+
+```css
+/* src/client/index.css */
+.selection-panel {
+  position: absolute;
+  top: 58px;         /* clears the style panel (ends y 50) and the JSON launcher (ends y 52) */
+  right: 8px;
+  width: 312px;      /* landscape leaves 704px of canvas; portrait leaves 500px */
+  bottom: 114px;     /* clears the narration bar and sketch toggle, which start 106px up */
+  overflow-y: auto;
+  touch-action: pan-y;
 }
-
-export type Side = 'below' | 'above' | 'right' | 'left'
-
-export interface Placement {
-  left: number
-  top: number
-  /** Which candidate won. FR-001's pan criterion excludes a change of side. */
-  side: Side
-  /** True when the viewport moved the placement. */
-  clamped: boolean
-  /** True when no candidate cleared every obstacle and the least-bad one was taken. */
-  overlapping: boolean
-}
-
-/**
- * How far past a shape's bounds tldraw's coarse-pointer handles reach, in screen
- * px. Larger at the top for the mobile rotate handle, which is centred 15.75px
- * above the top edge and has a radius of its own. Derived in FR-001; the drag
- * criteria there are what actually gate it.
- */
-export const INTERACTION_INSET = { top: 40, right: 24, bottom: 24, left: 24 }
-
-/** The offset between the interaction rect and the panel. */
-export const GAP = 8
-
-/**
- * Pure: no Editor, no DOM. All rects are screen-space.
- *
- * Candidates are tried in order — below, above, right, left — each centred on the
- * interaction rect along the free axis. The first that fits the viewport and
- * intersects no obstacle wins. If none does, the candidate with the smallest total
- * obstacle-overlap area is returned with `overlapping: true`, clamped into the
- * viewport.
- */
-export function placePanel(
-  interaction: Rect,
-  panel: { w: number; h: number },
-  viewport: Rect,
-  obstacles: readonly Rect[],
-): Placement
 ```
+
+These numbers are a **starting point derived from the measurements, not a result**. FR-007's
+clearance test is what decides whether they are right, and it runs in both orientations.
 
 ---
 
@@ -465,12 +446,16 @@ not fire tldraw's shortcuts.
 // src/client/panels/chromeRects.ts
 
 /**
- * Every control cluster the panel must not cover.
+ * Every interactive control cluster the docked panel must not cover.
  *
  * `querySelectorAll`, never `querySelector`: tldraw reuses `.tlui-toolbar` for
  * the style panel's inner toolbar AND for the bottom bar holding the quick
  * actions, and the first match at 820x1180 is the style panel's. That is why the
  * existing overlap tests never saw F5.
+ *
+ * LAYOUT CONTAINERS ARE NOT HERE. `.tlui-layout__top__right` spans the full
+ * height of the right side while holding one 44px-tall panel; listing it would
+ * forbid the dock's entire column. See FR-001.
  */
 export const CHROME_SELECTORS = [
   '.tlui-menu-zone',
@@ -483,23 +468,14 @@ export const CHROME_SELECTORS = [
   '[data-testid="diagram-io-open"]',
 ] as const
 
-/** Zero-size and detached elements are skipped. Screen-space, viewport-relative. */
+/** Zero-size and detached elements are skipped. Viewport-relative. */
 export function chromeRects(root?: Document): Rect[]
 ```
 
-The narration bar is matched by class, not test id: its container is `<div className="narration">`
-with no test id (`NarrationPanel.tsx:94`). `chromeRects` is exported so FR-007's clearance test
-asserts against the same list the placement uses — one definition, checked from both sides.
-
-**Screen space.** `placePanel`'s rects are viewport-relative (`getBoundingClientRect`'s frame). The
-selection's rect comes from `editor.getShapePageBounds(id)` through `editor.pageToScreen`, which is
-container-relative — the two coincide only because `.canvas-host` is `position: fixed; inset: 0`
-(`index.css:24`). That coincidence is load-bearing; if the host ever gains an offset, the conversion
-has to subtract the container's own rect.
-
-**Re-placement.** Placement re-runs on: selection change, camera change, the selected shape's bounds
-changing, viewport resize, and **the panel's own size changing** — a `ResizeObserver` on the panel
-element, because opening the icon sheet grows it by up to 320×420 after it has already been placed.
+`chromeRects` exists **only for the tests** — the dock's position is static CSS and reads nothing at
+runtime. It is exported so FR-007's clearance test asserts against one named list rather than an
+inline copy that drifts. The narration bar is matched by class, not test id: its container is
+`<div className="narration">` with no test id (`NarrationPanel.tsx:94`).
 
 Test ids are **preserved from the absorbed panels** so the suites that prove their behaviour keep
 proving it: `icon-picker`, `icon-picker-open`, `icon-picker-sheet`, `icon-picker-auto`,
@@ -516,12 +492,10 @@ without change.
 
 ```
 src/client/panels/
-├── SelectionPanel.tsx          # subject, placement, re-placement, focus handoff
+├── SelectionPanel.tsx          # subject, header, focus handoff
 ├── SelectionPanel.test.tsx
 ├── selectionSubject.ts
-├── placePanel.ts               # pure placement search
-├── placePanel.test.ts
-├── chromeRects.ts              # the clusters the panel must clear
+├── chromeRects.ts              # the clusters the dock must clear — for the tests
 └── fields/
     ├── NameField.tsx           # FR-002
     ├── IconField.tsx           # FR-003 — was panels/IconPicker.tsx
@@ -539,14 +513,13 @@ leave two elements carrying the same test id, and Playwright's strict-mode `getB
 44 call sites across two suites for as long as the split lasted — indistinguishable in CI from a real
 regression.
 
-### Phase 1: Subject, chrome and placement
+### Phase 1: Subject, dock and chrome list
 
 - `selectionSubject`; `chromeRects` with the full selector list.
-- `placePanel` — pure, with the unit tests FR-001's last criterion names.
-- The `SelectionPanel` shell: anchored off the interaction rect, re-placed on camera, bounds, resize
-  and its own size, rendered only in `select.idle`, with the focus handoff on unmount and
-  `touch-action: manipulation` on its controls.
-- Mount it in `Room.tsx`. It renders an empty frame; nothing is absorbed yet.
+- The `SelectionPanel` shell: the docked column and its CSS, the subject header, internal scrolling,
+  rendered only in `select.idle`, with the focus handoff on unmount and explicit `touch-action` on
+  the scroll container and every control.
+- Mount it in `Room.tsx`. It renders a header and an empty body; nothing is absorbed yet.
 
 ### Phase 2: Node fields, and IconPicker deleted
 
