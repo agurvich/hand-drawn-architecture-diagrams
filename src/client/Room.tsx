@@ -6,8 +6,6 @@ import { syncUri, type RoomId } from '@shared/room'
 import { stripHiddenFromSelection } from './selection'
 import { registerSketchRecognition } from './sketch/recogniseOnDraw'
 import { SketchToggle } from './panels/SketchToggle'
-import { ActorControl } from './panels/ActorControl'
-import { IconPicker } from './panels/IconPicker'
 import { attributeTo } from './actors'
 import { stepScene, takeOffSceneAndToggle, viewScene } from './sceneView'
 import {
@@ -146,8 +144,6 @@ export function Room({ roomId }: { roomId: RoomId }) {
       <DiagramIOPanel editor={editor} open={ioOpen} onOpenChange={setIoOpen} />
       <NarrationPanel editor={editor} />
       <SketchToggle editor={editor} />
-      <ActorControl editor={editor} />
-      <IconPicker editor={editor} />
       <SelectionPanel editor={editor} ioOpen={ioOpen} />
       {store.connectionStatus === 'offline' && (
         <div className="offline-pill" data-testid="room-offline" role="status">

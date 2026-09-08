@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE, NODE_SHAPE_TYPE, visibleStandInFor } from '@shared/shapes'
-import { actorIdOf, attributeTo, clearActor } from '../actors'
-import { getMergeIndex } from '../mergeIndex'
-import { actorsOnScreen } from '../actorsOnScreen'
-import { sceneAwareGetShape } from '../sceneView'
+import { actorIdOf, attributeTo, clearActor } from '../../actors'
+import { getMergeIndex } from '../../mergeIndex'
+import { actorsOnScreen } from '../../actorsOnScreen'
+import { sceneAwareGetShape } from '../../sceneView'
 
 /**
  * The `<select>` value for "several different actors".
@@ -14,17 +14,22 @@ import { sceneAwareGetShape } from '../sceneView'
  */
 const SEVERAL = '__several__'
 
-interface ActorControlProps {
-  /** The mounted editor, or null before `onMount` has run. */
-  editor: Editor | null
+interface ActorFieldProps {
+  /** The mounted editor. */
+  editor: Editor
+  /** The connection this field acts on, resolved by `SelectionPanel`. */
+  id: TLShapeId
 }
 
 /**
  * "Performed by" — attributing the selected connection to a node.
  *
- * ON THE CONNECTION, because the connection is the thing being described. It
- * appears only while exactly one connection is selected: an attribution control
- * with nothing to attribute is a permanent panel for an occasional act.
+ * ON THE CONNECTION, because the connection is the thing being described.
+ *
+ * WAS a floating bar spanning the top of the viewport on its own selection
+ * condition. It is now a field inside `SelectionPanel`, which is why it takes
+ * the connection id rather than reading the selection itself, and why its notes
+ * carry their own width rule: they used to inherit a full-viewport bar.
  *
  * A `<select>` rather than a click-the-node gesture. Picking a node by pointing
  * at it is the nicer gesture and it is also the one already spoken for -- that
@@ -33,25 +38,21 @@ interface ActorControlProps {
  * gets eaten. The list is also the only version that works from a keyboard.
  *
  * @example
- * <ActorControl editor={editor} />
+ * <ActorField editor={editor} id={connectionId} />
  */
-export function ActorControl({ editor }: ActorControlProps) {
+export function ActorField({ editor, id }: ActorFieldProps) {
   const selected = useValue(
-    'selected connection',
+    'actor field connection',
     () => {
-      if (!editor) return null
-      const ids = editor.getSelectedShapeIds()
-      if (ids.length !== 1) return null
-      const shape = editor.getShape(ids[0]!)
+      const shape = editor.getShape(id)
       return shape?.type === CONNECTION_SHAPE_TYPE ? shape.id : null
     },
-    [editor],
+    [editor, id],
   )
 
   const nodes = useValue(
     'nodes',
     () => {
-      if (!editor) return []
       return (
         editor
           .getCurrentPageShapes()
@@ -86,7 +87,7 @@ export function ActorControl({ editor }: ActorControlProps) {
    */
   const merged = useValue(
     'merge entry',
-    () => (editor && selected ? (getMergeIndex(editor).get(selected) ?? null) : null),
+    () => (selected ? (getMergeIndex(editor).get(selected) ?? null) : null),
     [editor, selected],
   )
   const standsForSeveral = (merged?.count ?? 1) > 1
@@ -102,7 +103,7 @@ export function ActorControl({ editor }: ActorControlProps) {
    */
   const mergedActors = useValue(
     'merged actors',
-    () => (editor && selected && standsForSeveral ? actorsOnScreen(editor, selected) : []),
+    () => (selected && standsForSeveral ? actorsOnScreen(editor, selected) : []),
     [editor, selected, standsForSeveral],
   )
   const mergedActorIds = useMemo(() => mergedActors.map((actor) => actor.id), [mergedActors])
@@ -119,7 +120,7 @@ export function ActorControl({ editor }: ActorControlProps) {
   const actorId = useValue(
     'actor',
     () => {
-      if (!editor || !selected) return null
+      if (!selected) return null
       if (standsForSeveral) return mergedActorIds.length === 1 ? (mergedActorIds[0] ?? null) : null
       return actorIdOf(editor, selected)
     },
@@ -143,7 +144,7 @@ export function ActorControl({ editor }: ActorControlProps) {
   const standIn = useValue(
     'stand-in for the actor',
     () => {
-      if (!editor || !actorId || standsForSeveral) return null
+      if (!actorId || standsForSeveral) return null
       const get = sceneAwareGetShape(editor)
       const actor = get(actorId)
       if (!actor) return null

@@ -612,7 +612,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  min-width: 0;
+  min-width: 44px;
   overflow: hidden;
   min-height: 44px;
   padding: 0 10px;
@@ -826,24 +826,13 @@ body {
  * itself off-screen where nothing could scroll to it -- WCAG 1.4.10.
  */
 .actor-control {
-  position: absolute;
-  top: 60px;
-  right: 8px;
-  left: 8px;
-  z-index: 1000;
+  /* A FIELD in the properties dock now, not a bar across the viewport. Stacked
+     rather than a row: label + select + two notes side by side was legible
+     across 1024px and is not inside a 312px column. */
   display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: fit-content;
-  max-width: calc(100vw - 16px);
-  margin: 0 auto;
-  padding: 6px 10px;
-  background: #fff;
-  border: 1px solid #767676;
-  border-radius: 8px;
-  touch-action: manipulation;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
 }
 .actor-control__label {
   font:
@@ -913,10 +902,8 @@ body {
  * rather than on these numbers.
  */
 .icon-picker {
-  position: absolute;
-  top: 60px;
-  left: 8px;
-  z-index: 1000;
+  /* A FIELD in the properties dock now. Position comes from the dock. */
+  margin-top: 8px;
   touch-action: manipulation;
 }
 .icon-picker__button {
@@ -949,16 +936,19 @@ body {
   height: 100%;
 }
 .icon-picker__sheet {
-  box-sizing: border-box;
-  width: min(320px, calc(100vw - 16px));
-  max-height: min(420px, calc(100dvh - 140px));
+  /* INSIDE the dock's scroll flow. The old `width: min(320px, 100vw - 16px)`
+     resolves to 320px at every viewport this app targets, which inside a 312px
+     column gives the dock a horizontal scrollbar -- `overflow-y: auto` forces
+     `overflow-x` to compute to `auto`. And `max-height: min(420px, 100dvh -
+     140px)` was calibrated for a launcher pinned at `top: 60px`. Both are gone:
+     the column scrolls instead. */
   margin-top: 6px;
-  padding: 8px;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #767676;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d7d7db;
   border-radius: 8px;
-  touch-action: manipulation;
+  background: #fff;
+  padding: 8px;
 }
 .icon-picker__row {
   display: flex;
@@ -1076,5 +1066,40 @@ body {
 .selection-panel select,
 .selection-panel input {
   min-height: 44px;
+  touch-action: manipulation;
+}
+
+.selection-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.selection-field__label {
+  color: #555;
+  font-size: 12px;
+}
+
+.selection-field__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #c9c9cf;
+  border-radius: 6px;
+  font: inherit;
+  touch-action: manipulation;
+}
+
+.selection-panel__link {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
   touch-action: manipulation;
 }

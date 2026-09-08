@@ -3,6 +3,10 @@ import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE } from '@shared/shapes'
 import { selectionSubject, type SelectionSubject } from './selectionSubject'
 import { observeDockTop } from './dockTop'
+import { NameField } from './fields/NameField'
+import { IconField } from './fields/IconField'
+import { NodeStatus } from './fields/NodeStatus'
+import { ActorField } from './fields/ActorField'
 
 interface SelectionPanelProps {
   /** The mounted editor, or null before `onMount` has run. */
@@ -103,6 +107,14 @@ export function SelectionPanel({ editor, ioOpen }: SelectionPanelProps) {
           {state.header.note}
         </p>
       )}
+      {state.subject.kind === 'node' && (
+        <>
+          <NameField editor={editor} id={state.subject.id} />
+          <IconField editor={editor} id={state.subject.id} />
+          <NodeStatus editor={editor} id={state.subject.id} />
+        </>
+      )}
+      {state.subject.kind === 'connection' && <ActorField editor={editor} id={state.subject.id} />}
     </div>
   )
 }
