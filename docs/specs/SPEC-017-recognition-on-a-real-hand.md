@@ -154,7 +154,9 @@ check them against the drawing instead of trusting this spec.
 - [ ] Fixture names keep the prefixes the existing suite selects on: the rectangles are named
       `box-…`, so `recognise.test.ts`'s rotation-stability suite — which filters on that prefix —
       runs over them. Naming them anything else would silently exempt real pencil rectangles from a
-      SPEC-010 guarantee, which FR-001 forbids.
+      SPEC-010 guarantee, which FR-001 forbids. The prefix must be on the JSON **`name` field**,
+      which is what the suite filters, as well as on the filename: a file called
+      `box-pencil-054.json` whose `name` reads anything else is exempt, silently.
 - [ ] Extracted fixtures cover all three verdicts: the rectangles, at least three strokes that must
       be `line`, and at least six handwritten strokes that must be `none`.
 - [ ] The extractor is re-runnable and rewrites the same files byte-for-byte from an unchanged
@@ -184,14 +186,18 @@ context.
 - [ ] A test classifies all 276 corpus strokes and asserts the exact count of each verdict.
 - [ ] The test fails when a rectangle stops being recognised, and fails when a stroke that is not one
       of the twelve becomes a `box`.
-- [ ] The asserted numbers name the commit they were measured **against** — the parent of the commit
-      that records them, since a commit cannot name its own sha — and say that `git log -p` on the
-      file is the durable history.
-- [ ] The report emits the per-refusal-reason breakdown and the per-stroke fill of every stroke that
-      reaches the fill test, so FR-002's margins are re-derivable from its output. Vitest's default
-      reporter swallows `console.log` from a passing test, so the report writes to stdout directly
-      or to a file; a `console.log` that only appears under `--reporter=verbose` does not satisfy
-      this.
+- [ ] The asserted numbers name the **corpus file** they were measured from — the corpus is frozen,
+      so it is the half of the pair that can be named — and say that `git log -p` on the report is
+      the record of when each number changed and why. A commit cannot name its own sha, and the
+      numbers a phase pins are only true *after* that phase's change, so naming a parent commit
+      would be wrong at every re-pin.
+- [ ] The report emits the per-refusal-reason breakdown and, for each stroke that reaches the fill
+      test, its fill in **all five orientations** together with the minimum of them — so FR-002's
+      margins are re-derivable from its output. A forward-only fill column does not satisfy this:
+      FR-002's low margin is 0.7144, which stroke 55 reaches only when rotated, and a reviewer
+      handed forward fills could tick the criterion while the number justifying the threshold is
+      absent. Vitest's default reporter swallows `console.log` from a passing test, so the report
+      writes to stdout directly or to a file.
 - [ ] The report runs in the normal `npm test` run and needs no network, no browser and no fixtures
       outside the repo.
 
@@ -301,12 +307,22 @@ interface Measurement {
 loadCorpus(): CorpusStroke[]   // decodes the room snapshot; no network, no editor
 
 // src/client/sketch/convertPolicy.ts — new, extracted from convertStroke (FR-005)
+//
+// A discriminated result, not a boolean. "No node under that end" is the common
+// case, so the ids are optional -- and a bare boolean leaves the caller to
+// re-narrow them, which is half the policy restated at the call site. A type
+// predicate cannot do it either: a predicate narrows one parameter, and this
+// decision is about two.
+type Connection =
+  | { connect: true; fromId: string; toId: string }
+  | { connect: false }
+
 shouldConnect(
   verdict: Verdict,
   purposeful: boolean,
   fromId: string | undefined,
   toId: string | undefined,
-): boolean
+): Connection
 ```
 
 ## Configuration / Environment
