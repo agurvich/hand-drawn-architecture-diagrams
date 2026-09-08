@@ -85,7 +85,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-014 are Completed; SPEC-015 is Draft.
+**Current work:** none — SPEC-001 through SPEC-016 are Completed.
 
 ---
 
@@ -117,6 +117,10 @@ is refused — each one was a way past the checks.
   connections it stands for, ordered by the same total order that picks the representative. Showing
   none was lossy, not conservative; the cap on how many fit is the renderer's call, not the
   derivation's.
+- **Controls dock; they do not follow the shape** — the properties panel is a right-hand column, not
+  anchored to the selection: a connection's bounds spans both endpoints' centres, so "beside the
+  shape" is meaningless for half of what it describes. Anchoring failed three reviews before that was
+  named.
 - **Scope says who sees a record; history is decided per write** — tldraw records session-scoped
   changes on the shared undo stack too, so two fields wanting opposite undo behaviour cannot share
   one record.
@@ -149,7 +153,24 @@ is refused — each one was a way past the checks.
 
 **During:** those two reviews are the only gates on *starting*, so **build straight through to completion**, summarizing a phase in passing but never ending the turn on it (a summary that ends the turn *is* a request for approval). Every file-changing task goes on its own branch and opens a PR — never commit to `main` directly. Specs carry no Open Questions — triage emergent issues by kind: **reversible/technical** ones you decide in-session (update the spec if scope changes); **product-changing or ambiguous** ones you stop and escalate to the human with options + a recommendation, never silently decide.
 
-**Review — three artifacts, one blocking gate:** a **spec**, an implementation **plan** and a **diff** each go to a reviewer in a **fresh context** (new session or subagent), never the context that produced them. **Counts: one on the spec, one on the plan, two on the diff** — two *scenes*, not two rounds, both before the push; the diff gets two because it is the widest artifact and the last one before the branch is public, one scene reading it against the spec's criteria + `best-practices/` and the other starting from the **system** rather than the diff. Both counts are **floors**, and they work differently: on a **diff**, a clean first review does *not* close the gate ("never exit on a round count" says when to stop *above* two, never below it); on a **spec or plan**, one clean review *does* close it, and what makes one a floor is that a revised artifact re-enters the gate as a new one. A spec is not Draft-ready, a plan does not start code, and **a branch does not reach the remote**, until every finding is either **fixed** or **flagged** — a rejection costs a sentence out loud, and only goes in writing when it carries a lesson worth keeping. **The diff review gates the PUSH, not the merge**, because **green CI is not a review**: it cannot see a test that passes against the bug it claims to catch, a lock taken in the wrong order, or an acceptance criterion ticked with no evidence. Cap same-scene rounds at two, then rotate the scene; exit on the *class* of finding shrinking, never on a round count. Brief the reviewer that "this is sound" is a valid verdict, make it cite where it looked, and tell round N+1 what round N fixed. On a code diff, one of the two must **build** the thing, not read it — and every reviewer runs the repo's gates against the branch. When the risk is what a change *removed*, enumerate the population with a sweep instead of reviewing a sample — but **a sweep has a scene too**: several sweeps that all ask the same question are one check, and the half of the change that was *authored* rather than moved needs a different one. **A gate is not tested by running it on the thing it guards**; it owes a fixture corpus asserting failure text, including cases that assert silence. Full contract: `@docs/process.md` §3 → *The reviewer contract*.
+**Review — three artifacts, one blocking gate:** a **spec**, an implementation **plan** and a **diff**
+each go to a reviewer in a **fresh context** (new session or subagent), never the context that
+produced them. **Counts: one on the spec, one on the plan, two on the diff** — and the two on a diff
+are two *scenes*, not two rounds: one reads it against the spec's criteria and `best-practices/`, the
+other starts from the **system** and **builds** the thing rather than reading it. Counts are
+**floors**. On a spec or plan a clean review closes the gate; on a diff a clean first one does not,
+and a revised artifact re-enters as a new one. Nothing reaches the next stage until every finding is
+**fixed or flagged out loud** — a rejection costs a sentence, and goes in writing only when it carries
+a lesson. **The diff review gates the PUSH, not the merge**, because **green CI is not a review**: it
+cannot see a test that passes against the bug it claims to catch, or a criterion ticked with no
+evidence. Cap same-scene rounds at two, then rotate; exit on the *class* of finding shrinking, never
+on a round count — and when findings start landing in the previous round's fixes rather than in the
+subject, the review has become its own subject: stop. Brief every reviewer that "this is sound" is a
+valid verdict, make it cite where it looked, tell round N+1 what round N fixed, and have it run the
+repo's gates. When the risk is what a change *removed*, sweep the whole population instead of
+reviewing a sample. **A gate is not tested by running it on the thing it guards** — it owes a fixture
+corpus asserting failure text, including cases that assert silence. Full contract:
+`@docs/process.md` §3 → *The reviewer contract*.
 
 **PRs & main:** before pushing, get the diff through the review gate above, and get the formatter, linter, typecheck and unit tests green locally, plus `sh scripts/spec-lint.sh` and **`sh scripts/docs-lint.sh` — always, before every PR, since nothing in CI runs it** (and `sh scripts/docs-lint-test.sh` whenever you touch the linter). Watch every PR to completion and merge it as soon as CI is green — never open-and-abandon. **Key the watch on the current head sha** — a bare `gh pr checks --watch` can exit clean against the *previous* commit's checks. `main` is always watched: after any merge confirm it went green, and if `main` fails, diagnose immediately and fix it with a new PR before anything else. **When several agent sessions share this repo**, install `scripts/pr-queue/install.sh` once and the remote is serialised by a PR queue — one PR open at a time, taken in the order agents asked, `main` green before the next — and you get in line only once your gates and reviews are green, because the queue is not a review. Until it is installed the queue is inert. Protocol and the four commands: `scripts/pr-queue/PROTOCOL.md`; brief each session from `@docs/templates/multi-agent-briefing.md`.
 

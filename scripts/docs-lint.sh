@@ -83,6 +83,16 @@ cd "$ROOT"
 #
 # When one fires because a doc grew a line at a time, move detail down a tier and
 # re-ratchet -- never raise the cap to admit the edit in hand.
+#
+# 2026-09-08 (SPEC-016): this fired exactly that way. CLAUDE.md stood at 15838
+# with a Key Decisions line owed, so the budget was RE-DERIVED rather than
+# raised: ~700 bytes of the Session Workflow's review paragraph were cut, being
+# a restatement of docs/process.md §3 sitting behind a pointer to it, and the
+# file came back to 15584. The cap stays at 16000, which is now ~400 bytes --
+# two or three digest lines -- of deliberate headroom. It is NOT pinned at the
+# post-cut measurement: a cap sitting on top of a freshly cut file leaves the
+# next decision that legitimately needs a line nothing to spend, so it takes one
+# from another area and the gate causes the damage it exists to prevent.
 CLAUDE_MAX_BYTES=16000
 
 # The whole Key Decisions section, measured as bytes. This is the guard that cannot be

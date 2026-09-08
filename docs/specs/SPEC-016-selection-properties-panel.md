@@ -1,7 +1,7 @@
 # Spec: Selection properties panel
 
 **ID:** SPEC-016
-**Status:** In Progress
+**Status:** Completed
 **Last Updated:** 2026-09-08
 **Depends On:** SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015
 
@@ -305,11 +305,12 @@ what covers this, and it belongs to the panel, not the field.
       it, and a dialog role there is the role without the behaviour. The launcher keeps
       `aria-expanded`, and Escape still closes and returns focus — `e2e/icons.spec.ts:252` holds
       either way, since the listener is on `window` and the panel is a sibling of `<Tldraw>`.
-- [ ] Every assertion in `e2e/icons.spec.ts` about icon *state* passes unchanged. Exactly one test is
-      rewritten: `e2e/icons.spec.ts:420` *"the picker does not cover any other control"*, which
-      contains no state assertion at all — it is wholly positional, and one of the selectors it
-      checks (`[data-testid="actor-control"]`) stops existing under FR-006. It is replaced by
-      FR-007's clearance test.
+- [ ] **`e2e/icons.spec.ts` passes with no edit at all.** The spec originally required one rewrite —
+      `:420`, *"the picker does not cover any other control"*, which is wholly positional. Measured
+      during the build: it passes unchanged, because it `waitFor`s the picker before measuring (so it
+      proves the field renders in the dock) and the dock clears every selector in its list. Its
+      `[data-testid="actor-control"]` entry is now dead weight rather than a failure, since a node
+      selection never renders that field.
 
 ### FR-004: Attribute a connection from the panel
 
@@ -333,13 +334,15 @@ option, and the folded stand-in note.
 - [ ] The control stacks rather than sitting in a row. `.actor-control` is `display: flex;
       align-items: center` — a label, a select and two notes side by side, which was legible across a
       full-viewport bar and is not inside a 312px column.
-- [ ] Every assertion in `e2e/actors.spec.ts` about attribution *behaviour* passes unchanged. Exactly
-      three tests are rewritten, all of them measuring the old fixed position or a width the panel no
-      longer has: `:353` *"the control does not cover the JSON launcher or any tldraw UI"* (replaced
-      by FR-007's clearance test), `:404` *"the control fits a 375px viewport"* (its premise is the
-      `left: 8px; right: 8px` full-width bar at `index.css:828`, which stops existing), and `:421`
-      *"a MERGED line names its actors somewhere READABLE at 375px"* (its readability now depends on
-      the panel's own width rules, and it must assert against the panel's measured rect).
+- [ ] **`e2e/actors.spec.ts` passes with no edit at all.** The spec originally required three
+      rewrites, on the assumption that tests measuring the old fixed position and the old
+      full-viewport width could not survive. Measured during the build: all three pass. `:404`
+      *"the control fits a 375px viewport"* passes because the dock's
+      `width: min(312px, calc(100vw - 96px))` resolves to 279px at that width, landing at x 88–367;
+      `:421`'s merged note is inside that column and still wider than the 100px it demands; and
+      `:353`'s selector list is cleared by the dock. Each waits for its control before measuring, so
+      none of them passes vacuously — together they are the evidence that the absorbed behaviour
+      survived the move.
 
 ### FR-005: The panel states what the selected node already is
 
@@ -636,23 +639,28 @@ without change.
 ```
 src/client/panels/
 ├── SelectionPanel.tsx          # subject, header, focus handoff
-├── SelectionPanel.test.tsx
 ├── selectionSubject.ts
+├── selectionSubject.test.ts
+├── dockTop.ts                  # --dock-top, the one runtime measurement
+├── dockTop.test.ts
 └── fields/
     ├── NameField.tsx           # FR-002
-    ├── NameField.test.tsx
     ├── IconField.tsx           # FR-003 — was panels/IconPicker.tsx
     ├── ActorField.tsx          # FR-004 — was panels/ActorControl.tsx
-    ├── NodeStatus.tsx          # FR-005
-    └── NodeStatus.test.tsx
+    └── NodeStatus.tsx          # FR-005
 
 e2e/
-└── chromeRects.ts              # CHROME_SELECTORS + chromeRects(), test-only
+├── chromeRects.ts              # CHROME_SELECTORS, test-only
+└── selection-panel.spec.ts     # FR-001, FR-005, and the clearance states
 ```
 
-`IconField` and `ActorField` get no new unit tests: their behaviour is already covered end to end by
-`icons.spec.ts` and `actors.spec.ts`, which FR-003 and FR-004 hold to passing unchanged apart from the
-four positional tests they name.
+**The unit tests sit where jsdom can say something a browser cannot say better.** `selectionSubject`
+is pure over two Editor calls and is unit-tested exhaustively. `dockTop`'s FALLBACK path is unit-tested
+because jsdom gives every element a zero rect, which is exactly the unmeasurable case the fallback
+exists for. The measured path, the fields and the panel are covered end to end instead: a jsdom test
+of `--dock-top` could only assert against a stub of the number it is meant to be discovering, and
+`IconField`/`ActorField` already have `icons.spec.ts` and `actors.spec.ts` proving them against a real
+browser.
 
 Deleted: `src/client/panels/IconPicker.tsx`, `src/client/panels/ActorControl.tsx`.
 Changed: `src/client/actors.ts` gains `connectionsPerformedBy` (FR-005).
