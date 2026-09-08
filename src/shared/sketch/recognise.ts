@@ -72,15 +72,17 @@ export const CORNER_TOLERANCE = 1
  * How square a box's corners must be, on average, in degrees away from 90.
  *
  * ITS JOB MOVED when corners started being summed with sign. It used to refuse
- * `refuse-spiral` and `refuse-triangle`; relaxing it to 40 now changes NOTHING
- * in the 24-fixture suite, because those two are refused on their corner count
- * once tremor stops inflating their angles. Re-derived against the 276-stroke
- * corpus, where it does still bite: relaxing it to 40 admits strokes 17, 199 and
- * 248 -- three rounded letters -- as nodes.
+ * `refuse-spiral` and `refuse-triangle`; both are now refused on their corner
+ * count instead, once tremor stops inflating their angles. Re-derived against
+ * the 276-stroke corpus, where it still bites in both directions: at 19 it
+ * refuses corpus stroke 0 started from a different corner (its worst reading is
+ * 19.85), and at 40 it admits stroke 33 -- a letter -- as a node.
  *
- * So this is now the test that separates a rectangle from a hand-drawn 'O', and
- * the fixture suite cannot show that. The corpus is the only evidence for this
- * number; `__corpus__/corpus.test.ts` is what holds it.
+ * It is NOT on its own what separates a rectangle from a rounded letter, which
+ * an earlier version of this note claimed. Measured across every orientation the
+ * suite checks, the two populations OVERLAP on this axis: the rectangles reach
+ * 19.85 degrees of error and the letters get as low as 11.65, so no value here
+ * separates them. `MIN_BOX_FILL_WITHOUT_FOUR_CORNERS` is what does.
  */
 export const MAX_MEAN_CORNER_ERROR = 22
 
@@ -119,6 +121,32 @@ export const MAX_MEAN_CORNER_ERROR = 22
  * the pentagon.
  */
 export const MIN_BOX_FILL = 0.7
+
+/**
+ * The same test, for a shape that does not even have four corners.
+ *
+ * `CORNER_TOLERANCE` admits three and five because a real hand-drawn box
+ * sometimes simplifies to one of them -- but a shape that is not four-cornered
+ * has produced LESS evidence of being a rectangle, so it is asked to look more
+ * like one. Without this, lowering MIN_BOX_FILL to admit bowed pencil rectangles
+ * also admits rounded letters: corpus strokes 199, 248 and 274 are an 'O' and
+ * two 'D's, and started from a different point on their own perimeter they reach
+ * fill 0.705-0.746 with three or five corners.
+ *
+ * The margin here is the comfortable one, and it is comfortable because the two
+ * populations barely overlap on this axis: across every orientation the suite
+ * checks, 59 of the twelve rectangles' 60 readings have exactly four corners,
+ * and the single one that does not fills 0.8392. The highest a non-rectangle
+ * reaches without four corners is 0.7457. So 0.80 sits 0.054 above the worst
+ * false positive and 0.039 below the only real rectangle it judges.
+ *
+ * Neither test does this alone, which is why there are two: squareness cannot
+ * separate them (the rectangles reach 19.85 degrees of error under rotation and
+ * the letters get as low as 11.65), and requiring exactly four corners refuses
+ * three genuine rectangles -- `box-clockwise`, `box-overshot-corner` and
+ * `box-pencil-067` -- when they are started elsewhere.
+ */
+export const MIN_BOX_FILL_WITHOUT_FOUR_CORNERS = 0.8
 
 /**
  * How straight a line must be: the greatest distance any point strays from the
@@ -485,7 +513,8 @@ export function recognise(points: readonly Point[]): Verdict {
             : 'closed, but not a rectangle',
       }
     }
-    if (m.fill < MIN_BOX_FILL) {
+    const minFill = m.corners === 4 ? MIN_BOX_FILL : MIN_BOX_FILL_WITHOUT_FOUR_CORNERS
+    if (m.fill < minFill) {
       return { kind: 'none', because: 'closed and square-ish, but not a rectangle' }
     }
     if (width < MIN_BOX_EXTENT || height < MIN_BOX_EXTENT) {

@@ -7,8 +7,10 @@ Sketch recognition now accepts a rectangle drawn by a hand. Against the 276 penc
 the other 264 and no change to any pre-existing fixture verdict.
 
 - `recognise.ts` — corner turns summed with **sign** (`turnAngle`), magnitude taken once per merged
-  corner; overshoot trimmed at both ends (`trimBothEnds`); `MIN_BOX_FILL` 0.82 → 0.70; one new
-  export, `measure()`, so the report and the classifier share one implementation of the numbers.
+  corner; overshoot trimmed at both ends (`trimBothEnds`); `MIN_BOX_FILL` 0.82 → 0.70 with a second,
+  higher bar (`MIN_BOX_FILL_WITHOUT_FOUR_CORNERS`) for a shape `CORNER_TOLERANCE` admitted without
+  four corners; one new export, `measure()`, so the report and the classifier share one
+  implementation of the numbers.
 - `src/shared/sketch/__corpus__/` — `loadCorpus`, `labels` (`RECTANGLES`, `ARROWS`, `LINES`,
   `MARKS`, `NOTES`), `corpus.test.ts` (the scored population), `extract.tool.test.ts` (the fixture
   extractor, inert unless `EXTRACT_FIXTURES` is set).
@@ -54,6 +56,12 @@ point a stroke was started from, and the band between `refuse-pencil-055` rotate
 measured, and the next rectangle a person draws could land under it. The durable repair is a
 rectangle test that is not area-fill; it wants its own evidence and its own spec.
 
+**Refusal is silent, and `MIN_BOX_EXTENT` is in page units.** At 8× zoom a screen-filling gesture is
+~42×37 page units and is refused as too small to be a usable node, with no feedback. The constant
+predates this spec and the silence is deliberate ("nothing is the default"), but before this spec
+nothing converted at any zoom, so this is newly reachable. Recorded in the handoff for the drawing-path
+spec rather than changed here.
+
 **The twelve labels are human judgement.** Nothing derives them and no test checks them. A
 mislabelled stroke tunes the classifier at the wrong target, silently — see `decisions.md` → *A
 classifier is scored against a labelled population*.
@@ -63,7 +71,10 @@ classifier is scored against a labelled population*.
 Local: `npm run build`, `npm test` (551 passed, 1 skipped), `npm run lint` (4 pre-existing
 warnings), `npm run format:check`, `spec-lint.sh`, `docs-lint.sh`, `docs-lint-test.sh` (44 cases).
 
-The five-orientation criterion was verified by planting both regressions it exists to catch:
-forward-only trimming reddens `corpus#84` reversed, and `MIN_BOX_FILL = 0.72` reddens `corpus#55`
-rotated. The extractor's refusals and the `__corpus__` import guard each ship planted violations and
+Every threshold this spec sets or moves is fenced in both directions, checked by moving it: `MIN_BOX_FILL`
+(0.68 and 0.72 both redden), `MIN_BOX_FILL_WITHOUT_FOUR_CORNERS` (0.74 and 0.85), and
+`MAX_MEAN_CORNER_ERROR` (19 and 30). The five-orientation criteria were verified by planting the
+regressions they exist to catch: forward-only trimming reddens `corpus#84` reversed, `MIN_BOX_FILL
+= 0.72` reddens `corpus#55` rotated, and dropping the second fill bar reddens strokes 199, 248 and
+274 rotated. The extractor's refusals and the `__corpus__` import guard each ship planted violations and
 silence cases rather than being run only over a repo that happens to pass.

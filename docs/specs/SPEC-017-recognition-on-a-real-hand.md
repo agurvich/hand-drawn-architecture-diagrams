@@ -20,7 +20,7 @@ where he drew 90°. Every one of them is closed, and every one has exactly four 
 the twelve are refused for not being *square enough*, by a test that is measuring his shakiness
 rather than his corners; stroke 54 clears squareness and is refused one test later on fill; and
 stroke 67 is the single box the whole session produced. Summing the same turns **with sign** puts
-all twelve between 3.2° and 16.3° of square.
+all twelve between 5.0° and 16.3° of square.
 
 ## Scope
 
@@ -85,7 +85,7 @@ satisfying them is allowed.
 
 - [ ] Each of the twelve corpus rectangles listed in *Data Model* reports exactly four corners.
 - [ ] Each of the twelve has a mean corner error under `MAX_MEAN_CORNER_ERROR`. Measured today at
-      16.2°–81.3°, so ten of the twelve fail this on the current code; measured 3.2°–16.3° after
+      16.2°–81.3°, so ten of the twelve fail this on the current code; measured 5.0°–16.3° after
       the change.
 - [ ] Every one of the twelve is `box` in **all five orientations** the existing suite checks a
       rectangle in: as drawn, reversed, and started from three other points on its own perimeter.
@@ -123,7 +123,15 @@ Below roughly 0.75 the fill test is no longer what separates a rectangle from a 
 #### Acceptance Criteria:
 
 - [ ] All twelve corpus rectangles are `box`.
-- [ ] None of the other 264 corpus strokes is `box`.
+- [ ] None of the other 264 corpus strokes is `box` — **in any of the five orientations**, not only
+      as drawn. Lowering the threshold far enough to admit bowed pencil rectangles admits three
+      rounded letters (strokes 199, 248 and 274) when they are started from a different point on
+      their own perimeter, and a forward-only assertion cannot see it. Squareness cannot separate
+      those two populations: the rectangles reach 19.85° of corner error under rotation and the
+      letters get as low as 11.65°. Corner count cannot either — requiring exactly four refuses
+      three genuine rectangles. What separates them is that every one of the false positives has
+      three or five corners rather than four, so a shape admitted by `CORNER_TOLERANCE` is held to a
+      higher fill bar than a four-cornered one.
 - [ ] No stroke in `src/shared/sketch/__fixtures__/strokes/` changes its verdict.
 - [ ] The chosen threshold is at least 0.01 in fill units below the **lowest fill any of the twelve
       reaches in any of the five orientations**, and at least 0.01 above the highest stroke refused

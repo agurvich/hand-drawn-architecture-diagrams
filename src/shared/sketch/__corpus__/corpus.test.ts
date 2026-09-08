@@ -154,9 +154,8 @@ describe('the recorded corpus', () => {
       .filter((s) => recognise(s.points).kind === 'box')
       .map((s) => s.index)
     // The SET, not the count: a different twelve would satisfy a count.
-    // The SET, not the count. A different twelve would satisfy a count, and
-    // "twelve boxes" is exactly what a recogniser that had started eating
-    // handwriting would also report.
+    // The SET, not the count: "twelve boxes" is also what a recogniser that had
+    // started eating handwriting would report.
     expect(found).toEqual([...RECTANGLES])
   })
 })
@@ -187,10 +186,13 @@ describe('the corners of a hand-drawn rectangle', () => {
   it('is a box from every direction and every starting corner', () => {
     /*
      * SPEC-010 FR-001: a verdict is stable under reversal and rotation. This is
-     * that guarantee against real pencil strokes rather than mouse-drawn ones,
-     * and it is the ONLY thing in the suite that pins `trimBothEnds` -- the
-     * whole-corpus tally above is identical with overshoot trimmed forward-only,
-     * and so are the 24 fixtures.
+     * that guarantee against real pencil strokes rather than mouse-drawn ones.
+     * It is not the only thing pinning `trimBothEnds` -- three of the pencil
+     * fixtures this spec adds catch its removal too, through the suite's own
+     * per-fixture reversal test. What it is is the only thing pinning it that
+     * does not depend on those fixtures existing: the whole-corpus tally above
+     * is identical with overshoot trimmed forward-only, and so are the 24
+     * fixtures that predate this spec.
      *
      * Both ways it can fail were live during this spec: forward-only trimming
      * loses 84, 98 and 162 reversed, and a head trim capped short enough to eat
@@ -199,6 +201,30 @@ describe('the corners of a hand-drawn rectangle', () => {
     for (const index of RECTANGLES) {
       for (const [i, o] of orientations(strokes[index]!.points).entries()) {
         expect(recognise(o).kind, `corpus#${index} orientation ${i}`).toBe('box')
+      }
+    }
+  })
+
+  it('and nothing else in the drawing becomes one, from any starting point either', () => {
+    /*
+     * THE OTHER HALF OF ROTATION STABILITY, and the half that eats annotations.
+     *
+     * The test above asks whether a rectangle survives being started elsewhere.
+     * This asks whether anything ELSE starts passing for one -- which is the
+     * direction that costs somebody their handwriting, and the direction the
+     * forward-only set assertion cannot see.
+     *
+     * It caught a real regression: lowering MIN_BOX_FILL far enough to admit
+     * bowed pencil rectangles also admitted strokes 199, 248 and 274 -- an 'O'
+     * and two 'D's -- but only when they were started from a different point on
+     * their own perimeter. Five orientation-instances in all, every one of them
+     * with three or five corners rather than four, which is what
+     * MIN_BOX_FILL_WITHOUT_FOUR_CORNERS now separates.
+     */
+    for (const stroke of strokes) {
+      if ((RECTANGLES as readonly number[]).includes(stroke.index)) continue
+      for (const [i, o] of orientations(stroke.points).entries()) {
+        expect(recognise(o).kind, `corpus#${stroke.index} orientation ${i}`).not.toBe('box')
       }
     }
   })

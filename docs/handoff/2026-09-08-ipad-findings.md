@@ -57,7 +57,7 @@ those magnitudes across a rounded corner — so tremor along an edge adds to the
 cancelling against the tremor after it. Every one of his rectangles reads one corner between 118.5°
 and 284.9° where he drew 90°. All twelve are closed and all twelve have exactly **four** corners:
 the count was never wrong. Ten are refused for not being *square enough*, one on fill, and one is
-the box he undid. Summed with sign, all twelve sit 3.2°–16.3° from square.
+the box he undid. Summed with sign, all twelve sit 5.0°–16.3° from square.
 
 **~~The mechanism.~~** Every tolerance in `src/shared/sketch/recognise.ts` is an absolute page-unit
 constant. His strokes span **107 to 7,625 page units** — a 70× range, because he zoomed in and out
@@ -205,6 +205,10 @@ register entry when it is written.
   that are correctly not boxes. Scoring the classifier out of 276 is what made the failure look like
   a different failure.
 - The Safari 16 fix is understood and deliberately not applied.
+- **New since SPEC-017, for whoever takes the drawing path (F3):** `MIN_BOX_EXTENT` is in PAGE units,
+  so at 8x zoom a gesture filling the screen is ~42x37 page units and is refused as too small to be a
+  usable node — silently, because refusal is the default. Nothing converted at any zoom before
+  SPEC-017, so this only became reachable when recognition started working.
 - `feat/spec-008-narration-panel` was reset to `origin/main` at one point and then restored to
   `2a90eb0`; it is a merged, dead branch either way.
 - The primary checkout cannot `git checkout main` while an old session worktree holds it — see
