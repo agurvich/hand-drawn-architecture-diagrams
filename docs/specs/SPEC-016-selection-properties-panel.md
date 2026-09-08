@@ -161,14 +161,22 @@ why.
 - [ ] Renaming a node through FR-002 updates the header, including when that node is an endpoint of a
       selected connection.
 - [ ] The panel's bounding box intersects none of the rects `chromeRects()` returns, at 1024x768 and
-      at 820x1180, with the icon sheet closed **and** open, **with the JSON panel expanded**, and
-      **after a sketch recognition has announced**. The last two are the states that actually collide:
-      `.diagram-io` is `left: 50%` and `width: min(420px, 100vw - 16px)` (`index.css:327`), so at
-      820px it spans x 208-612 and the dock's left edge at 500 cuts 112px off it; and
-      `.sketch-toggle`'s status region is written by `recogniseOnDraw.ts` and never cleared, so
+      at 820x1180, with the icon sheet closed **and** open, and **after a sketch recognition has
+      announced**. That last state is the one that actually collides and the one a fresh room cannot
+      reach: `.sketch-toggle`'s status region is written by `recogniseOnDraw.ts` and never cleared, so
       `:not(:empty)` padding (`index.css:805`) permanently raises the cluster's top edge for the rest
       of the session. A clearance test run only in a fresh room measures the one state that cannot
       fail — the failure mode FR-007's own quick-actions argument describes.
+- [ ] **The dock is not rendered while the JSON panel is expanded.** The two cannot coexist:
+      `.diagram-io` is `left: 50%` with `width: min(420px, calc(100vw - 16px))` (`index.css:304,334`),
+      so it spans x 302-722 at 1024 and x 200-620 at 820, and a right-edge dock intersects it in both
+      — clearing a centred 420px panel at 820px would need a dock no wider than 192px. Both carry
+      `z-index: 1000` and `DiagramIOPanel` mounts first, so the dock would paint over its right edge
+      and reproduce verbatim the defect `index.css:820` records: export/import unreachable whenever a
+      connection was selected. Opening the JSON panel does not clear the selection, so this must be
+      explicit. The open flag lifts into `Room.tsx` as ordinary React state shared by the two panels —
+      it is ephemeral view state, not domain state, so it does not belong in the tldraw store.
+- [ ] Closing the JSON panel brings the dock back with the same selection still selected.
 - [ ] The panel declares `z-index: 1000`, as every other floating sibling in `index.css` does
       (`:86, :309, :480, :757`). `.tl-container` sets no z-index and tldraw's UI layer is 300, so an
       `auto` dock paints beneath the whole tldraw UI.
@@ -421,7 +429,9 @@ defect. That baseline sizes the *viewport* change only — the edits FR-003, FR-
       whenever the dock's width or inset changes.
 - [ ] A clearance test asserts the selection panel's bounding box intersects **none** of the rects
       `chromeRects()` returns, for a selected node and for a selected connection, with the icon sheet
-      closed and open, and it runs in both projects.
+      closed and open **and after a sketch recognition has announced**, and it runs in both projects.
+      The post-recognition state is the one a fresh room cannot reach and the reason `bottom` is 160px
+      rather than the 114px a closed-state measurement gives.
 - [ ] **Each selector in `CHROME_SELECTORS` is asserted individually**, not as a list. A single
       "the list resolves to more than one element" assertion is vacuous — the list has eight entries,
       so it passes with the quick-actions selector matching nothing, which is the very defect this
@@ -455,10 +465,16 @@ export function selectionSubject(editor: Editor): SelectionSubject | null
 ```
 
 There is no placement model, no obstacle search and no geometry: the dock's position is CSS, and it
-needs no orientation media query at all. Both orientations take the same four values, which is a
+needs no orientation media query at all. Both orientations take the same values, which is a
 consequence of the measurements in FR-001 rather than a coincidence: the style panel ends at y 50 in
-both, and the narration bar is `bottom: 56px` (`index.css:478`) and 50px tall, so it starts 106px
-above the viewport floor in both.
+both, and the bottom-left/bottom-right clusters are anchored `bottom: 56px` (`index.css:478`) in both,
+so they sit the same distance above the viewport floor whatever the height.
+
+`bottom` is **160px, not the 114px the closed-state measurement suggests**, because `.sketch-toggle`
+grows: `recogniseOnDraw.ts` writes its status region and never clears it, and
+`.sketch-toggle__status:not(:empty)` then adds padding and a border (`index.css:805`), lifting the
+cluster's top edge by roughly 40px for the rest of the session. 114px clears the bar you see in a
+fresh room and not the one you have after drawing once.
 
 ```css
 /* src/client/index.css */
@@ -466,15 +482,16 @@ above the viewport floor in both.
   position: absolute;
   top: 58px;         /* clears the style panel (ends y 50) and the JSON launcher (ends y 52) */
   right: 8px;
-  width: 312px;      /* landscape leaves 704px of canvas; portrait leaves 500px */
-  bottom: 114px;     /* clears the narration bar and sketch toggle, which start 106px up */
+  width: min(312px, calc(100vw - 96px));  /* 312 at 1024 and 820; 279 at 375 */
+  bottom: 160px;     /* clears the sketch toggle AFTER its status region fills */
   z-index: 1000;     /* as every other floating sibling in this file */
+  /* not rendered at all while the JSON panel is expanded — see FR-001 */
   overflow-y: auto;
   touch-action: pan-y;
 }
 ```
 
-`width` is written `min(312px, calc(100vw - 96px))` rather than a bare `312px`: `e2e/actors.spec.ts`
+`width` is capped rather than fixed at `312px`: `e2e/actors.spec.ts`
 exercises a **375px** viewport, where a fixed 312px dock would leave 55px of canvas, and the
 `min(320px, 100vw - 16px)` rule that used to handle narrow widths is being deleted with
 `.icon-picker__sheet`. Two measured widths do not justify a rule at a third the suite already visits.
@@ -534,12 +551,13 @@ export const CHROME_SELECTORS = [
   '.narration',
   '.sketch-toggle',
   '[data-testid="diagram-io-open"]',
-  // The EXPANDED panel, not only its launcher. The launcher is 62px at top
-  // centre and the dock could never reach it; `.diagram-io` is
-  // `left: 50%; width: min(420px, 100vw - 16px)` (`index.css:327`), so at 820px
-  // it spans x 208-612 and the dock's left edge at 500 cuts 112px off it.
-  // `e2e/actors.spec.ts:353` records this corner being fought over three times.
-  '[data-testid="diagram-io"]',
+  // The LAUNCHER only. The expanded `[data-testid="diagram-io"]` is deliberately
+  // absent: it is centred and 420px wide, so no right-edge dock can clear it,
+  // and FR-001 resolves that by not rendering the dock while it is open rather
+  // than by geometry. The two are mutually exclusive in the DOM anyway --
+  // `DiagramIOPanel` early-returns the launcher when open -- so listing both
+  // would make FR-007's per-selector resolution test unsatisfiable in any single
+  // state.
 ] as const
 
 /** Zero-size and detached elements are skipped. Viewport-relative. */
@@ -602,7 +620,13 @@ regression.
 - The `SelectionPanel` shell: the docked column and its CSS, the subject header, internal scrolling,
   rendered only in `select.idle`, with the focus handoff on unmount and explicit `touch-action` on
   the scroll container and every control.
+- Lift `DiagramIOPanel`'s open flag into `Room.tsx` so the dock can stand down while it is expanded.
 - Mount it in `Room.tsx`. It renders a header and an empty body; nothing is absorbed yet.
+- **Move the six sites FR-007 names in this phase, not in Phase 4.** The dock exists from the moment
+  it is mounted, so `node-content.spec.ts:237` reds immediately at 1024x768 and `:263` goes
+  *silently green* — its assertions are that the inner node did not move and is still parented, which
+  a drag that did nothing satisfies, so it would stop exercising resize for three phases without
+  saying so.
 
 ### Phase 2: Node fields, and IconPicker deleted
 
@@ -624,7 +648,7 @@ regression.
 
 - Add the `ipad-portrait` project at 820×1180.
 - Move the node in `e2e/node-content.spec.ts:332` clear of both the style panel and the dock.
-- Move the six sites FR-007 names that now pointer-down under the dock.
-- Add the clearance test — sheet closed and open, JSON panel expanded, and after a recognition has
-  announced — and the per-selector `CHROME_SELECTORS` resolution test, both in both projects.
+- Add the clearance test — sheet closed and open, and after a recognition has announced — plus the
+  per-selector `CHROME_SELECTORS` resolution test and a test that the dock stands down while the JSON
+  panel is expanded and returns when it closes. All in both projects.
 - Get the whole suite green in both.
