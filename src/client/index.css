@@ -1112,6 +1112,69 @@ body {
   touch-action: manipulation;
 }
 
+.kind-field {
+  /* A `<fieldset>`, so the browser's own border and padding have to go before
+     it looks like the other stacked fields rather than like a form control from
+     1998. */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.kind-field__legend {
+  padding: 0;
+  font:
+    600 13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+}
+
+.kind-field__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 44px, like every other control in this dock: the target device is an iPad
+     and a 13px checkbox with a 13px label is not a touch target. */
+  min-height: 44px;
+  font:
+    13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kind-field:disabled .kind-field__option {
+  color: #777;
+  cursor: default;
+}
+
+.kind-field__checkbox {
+  /* Bigger than the platform default, for the same reason as the row height.
+     `min-height: 44px` from the panel-wide rule would stretch the BOX itself,
+     so the size is set here and the row carries the target. */
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  touch-action: manipulation;
+}
+
+.kind-field__note {
+  max-width: 240px;
+  margin: 0;
+  font:
+    12px/1.3 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #444;
+}
+
 .selection-panel__link {
   min-height: 44px;
   padding: 0;
