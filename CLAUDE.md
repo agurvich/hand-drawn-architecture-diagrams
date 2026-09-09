@@ -41,8 +41,8 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
   load-bearing and neither is obvious: `decisions.md` → *Canvas SDK: tldraw*
 - Cloudflare Workers + Durable Objects (SQLite storage); R2 for assets
 - Vitest + Testing Library (unit, jsdom + a polyfill setup file tldraw needs to mount at all),
-  Playwright (e2e — Chromium with an emulated iPad viewport, since the touch/pen specs drive CDP and
-  `devices['iPad …']` defaults to WebKit where CDP does not exist)
+  Playwright (e2e — Chromium at an emulated iPad viewport, never `devices['iPad …']`:
+  `architecture.md` → Known Constraints)
 - `lucide-react` for the general icon set; the AWS architecture icons are vendored SVG under
   `src/client/icons/aws/` (see `decisions.md` -- their terms sit inside the same deployment fence as
   the tldraw licence)
@@ -81,7 +81,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-017 are Completed.
+**Current work:** none — SPEC-001 through SPEC-018 are Completed.
 
 ---
 
@@ -133,8 +133,10 @@ is refused — each one was a way past the checks.
 
 ### Scope
 
-- **Secondary features deferred pending real use** — edge sets, node-lens grouping and the
-  actor/action/trigger model are not ported until the tool is usable enough to judge them.
+- **Secondary features deferred pending real use** — node-lens grouping and the actor/action/trigger
+  model wait until the tool is usable enough to judge them. Edge sets no longer: SPEC-018 declined them.
+- **An edge carries a set of kinds** — data / permission / sequence on one connection, never parallel
+  edge layers. The accepted cost: one edge has one pair of endpoints.
 
 ## Out of Scope (don't build)
 

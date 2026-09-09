@@ -1,7 +1,7 @@
 # Spec: Edge kinds
 
 **ID:** SPEC-018  
-**Status:** In Progress  
+**Status:** Completed  
 **Last Updated:** 2026-09-08  
 **Depends On:** SPEC-005, SPEC-006, SPEC-010, SPEC-011, SPEC-015, SPEC-016, SPEC-017
 

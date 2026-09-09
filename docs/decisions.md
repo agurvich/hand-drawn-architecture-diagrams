@@ -38,6 +38,7 @@ until the first real decision lands.
 - [A folded view shows every answer, never none](#a-folded-view-shows-every-answer-never-none)
 - [Controls dock; they do not follow the shape](#controls-dock-they-do-not-follow-the-shape)
 - [A classifier is scored against a labelled population](#a-classifier-is-scored-against-a-labelled-population)
+- [An edge carries a set of kinds](#an-edge-carries-a-set-of-kinds)
 
 ---
 
@@ -152,6 +153,11 @@ as the tldraw one rather than discovered separately afterwards. Not a blocker on
 
 ### Secondary features deferred pending real use
 
+> **Edge sets: ANSWERED 2026-09-08 (SPEC-018), not still deferred.** Real use happened, and the
+> answer was to decline the feature rather than to port it: a connection carries a set of KINDS and
+> the diagram gains no parallel edge layers. The other four below are unchanged and still deferred.
+> Full entry: *An edge carries a set of kinds*.
+
 **Settled 2026-09-03.** Edge sets (lens-scoped edges), node-lens grouping, the actor/action/trigger
 model, per-scene sticky notes and the share-link/read-only mode are **not** ported on a schedule.
 They are recorded in `architecture.md` → *Deferred / Non-goals* with their seams, and revisited once
@@ -172,6 +178,11 @@ nearly as-is, which is why they sit in the arc rather than in this list (see
 
 **The deferral is a decision, not an omission.** A feature dropped here is dropped on purpose and
 needs a spec to return, not a silent reintroduction mid-build.
+
+**And returning is what happened to one of them.** Edge sets came back through a spec, which is the
+mechanism working: the question was re-asked once the tool had been used, and the answer was a
+different shape from the one that was deferred. The remaining four are still waiting on the same
+judgement.
 
 ### Derived views are computed, never materialized
 
@@ -332,3 +343,46 @@ rather than trusting the list.
 **What this does not license.** It is not an argument for tuning against the corpus until the numbers
 look good. The corpus is one person's one drawing, and a constant that fits it exactly is fitted to
 a sample of one — which is the failure the fixtures were supposed to prevent and did not.
+
+### An edge carries a set of kinds
+
+**Settled 2026-09-08 (SPEC-018).** A connection carries `kinds`, a set drawn from a closed
+vocabulary of three -- `data`, `permission`, `sequence`. One edge says everything it is; the diagram
+does not gain parallel edge layers.
+
+**The user chose this, and named the model himself.** Drawing on the iPad for the first time he
+typed his edges with colour without being asked to -- orange for data movement, light-green for
+permission, black for structure and sequence -- and then declined to draw a third layer of edges
+connecting step-function steps to the transfers they perform: *"I didn't want to add 3 edge
+layers."* Asked directly whether a step and the transfer it performs are one edge or two, he
+answered one edge carrying several kinds.
+
+**The accepted cost, stated so no later spec rediscovers it.** One edge has one pair of endpoints,
+so a step whose endpoints differ from the transfer's **cannot be expressed**. That is the price of
+not drawing the third layer, and he paid it knowingly.
+
+**Rejected: edge sets** -- lens-scoped parallel edges, which the predecessor had and which
+`architecture.md` -> *Deferred / Non-goals* had a seam ready for. This is the reversal of that
+deferral rather than an unrelated decision, so *Secondary features deferred pending real use* carries
+the marker. Edge sets solve a problem he declined to have.
+
+**The vocabulary is closed in code and OPEN at the record boundary.** The prop validates as an array
+of strings, not as a union over the three. A closed validator turns a kind added by a newer build
+into a record rejected at the room boundary, which is the corruption mode `CLAUDE.md` names for every
+shape-prop change; the node shape's `icon` prop is the precedent. So an unknown kind is stored,
+normalised and carried across a merge -- and simply not drawn. The record remembers; the canvas
+declines to guess.
+
+**Black is not a kind, and that call is the spec's rather than his.** Orange becomes `data` and
+light-green becomes `permission` when a stroke converts; every other colour, black included, gives no
+kind. Black is the default pen, so a black stroke records no decision -- and if black meant
+`sequence`, every connection ever sketched would claim to be a step in a sequence and the drawing
+path could not produce one that claims nothing. `sequence` is set in the panel. It is one line in
+`kindForStrokeColour` to reverse if he disagrees.
+
+**A merged edge carries every kind its members name**, by *A folded view shows every answer, never
+none* -- the same rule, applied to a second field, for the same reason.
+
+**Not yet in the document.** Kinds do not export or import; that is the next spec in the *iPad
+readiness* arc, cut along the seam SPEC-011 -> SPEC-012 already used.
+

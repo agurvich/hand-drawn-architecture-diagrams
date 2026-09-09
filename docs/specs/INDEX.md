@@ -22,7 +22,7 @@ to status only — no prose.
 | SPEC-015 | Actors on a merged edge | Completed | SPEC-006, SPEC-011, SPEC-014 |
 | SPEC-016 | Selection properties panel | Completed | SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015 |
 | SPEC-017 | Recognition that works on a real hand | Completed | SPEC-010 |
-| SPEC-018 | Edge kinds | In Progress | SPEC-005, SPEC-006, SPEC-010, SPEC-011, SPEC-015, SPEC-016, SPEC-017 |
+| SPEC-018 | Edge kinds | Completed | SPEC-005, SPEC-006, SPEC-010, SPEC-011, SPEC-015, SPEC-016, SPEC-017 |
 
 ## Arcs (build order)
 
@@ -88,3 +88,6 @@ Group related specs and record the order to build them in. Keep this section: a 
   SPEC-018 puts edge kinds on the canvas and leaves them out of the JSON document, which is the seam
   SPEC-011 -> SPEC-012 was cut along: the feature first, then the document version bump and the
   frozen corpus of the version before it. The follow-on is a placeholder, not a file.
+
+  SPEC-018 also ANSWERS the deferred edge-sets question rather than inheriting it -- by declining
+  the feature. See `decisions.md` -> *An edge carries a set of kinds*.

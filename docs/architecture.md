@@ -108,6 +108,13 @@ and gains a note naming the row that replaced it.
 Hard constraints and non-obvious gotchas that shape every spec. New constraints get added here the
 first time they bite.
 
+- **The e2e browser is Chromium at an emulated iPad viewport, never `devices['iPad …']`.** The
+  touch and pen specs drive CDP to synthesise pointer events, and Playwright's iPad device
+  descriptors default to WebKit, where CDP does not exist -- so the realistic-looking choice
+  produces a suite that cannot dispatch a pen event at all. The viewport, touch flags and device
+  scale are set by hand on a Chromium project instead. Moved here from `CLAUDE.md` in SPEC-018,
+  where it was the only home of the fact and was spending the always-loaded file's byte budget.
+
 - **tldraw production needs a licence key; development does not.** Localhost/dev is unlicensed, so
   nothing here blocks building. Production requires either a paid commercial licence or a free hobby
   licence that is **non-commercial only** and carries a watermark. The non-commercial restriction —
@@ -150,9 +157,15 @@ first time they bite.
 Deferred on purpose, with the seam noted. Each needs a spec to return — none is reintroduced
 mid-build. Reasoning: `decisions.md` → *Secondary features deferred pending real use*.
 
-- **Edge sets (lens-scoped edges)** — the user is undecided on whether the feature survives contact
-  with the rebuilt tool. Seam: a `Connection` gains a set-membership prop; the toggle is a scene's
+- **Edge sets (lens-scoped edges)** — ~~the user is undecided on whether the feature survives contact
+  with the rebuilt tool.~~ Seam: a `Connection` gains a set-membership prop; the toggle is a scene's
   view state, which is where the scene model already stores visibility.
+
+  > **ANSWERED 2026-09-08 (SPEC-018), and DECLINED — no longer deferred.** He used the tool, named
+  > the model himself, and chose the other shape: one connection carrying a set of KINDS, never
+  > parallel edge layers. Half the seam above was right — a `Connection` did gain a set-valued prop
+  > — and the other half is not built: there is no lens, and filtering the canvas by kind is out of
+  > scope. Full entry: `decisions.md` → *An edge carries a set of kinds*.
 - **Node-lens grouping** — regrouping nodes into regions by a shared metadata key, with barycenter
   crossing-reduction. Seam: a derived layout pass over records; it reads the graph and writes
   positions, so it needs no new shape.
