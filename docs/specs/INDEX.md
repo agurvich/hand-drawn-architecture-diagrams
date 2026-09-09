@@ -21,6 +21,7 @@ to status only — no prose.
 | SPEC-014 | An icon on every node | Completed | SPEC-004, SPEC-007, SPEC-012 |
 | SPEC-015 | Actors on a merged edge | Completed | SPEC-006, SPEC-011, SPEC-014 |
 | SPEC-016 | Selection properties panel | Completed | SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015 |
+| SPEC-017 | Recognition that works on a real hand | Completed | SPEC-010 |
 
 ## Arcs (build order)
 
@@ -68,12 +69,12 @@ Group related specs and record the order to build them in. Keep this section: a 
   edge showed no actor when its members disagreed, and now shows them all -- which is why it is last
   and why it carries the superseded markers.
 
-- **iPad readiness:** SPEC-016 -> (recognition at any scale) -> (edge kinds) -> (node header/body) ->
+- **iPad readiness:** SPEC-016 -> SPEC-017 -> (edge kinds) -> (node header/body) ->
   (one drawing path) -> (iPad chrome)
 
   The tool was used on its target device for the first time on 2026-09-08 and almost nothing about
   that session was predicted by the suite. `docs/handoff/2026-09-08-ipad-findings.md` holds the
-  findings; only the first has a spec so far, and the later titles are placeholders, not files.
+  findings; the first two have specs, and the later titles are placeholders, not files.
 
   The order puts the properties panel (finding F2) ahead of sketch recognition (F1), which is the
   reverse of what severity alone suggests: recognition blocks the core loop, the panel only hides

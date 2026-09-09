@@ -60,38 +60,120 @@ export const CLOSE_FRACTION = 0.28
 /**
  * How far a simplified corner count may stray from four and still be a box.
  *
- * One, not two. At two a triangle (3) and a pentagon-ish scribble (6) both pass
- * the count, and the corpus's `refuse-triangle` is exactly that miss.
+ * One, not two. Re-derived at the current MIN_BOX_FILL: at two, `refuse-l-shape`
+ * -- six corners, every one of them square -- becomes a box. The old note here
+ * credited this with `refuse-triangle`, which signed corner sums now refuse on
+ * squareness instead; the claim was true when written and stopped being true
+ * without anything failing.
  */
 export const CORNER_TOLERANCE = 1
 
 /**
  * How square a box's corners must be, on average, in degrees away from 90.
  *
- * What this actually refuses, measured by relaxing it one constant at a time:
- * `refuse-spiral` and `refuse-triangle`. (An earlier comment here credited it
- * with `refuse-bad-box`, which is in fact refused on its corner COUNT -- the
- * sort of claim that is only ever checked by relaxing the number and seeing
- * what moves.)
+ * ITS JOB MOVED when corners started being summed with sign. It used to refuse
+ * `refuse-spiral` and `refuse-triangle`; both are now refused on their corner
+ * count instead, once tremor stops inflating their angles. Re-derived against
+ * the 276-stroke corpus, where it still bites in both directions: at 19 it
+ * refuses corpus stroke 0 started from a different corner (its worst reading is
+ * 19.85), and at 40 it admits stroke 33 -- a letter -- as a node.
+ *
+ * It is NOT on its own what separates a rectangle from a rounded letter, which
+ * an earlier version of this note claimed. Measured across every orientation the
+ * suite checks, the two populations OVERLAP on this axis: the rectangles reach
+ * 19.85 degrees of error and the letters get as low as 11.65, so no value here
+ * separates them.
+ *
+ * Nor does any other constant on its own -- the JOINT region does. Among
+ * FOUR-cornered shapes the fill axis inverts: `corpus#248` as drawn is a 'D'
+ * with four corners filling 0.7538, higher than the worst genuine rectangle at
+ * 0.7144, and this bar is the only thing refusing it, by 7.75 degrees. Loosen
+ * either constant alone and the other does not cover for it.
  */
 export const MAX_MEAN_CORNER_ERROR = 22
 
 /**
  * How much of its own bounding box a closed stroke must fill to be a rectangle.
  *
- * This is the test that knows a rectangle from any other quadrilateral-ish
- * closed shape, and the corner count and squareness tests cannot do it: a
- * regular PENTAGON turns 72 degrees at each corner, which is 18 away from
- * square and inside MAX_MEAN_CORNER_ERROR, and CORNER_TOLERANCE admits five
- * corners because real hand-drawn boxes sometimes simplify to five. So a
- * pentagon -- a house, an arrow head, a cloud outline -- passed every other
- * test and became a node.
+ * The pentagon guard. A regular PENTAGON turns 72 degrees at each corner, which
+ * is 18 away from square and inside MAX_MEAN_CORNER_ERROR, and CORNER_TOLERANCE
+ * admits five corners because real hand-drawn boxes sometimes simplify to five.
+ * So a pentagon -- a house, an arrow head, a cloud outline -- clears every other
+ * test, and only this one stops it becoming a node.
  *
- * A rectangle fills its bounding box completely; a pentagon fills about 0.73 of
- * it, a triangle about 0.5. 0.82 leaves room for a hand-drawn box with bowed
- * edges and rounded corners without admitting a shape that is a different shape.
+ * WAS 0.82, WHICH WAS CALIBRATED ON MOUSE STROKES. A mouse-drawn rectangle fills
+ * its box; a pencil one bows, and fills less. At 0.82 half the rectangles in
+ * `docs/corpus/` were refused as "closed and square-ish, but not a rectangle" --
+ * the threshold sat inside the range of what it was supposed to accept.
+ *
+ * THE MARGINS, and both are thin (re-derive them from `__corpus__/corpus.test.ts`):
+ *
+ *   0.7144  the lowest fill any corpus rectangle reaches in any orientation the
+ *           suite checks -- stroke 55, started from its own midpoint. Above us
+ *           by 0.0144.
+ *   0.6838  `refuse-pentagon`, the highest stroke this test refuses. Below us by
+ *           0.0162.
+ *
+ * Quote a margin against the stroke AS DRAWN and it looks comfortable: stroke 55
+ * forwards measures 0.7854, which makes 0.72 look safe and it is not. Fill is
+ * rotation-sensitive at about +/-0.05, because rotating a loop moves where
+ * overshoot trimming cuts it -- so the 0.031-wide band between the pentagon and
+ * the worst-case rectangle is NARROWER THAN THIS MEASUREMENT'S OWN NOISE. The
+ * margin is thin by nature, not by choice, and the durable repair is a
+ * rectangle test that is not area-fill at all.
+ *
+ * Below about 0.75 this is no longer what separates a rectangle from a rounded
+ * letter; MAX_MEAN_CORNER_ERROR is (see its own note). Fill's remaining job is
+ * the pentagon.
  */
-export const MIN_BOX_FILL = 0.82
+export const MIN_BOX_FILL = 0.7
+
+/**
+ * The same test, for a shape that does not even have four corners.
+ *
+ * `CORNER_TOLERANCE` admits three and five because a real hand-drawn box
+ * sometimes simplifies to one of them -- but a shape that is not four-cornered
+ * has produced LESS evidence of being a rectangle, so it is asked to look more
+ * like one. Without this, lowering MIN_BOX_FILL to admit bowed pencil rectangles
+ * also admits rounded letters: corpus strokes 199, 248 and 274 are an 'O' and
+ * two 'D's, and started from a different point on their own perimeter they reach
+ * fill 0.705-0.746 with three or five corners.
+ *
+ * The margin here is the comfortable one, and it is comfortable because the two
+ * populations barely overlap on this axis: across every orientation the suite
+ * checks, 59 of the twelve rectangles' 60 readings have exactly four corners,
+ * and the single one that does not fills 0.8392. The highest a non-rectangle
+ * reaches without four corners is 0.7457. So 0.80 sits 0.054 above the worst
+ * false positive and 0.039 below the only real rectangle it judges.
+ *
+ * Neither test does this alone, which is why there are two: squareness cannot
+ * separate them (the rectangles reach 19.85 degrees of error under rotation and
+ * the letters get as low as 11.65), and requiring exactly four corners refuses
+ * three genuine rectangles -- `box-clockwise`, `box-overshot-corner` and
+ * `box-pencil-067` -- when they are started elsewhere.
+ *
+ * THE NUMBER IS FITTED TO A ROTATION MODEL; THE RULE IS NOT. "Started from a
+ * different point" has no recorded stroke behind it -- it is synthesised by
+ * `__corpus__/corpus.test.ts`'s `orientations`, which re-cuts one recorded loop.
+ * That synthesiser trims overshoot FORWARD-ONLY, mirroring the suite SPEC-010
+ * shipped, so it splices the head overshoot into the middle of an edge. Build the
+ * rotations with `trimBothEnds` instead -- the loop this classifier actually
+ * judges -- and the evidence moves: the accept-side margin's only witness
+ * (`corpus#67` at 0.8392) stops existing, `corpus#55` presents five corners at
+ * 0.7416 and this bar refuses a genuine rectangle, and a FOUR-cornered false
+ * positive appears that this bar cannot catch. That model is not obviously the
+ * better one -- it also refuses `corpus#207` on the pre-existing squareness bar --
+ * which is the point: both are arbitrary, and this margin is not robust across
+ * them.
+ *
+ * What survives either model is the RULE, and it is the conservative direction:
+ * a shape with less evidence of being a rectangle is asked to look more like
+ * one, and refusing is the safe way to be wrong here. On every stroke anyone has
+ * actually drawn -- all 45 fixtures, all 276 corpus strokes as drawn -- this bar
+ * changes nothing. The durable repair is still a rectangle test that is not
+ * area-fill, and settling the rotation model belongs with it.
+ */
+export const MIN_BOX_FILL_WITHOUT_FOUR_CORNERS = 0.8
 
 /**
  * How straight a line must be: the greatest distance any point strays from the
@@ -114,6 +196,10 @@ export const MAX_LINE_BACKTRACK_FRACTION = 0.25
  * A hand does not stop dead on the corner it started at -- it carries past. The
  * corpus's `box-overshot-corner` ends 55 units beyond its own start, and that
  * tail reads as two extra corners unless it is trimmed off.
+ *
+ * Applied at BOTH ends, by `trimBothEnds`. The same overshoot sits at the head
+ * of the same stroke drawn the other way round, and a rule that only ever
+ * removed tails made the verdict depend on which corner the pen started at.
  */
 export const CLOSING_TRAVEL_FRACTION = 0.6
 
@@ -150,6 +236,12 @@ export const HEADING_SAMPLE_FRACTION = 0.15
  * none of them is square and the mean error refuses the box; summed, they are
  * the 90 degrees the person drew. Measured: a 200x120 rectangle with 20px
  * corner radii was refused before this and is accepted after.
+ *
+ * The summing is SIGNED (see `turnAngle`), and this constant is why that
+ * matters: a window this wide catches edge either side of the corner as well as
+ * the corner itself, so on a real stroke it is summing tremor along with the
+ * turn. Signed, the tremor cancels and the corner survives. Unsigned it did not,
+ * and the wider the window or the larger the stroke, the worse it got.
  */
 export const CORNER_MERGE_FRACTION = 0.16
 
@@ -217,11 +309,23 @@ function bounds(points: readonly Point[]): { min: Point; max: Point } {
   return { min: { x: minX, y: minY }, max: { x: maxX, y: maxY } }
 }
 
-/** The angle at `b`, in degrees, of the turn from a->b->c. 0 is straight on. */
+/**
+ * The angle at `b`, in degrees, of the turn from a->b->c. 0 is straight on.
+ *
+ * SIGNED: negative is a left turn, positive a right one. That matters because
+ * `closedCorners` SUMS these across a rounded corner. Summed as magnitudes, a
+ * hand's tremor along an edge adds to the corner instead of cancelling against
+ * the tremor that follows it -- and the bigger the stroke, the more samples
+ * survive simplification inside one merge window, so the more the corner
+ * inflates. Measured on 276 pencil strokes: every rectangle in the corpus had
+ * one corner reading between 118.5 and 284.9 degrees where a right angle was
+ * drawn, and ten of the twelve were refused for it.
+ */
 function turnAngle(a: Point, b: Point, c: Point): number {
-  const angle = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x)
-  const degrees = Math.abs((angle * 180) / Math.PI)
-  return degrees > 180 ? 360 - degrees : degrees
+  let angle = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x)
+  while (angle > Math.PI) angle -= 2 * Math.PI
+  while (angle < -Math.PI) angle += 2 * Math.PI
+  return (angle * 180) / Math.PI
 }
 
 /**
@@ -261,7 +365,10 @@ function closedCorners(path: readonly Point[], diagonal: number): number[] {
   if (merged.length > 1 && distance(turns[0]!.at, turns[turns.length - 1]!.at) <= mergeDistance) {
     merged[0] = merged[0]! + merged.pop()!
   }
-  return merged
+  // Magnitude LAST, once each corner is whole. Taking it per-turn is the defect
+  // described on `turnAngle`; taking it here is what makes a corner the turn a
+  // person drew rather than the distance their hand travelled around it.
+  return merged.map(Math.abs)
 }
 
 /** Shoelace area of a closed polygon, always positive. */
@@ -306,6 +413,90 @@ export function trimOvershoot(points: readonly Point[], closeDistance: number): 
 }
 
 /**
+ * Trim the overshoot off BOTH ends.
+ *
+ * `trimOvershoot` scans forward, so it only ever removes a tail. That was
+ * invisible while every large hand-drawn rectangle was refused anyway: a stroke
+ * carrying its overshoot at the HEAD -- which is what the same stroke reversed
+ * is -- kept it, and both directions were refused, so the two agreed. The moment
+ * the corner fix accepts them the disagreement becomes a verdict difference,
+ * and three corpus rectangles are `box` forwards and `none` backwards.
+ *
+ * SPEC-010 FR-001 guarantees a verdict is stable under reversal, and
+ * `recognise.test.ts` asserts it per fixture. This is what keeps that true.
+ *
+ * No cap on how much the head trim may remove: measured on the corpus it takes
+ * 6.0% to 19.3% of a rectangle's points, so a cap at 25% is inert and one at 10%
+ * puts the reversal failures straight back.
+ */
+export function trimBothEnds(points: readonly Point[], closeDistance: number): readonly Point[] {
+  const head = [...trimOvershoot([...points].reverse(), closeDistance)].reverse()
+  return trimOvershoot(head, closeDistance)
+}
+
+/**
+ * What the closed-shape tests measured, for a report rather than for a verdict.
+ *
+ * SPEC-017's requirements are stated in corner counts, mean corner error and
+ * fill, none of which `Verdict` carries and all of which are computed from
+ * helpers private to this module. A report that recomputed them would be a copy
+ * that drifts from the thing it claims to measure -- which is how a tuning
+ * number ends up describing code that no longer exists -- so `recognise` and
+ * `measure` share one implementation and this is its result.
+ */
+export interface Measurement {
+  /** Merged turns of more than 45 degrees. A hand-drawn edge bends; a corner turns. */
+  corners: number
+  /** Mean degrees away from square, over those corners. */
+  meanCornerError: number
+  /** Fraction of its own bounding box the closed path encloses. */
+  fill: number
+}
+
+function closedMeasurement(
+  path: readonly Point[],
+  first: Point,
+  last: Point,
+  diagonal: number,
+  width: number,
+  height: number,
+): Measurement {
+  // Drop a duplicated closing point so the cycle is not judged twice.
+  const cycle = distance(first, last) < SIMPLIFY_EPSILON ? path.slice(0, -1) : path
+  // A "corner" is a turn of more than 45 degrees. Below that a hand-drawn
+  // edge is bending, not turning.
+  const corners = closedCorners(cycle, diagonal).filter((a) => a > 45)
+  const meanCornerError = corners.length
+    ? corners.reduce((sum, a) => sum + Math.abs(a - 90), 0) / corners.length
+    : Infinity
+  return {
+    corners: corners.length,
+    meanCornerError,
+    // FILLS ITS BOUNDING BOX. The corner tests admit any closed shape with
+    // roughly four square-ish turns, and a pentagon clears both of them.
+    fill: polygonArea(cycle) / Math.max(width * height, 1),
+  }
+}
+
+/**
+ * Measure a stroke without judging it. `undefined` if it is not a closed path,
+ * which is the only case where none of these numbers is defined.
+ */
+export function measure(points: readonly Point[]): Measurement | undefined {
+  if (points.length < 3) return undefined
+  const box = bounds(points)
+  const width = box.max.x - box.min.x
+  const height = box.max.y - box.min.y
+  const diagonal = Math.hypot(width, height)
+  const closeDistance = diagonal * CLOSE_FRACTION
+  const path = simplify(trimBothEnds(points, closeDistance))
+  const first = path[0]!
+  const last = path[path.length - 1]!
+  if (distance(first, last) > closeDistance) return undefined
+  return closedMeasurement(path, first, last, diagonal, width, height)
+}
+
+/**
  * Classify a stroke.
  *
  * Order is box-then-line, and that is safe ONLY because the client adapter
@@ -326,41 +517,31 @@ export function recognise(points: readonly Point[]): Verdict {
 
   const diagonal = Math.hypot(width, height)
   const closeDistance = diagonal * CLOSE_FRACTION
-  const trimmed = trimOvershoot(points, closeDistance)
+  const trimmed = trimBothEnds(points, closeDistance)
   const path = simplify(trimmed)
   const first = path[0]!
   const last = path[path.length - 1]!
   const closed = distance(first, last) <= closeDistance
 
   if (closed) {
-    // Drop a duplicated closing point so the cycle is not judged twice.
-    const cycle = distance(first, last) < SIMPLIFY_EPSILON ? path.slice(0, -1) : path
-    const angles = closedCorners(cycle, diagonal)
-    // A "corner" is a turn of more than 45 degrees. Below that a hand-drawn
-    // edge is bending, not turning.
-    const corners = angles.filter((a) => a > 45)
-    if (Math.abs(corners.length - 4) > CORNER_TOLERANCE) {
-      return { kind: 'none', because: `closed, but ${corners.length} corners` }
+    const m = closedMeasurement(path, first, last, diagonal, width, height)
+    if (Math.abs(m.corners - 4) > CORNER_TOLERANCE) {
+      return { kind: 'none', because: `closed, but ${m.corners} corners` }
     }
-    if (corners.length === 4) {
-      const meanError = corners.reduce((sum, a) => sum + Math.abs(a - 90), 0) / corners.length
-      if (meanError > MAX_MEAN_CORNER_ERROR) {
-        return { kind: 'none', because: 'closed with four corners, but not square enough' }
-      }
-    } else {
-      // 3 or 5 corners: admitted by the tolerance, so hold them to the same
-      // squareness bar rather than waving them through on the count alone.
-      const meanError = angles
-        .filter((a) => a > 45)
-        .reduce((sum, a, _, all) => sum + Math.abs(a - 90) / all.length, 0)
-      if (meanError > MAX_MEAN_CORNER_ERROR) {
-        return { kind: 'none', because: 'closed, but not a rectangle' }
+    if (m.meanCornerError > MAX_MEAN_CORNER_ERROR) {
+      // Two messages for one test, kept because they say which shape the stroke
+      // nearly was: four square-ish corners is a failed rectangle, three or five
+      // is something else that the tolerance let as far as this line.
+      return {
+        kind: 'none',
+        because:
+          m.corners === 4
+            ? 'closed with four corners, but not square enough'
+            : 'closed, but not a rectangle',
       }
     }
-    // FILLS ITS BOUNDING BOX. The corner tests above admit any closed shape with
-    // roughly four square-ish turns, and a pentagon clears both of them.
-    const fill = polygonArea(cycle) / Math.max(width * height, 1)
-    if (fill < MIN_BOX_FILL) {
+    const minFill = m.corners === 4 ? MIN_BOX_FILL : MIN_BOX_FILL_WITHOUT_FOUR_CORNERS
+    if (m.fill < minFill) {
       return { kind: 'none', because: 'closed and square-ish, but not a rectangle' }
     }
     if (width < MIN_BOX_EXTENT || height < MIN_BOX_EXTENT) {

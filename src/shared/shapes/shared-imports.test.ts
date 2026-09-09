@@ -9,6 +9,7 @@ const SHARED_DIR = resolve(ROOT, 'src/shared')
 const CLIENT_DIR = resolve(ROOT, 'src/client')
 const WORKER_DIR = resolve(ROOT, 'src/worker')
 const FIXTURES = resolve(ROOT, 'src/shared/shapes/__fixtures__')
+const CORPUS_DIR = resolve(ROOT, 'src/shared/sketch/__corpus__')
 
 /**
  * `@tldraw/store` is here for BaseRecord and RecordId, which @tldraw/tlschema
@@ -160,8 +161,16 @@ describe('FR-001 — one definition, two consumers', () => {
   it('src/shared imports only tlschema and validate — never `tldraw`', () => {
     // Importing `tldraw` would pull React, the DOM and CSS into the Worker bundle.
     // Tests are excluded: boundary.test.ts must import the client util by design.
+    //
+    // `sketch/__corpus__` is excluded HERE rather than in `sourceFiles`, which
+    // also feeds the shape-type-literal check above: skipping the directory
+    // there would exempt it from a second fence it was never meant to leave.
+    // It reads the recorded stroke corpus out of `docs/` with `node:fs`, and
+    // this fence is about what ships -- `corpus.test.ts` carries the guard that
+    // nothing shipping imports it.
     const violations: string[] = []
     for (const file of sourceFiles(SHARED_DIR)) {
+      if (file.startsWith(CORPUS_DIR)) continue
       const text = readFileSync(file, 'utf8')
       for (const m of text.matchAll(/from\s+'([^']+)'/g)) {
         const spec = m[1]

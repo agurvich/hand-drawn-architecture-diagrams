@@ -1,5 +1,6 @@
 import { createBindingId, createShapeId, type Editor, type TLDrawShape, type TLShape } from 'tldraw'
 import { b64Vecs } from '@tldraw/tlschema'
+import { shouldConnect } from './convertPolicy'
 import {
   NODE_SHAPE_TYPE,
   CONNECTION_SHAPE_TYPE,
@@ -130,14 +131,22 @@ export function convertStroke(editor: Editor, shape: TLDrawShape): boolean {
    * PURPOSEFUL stroke, one that went from one end to the other rather than
    * wandering. Without that, a scribble drawn across two nodes becomes a
    * connection, which is the annotation-eating failure in its other costume.
+   *
+   * The rule itself lives in `shouldConnect` so it can be replayed against the
+   * recorded corpus without an editor. It was unreachable until SPEC-017 made
+   * recognition work: with nothing on the canvas a node, this never fired, and
+   * no test could say whether it was safe among a page of handwriting.
    */
   const first = points[0]!
   const last = points[points.length - 1]!
-  const fromNode = nodeAtPoint(editor, first)
-  const toNode = nodeAtPoint(editor, last)
-  const isConnection = fromNode && toNode && fromNode.id !== toNode.id
+  const decision = shouldConnect(
+    verdict,
+    isPurposeful(points),
+    nodeAtPoint(editor, first)?.id,
+    nodeAtPoint(editor, last)?.id,
+  )
 
-  if (isConnection && (verdict.kind !== 'none' || isPurposeful(points))) {
+  if (decision.connect) {
     const connectionId = createShapeId()
     editor.markHistoryStoppingPoint()
     editor.run(() => {
@@ -145,8 +154,8 @@ export function convertStroke(editor: Editor, shape: TLDrawShape): boolean {
       editor.createShape({ id: connectionId, type: CONNECTION_SHAPE_TYPE, x: 0, y: 0 })
       // DIRECTION FOLLOWS THE STROKE: the end you started from is the source.
       for (const [terminal, toId] of [
-        ['start', fromNode.id],
-        ['end', toNode.id],
+        ['start', decision.fromId],
+        ['end', decision.toId],
       ] as const) {
         editor.createBinding({
           id: createBindingId(),

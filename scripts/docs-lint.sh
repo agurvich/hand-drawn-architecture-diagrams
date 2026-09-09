@@ -93,6 +93,17 @@ cd "$ROOT"
 # post-cut measurement: a cap sitting on top of a freshly cut file leaves the
 # next decision that legitimately needs a line nothing to spend, so it takes one
 # from another area and the gate causes the damage it exists to prevent.
+#
+# 2026-09-08 (SPEC-017): that headroom did its job and was spent within a day --
+# one Key Decisions line took the file to 15822, leaving 178 bytes, which is not
+# headroom. Cut again rather than raised, and the cut was not arbitrary: the
+# tldraw 5.x-vs-4.x rationale and the @tldraw/store range rationale were sitting
+# in CLAUDE.md as their ONLY home, which the digest rule forbids anywhere else in
+# this file. They moved to decisions.md -> Canvas SDK: tldraw behind a pointer,
+# and the file came back to 15474 -- ~525 bytes, three digest lines, of headroom.
+# The lesson worth keeping: when this gate tightens, look first for a fact whose
+# only home is here. There is usually one, and moving it is a fix rather than a
+# concession.
 CLAUDE_MAX_BYTES=16000
 
 # The whole Key Decisions section, measured as bytes. This is the guard that cannot be

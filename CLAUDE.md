@@ -37,12 +37,8 @@ Predecessor (read-only reference, not a dependency): `../architecture-diagrams`,
 
 - TypeScript 6 (strict), React 19, Vite 8 — Node >= 22.12 (tldraw 5's `engines`; Node 20 is excluded)
 - tldraw SDK **5.x** — canvas, custom shapes, bindings — plus its sync client. `@tldraw/store` is a
-  direct dependency at `^5.4.0` -- a RANGE, not an exact pin: tlschema pins its siblings exactly, so
-  an exact root pin is what would force a second nested copy the moment tldraw floats, and two copies
-  mean two distinct `RecordId` brands. Pinned to 5.x, not
-  4.x: on 4.x `indicator()` is still abstract and `getIndicatorPath` only runs once
-  `useLegacyIndicator()` returns false, so a shape written the modern way silently draws no selection
-  indicator. Greenfield, so take the API that is not a migration artifact
+  direct dependency at a RANGE (`^5.4.0`), not an exact pin. Both the range and the major are
+  load-bearing and neither is obvious: `decisions.md` → *Canvas SDK: tldraw*
 - Cloudflare Workers + Durable Objects (SQLite storage); R2 for assets
 - Vitest + Testing Library (unit, jsdom + a polyfill setup file tldraw needs to mount at all),
   Playwright (e2e — Chromium with an emulated iPad viewport, since the touch/pen specs drive CDP and
@@ -85,7 +81,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-016 are Completed.
+**Current work:** none — SPEC-001 through SPEC-017 are Completed.
 
 ---
 
@@ -121,6 +117,9 @@ is refused — each one was a way past the checks.
   anchored to the selection: a connection's bounds spans both endpoints' centres, so "beside the
   shape" is meaningless for half of what it describes. Anchoring failed three reviews before that was
   named.
+- **A classifier is scored against a labelled population** — "276 strokes, 1 box" had the wrong
+  denominator: twelve are rectangles. Out of 276 the defect reads as under-recognition and the
+  repair looks like looser tolerances; out of 12 it is visible.
 - **Scope says who sees a record; history is decided per write** — tldraw records session-scoped
   changes on the shared undo stack too, so two fields wanting opposite undo behaviour cannot share
   one record.

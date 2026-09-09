@@ -37,6 +37,7 @@ until the first real decision lands.
 - [Scope says who sees a record; history is decided per write](#scope-says-who-sees-a-record-history-is-decided-per-write)
 - [A folded view shows every answer, never none](#a-folded-view-shows-every-answer-never-none)
 - [Controls dock; they do not follow the shape](#controls-dock-they-do-not-follow-the-shape)
+- [A classifier is scored against a labelled population](#a-classifier-is-scored-against-a-labelled-population)
 
 ---
 
@@ -63,6 +64,18 @@ tldraw's documented, officially-maintained path.
 simplify-and-classify pass over freedraw strokes. Treated as bounded and additive — see
 [*Secondary features deferred pending real use*](#secondary-features-deferred-pending-real-use) for how unproven features are staged. The licence
 cost is a separate entry: [*Hobby licence accepted for now*](#hobby-licence-accepted-for-now-commercial-use-is-unresolved).
+
+**Why 5.x and not 4.x.** On 4.x `indicator()` is still abstract and `getIndicatorPath` only runs
+once `useLegacyIndicator()` returns false — so a custom shape written the modern way silently draws
+no selection indicator at all. This is greenfield, so it takes the API that is not a migration
+artifact. (Moved out of `CLAUDE.md` 2026-09-08: it was the only home of these two facts, which the
+digest rule forbids, and the always-loaded file is not where a dependency's version rationale
+belongs.)
+
+**Why `@tldraw/store` is a range, not an exact pin.** `tlschema` pins its siblings exactly, so an
+exact root pin is what would force a second nested copy the moment tldraw floats — and two copies
+mean two distinct `RecordId` brands, which fail to unify at the room boundary in a way that reads as
+a validation bug rather than a duplicate dependency.
 
 ### Store-native domain state
 
@@ -283,3 +296,39 @@ if it bites in use.
 drawing tool, and the dock renders under both -- `recogniseOnDraw` selects a freshly recognised node
 without changing tool. One element, one axis, via `ResizeObserver`. That is not the obstacle search
 this entry rejects, and the distinction is what keeps the exception from reopening it.
+
+### A classifier is scored against a labelled population
+
+**Decided 2026-09-08, in SPEC-017.**
+
+Sketch recognition was reported as "276 strokes in, 1 box out". That number is true and it is not a
+score, because it has the wrong denominator: only **twelve** of those 276 strokes are rectangles.
+The other 264 are handwriting, connectors and marks, and a recogniser that turned them into nodes
+would be broken in the more expensive direction — it would eat somebody's annotation. The real
+reading is 1 of 12, with 0 false positives out of 264.
+
+The distinction is not pedantry; it changed the diagnosis. Scored out of 276, the failure looks like
+under-recognition and the obvious repair is to loosen tolerances — which is what the first
+investigation concluded, and it was wrong. Scored out of 12, the twelve are all closed with exactly
+four corners, and the defect is visible: corner turns were being summed as magnitudes, so a hand's
+tremor inflated every corner.
+
+**So a change to the classifier is scored against `src/shared/sketch/__corpus__/labels.ts`, and the
+labelled population is part of the evidence, not a convenience.** Two consequences:
+
+- **The corpus is a gate, not a reference.** `__corpus__/corpus.test.ts` asserts the exact verdict
+  tally and the exact set of recognised strokes — the set, because "twelve boxes" is also what a
+  recogniser that had started eating handwriting would report.
+- **Fixtures carry their provenance.** Every fixture predating SPEC-017 was drawn by an agent
+  through synthesised pen events, which is how a recogniser ends up accepting only tidy rectangles.
+  `via` distinguishes those from strokes drawn by a person on the target device, and both kinds are
+  in the corpus deliberately.
+
+**The labels are human judgement and are the weakest link.** They were assigned by eye from a
+rendered contact sheet of all 276 strokes. Nothing derives them and no test can check them: a
+mislabelled stroke tunes the classifier against the wrong target, silently. Re-render and re-check
+rather than trusting the list.
+
+**What this does not license.** It is not an argument for tuning against the corpus until the numbers
+look good. The corpus is one person's one drawing, and a constant that fits it exactly is fitted to
+a sample of one — which is the failure the fixtures were supposed to prevent and did not.
