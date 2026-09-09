@@ -5,6 +5,8 @@ import {
   openRoom,
   newParticipant,
   shapeCount,
+  addHalfConnection,
+  openPanel,
   addNode,
   addConnection,
   connectionKinds,
@@ -470,17 +472,78 @@ test.describe('SPEC-018 FR-001 — getDefaultProps gives each connection its own
   test('two connections created through the tool do not share one kinds array', async ({
     page,
   }) => {
-    // The unit test covers `fromDocument`; this covers the other creation site,
-    // which needs a live ShapeUtil. Written because the first version of the
-    // unit test built the fix inline and passed with BOTH sites reverted.
+    /*
+     * ASSERTED ON ARRAY IDENTITY, IN THE PAGE.
+     *
+     * The unit test covers `fromDocument`; this covers the other creation site,
+     * which needs a live ShapeUtil. Its first version set kinds on one
+     * connection and checked the other was still empty -- which passes either
+     * way: `updateShape` REPLACES the array rather than mutating it, and tldraw
+     * freezes props, so a shared default and a fresh one behave identically.
+     * That was the same criterion the unit test had already got wrong, moved
+     * rather than fixed. Identity is the only thing that separates them, so
+     * identity is what this reads.
+     */
     await openRoom(page, roomId('ek-share'))
     const a = await addNode(page, 'A', { x: 100, y: 100 })
     const b = await addNode(page, 'B', { x: 500, y: 350 })
     const k1 = await addConnection(page, a, b)
     const k2 = await addConnection(page, b, a)
 
+    const shared = await page.evaluate(
+      ([x, y]) => {
+        const ed = window.__editor!
+        const one = ed.getShape(x as never)!.props as { kinds: string[] }
+        const two = ed.getShape(y as never)!.props as { kinds: string[] }
+        return one.kinds === two.kinds
+      },
+      [k1, k2],
+    )
+    expect(shared, 'both connections point at ONE kinds array').toBe(false)
+
+    // And the behaviour still holds, which is what the identity protects.
     await setKinds(page, k1, ['data'])
     expect(await connectionKinds(page, k1)).toEqual(['data'])
     expect(await connectionKinds(page, k2)).toEqual([])
+  })
+})
+
+test.describe('SPEC-018 — the export panel says what the JSON drops', () => {
+  test('warns that kinds are not described, and stays silent when none are set', async ({
+    page,
+  }) => {
+    await openRoom(page, roomId('ek-warn'))
+    const a = await addNode(page, 'A', { x: 100, y: 100 })
+    const b = await addNode(page, 'B', { x: 500, y: 350 })
+    const conn = await addConnection(page, a, b)
+
+    await openPanel(page)
+    await expect(page.getByTestId('diagram-io-undocumented-kinds')).toHaveCount(0)
+    await page.getByTestId('diagram-io-close').click()
+
+    await setKinds(page, conn, ['data'])
+    await openPanel(page)
+    await expect(page.getByTestId('diagram-io-undocumented-kinds')).toContainText(
+      '1 connection carries edge kinds',
+    )
+  })
+
+  test('does NOT double-warn about a half-bound connection', async ({ page }) => {
+    /*
+     * A half-bound connection is a `diagramConnection` the document cannot
+     * carry, so the undocumentable warning already covers it. Counting it here
+     * too said both "1 shape cannot be described and is not included" AND "1
+     * connection carries edge kinds; it comes back with no kinds" -- and the
+     * second is false, because it does not come back at all. Two warnings about
+     * one line, one of them wrong.
+     */
+    await openRoom(page, roomId('ek-half'))
+    const a = await addNode(page, 'A', { x: 100, y: 100 })
+    const half = await addHalfConnection(page, a)
+    await setKinds(page, half, ['data'])
+
+    await openPanel(page)
+    await expect(page.getByTestId('diagram-io-undocumentable')).toContainText('1 shape')
+    await expect(page.getByTestId('diagram-io-undocumented-kinds')).toHaveCount(0)
   })
 })

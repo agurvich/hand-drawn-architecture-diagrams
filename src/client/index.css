@@ -16,26 +16,18 @@
 
    DARKER than the pen colours they stand for, because these are meaningful
    graphics and WCAG 1.4.11 asks 3:1 against the canvas. Measured against white:
-   data 4.72:1, permission 4.38:1, sequence 4.83:1. His own orange was 2.89:1.
+   data 4.72:1, permission 4.38:1, sequence 6.13:1. His own orange was 2.89:1.
 
-   And colour is not the only thing separating them -- see `--edge-kind-*-dash`.
-   Orange and green is precisely the pair a red-green colour-blind reader
-   cannot tell apart, and the `aria-label` helps a screen reader rather than
-   them. */
+   And colour is not the only thing separating them: each kind also carries a
+   dash pattern, which lives in `KIND_DASH` in `ConnectionShapeUtil.tsx` and NOT
+   in a custom property -- `strokeDasharray` is an SVG attribute the component
+   sets, so there is nothing here for it to read. Orange and green is precisely
+   the pair a red-green colour-blind reader cannot tell apart, and the
+   `aria-label` helps a screen reader rather than them. */
 :root {
   --edge-kind-data: #b35c00;
   --edge-kind-permission: #2f8a2f;
   --edge-kind-sequence: #5b6270;
-}
-
-.diagram-connection__halo {
-  /* THE HIGHLIGHT CHANNEL THAT SURVIVES KIND COLOURING. Scene highlighting was
-     `color: #1a5fb4` on the container and reached paint only through
-     `currentColor` -- which a kinded strand does not use, so highlighting a
-     coloured line changed nothing at all while the merge-count badge beside it
-     did turn blue. Drawn behind the strands, in the accent colour, so the kinds
-     stay readable while the line is picked out. */
-  opacity: 35%;
 }
 
 html,
@@ -775,6 +767,20 @@ body {
 
 .diagram-connection--highlighted {
   color: #1a5fb4;
+}
+
+.diagram-connection__halo {
+  /* THE HIGHLIGHT CHANNEL THAT SURVIVES KIND COLOURING. The rule above reaches
+     paint only through `currentColor`, which a kinded strand does not use -- so
+     highlighting a coloured line changed nothing at all while the merge-count
+     badge beside it, which does use `currentColor`, turned blue. Drawn behind
+     the strands, in the accent colour, so the kinds stay readable while the
+     line is picked out.
+
+     70%, not 35%: this is a state indicator, so WCAG 1.4.11 wants 3:1 against
+     the canvas and the first value composited to 1.73:1 -- in the same commit
+     that darkened the palette for exactly that rule. At 70% it is 3.35:1. */
+  opacity: 70%;
 }
 
 /*

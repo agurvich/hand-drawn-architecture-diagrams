@@ -14,6 +14,7 @@ import {
   fromDocument,
   NODE_SHAPE_TYPE,
   CONNECTION_SHAPE_TYPE,
+  SHAPE_ID_PREFIX,
   CONNECTION_BINDING_TYPE,
   ACTOR_BINDING_TYPE,
   chosenActorBinding,
@@ -155,13 +156,26 @@ export function undocumentableShapeCount(editor: Editor): number {
  * gap, not a feature.
  */
 export function connectionsWithUndocumentedKinds(editor: Editor): number {
-  return editor
-    .getCurrentPageShapes()
-    .filter(
-      (shape) =>
-        shape.type === CONNECTION_SHAPE_TYPE &&
-        ((shape.props as { kinds?: readonly string[] }).kinds?.length ?? 0) > 0,
-    ).length
+  /*
+   * DERIVED FROM THE EXPORT, not a shape-type test -- the same rule
+   * `undocumentableShapeCount` above follows, and for a sharper reason here. A
+   * HALF-BOUND connection is a `diagramConnection` that the document cannot
+   * carry, so a shape-type test counted it and the panel said both "1 shape
+   * cannot be described and is not included" and "1 connection carries edge
+   * kinds; it comes back with no kinds". The second is false: it does not come
+   * back at all. Two warnings, one of them wrong, about one line.
+   */
+  const exported = new Set(exportDocument(editor).connections.map((connection) => connection.id))
+  return editor.getCurrentPageShapes().filter((shape) => {
+    if (shape.type !== CONNECTION_SHAPE_TYPE) return false
+    if (((shape.props as { kinds?: readonly string[] }).kinds?.length ?? 0) === 0) return false
+    return exported.has(documentIdOf(shape.id))
+  }).length
+}
+
+/** A shape id as the document writes it. `document.ts` strips the same prefix. */
+function documentIdOf(shapeId: string): string {
+  return shapeId.startsWith(SHAPE_ID_PREFIX) ? shapeId.slice(SHAPE_ID_PREFIX.length) : shapeId
 }
 
 /**

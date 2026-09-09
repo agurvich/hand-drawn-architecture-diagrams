@@ -48,6 +48,37 @@ describe('strandsFor — one strand per kind', () => {
     for (const strand of strands) expect(strand.colour).toMatch(/^var\(--edge-kind-[a-z]+\)$/)
   })
 
+  it('gives each kind a DISTINCT dash pattern, so colour is not the only channel', () => {
+    /*
+     * The criterion FR-002 gained after a reviewer pointed out that orange and
+     * green is exactly the pair a red-green colour-blind reader cannot separate,
+     * and that `aria-label` serves a screen reader rather than them.
+     *
+     * It shipped with no test at all: deleting `KIND_DASH` and the
+     * `strokeDasharray` prop left the whole suite green while the spec carried
+     * the criterion. PAIRWISE distinct, including `data`'s solid line, which is
+     * `undefined` rather than a pattern.
+     */
+    const dashes = strandsFor([...EDGE_KINDS], A, B).strands.map((s) => s.dash ?? 'solid')
+    expect(new Set(dashes).size).toBe(EDGE_KINDS.length)
+  })
+
+  it('leaves the commonest kind SOLID, so the default line is the cheapest to read', () => {
+    expect(strandsFor(['data'], A, B).strands[0]!.dash).toBeUndefined()
+    expect(strandsFor(['permission'], A, B).strands[0]!.dash).toBeDefined()
+  })
+
+  it('draws ONE strand for a kind repeated, rather than two on one path', () => {
+    // Every write goes through `normaliseKinds`, so a repeat should not reach
+    // here -- but this function is exported, and two strands for one kind would
+    // share a React key AND a `<marker>` id, and would push the pair off the
+    // centre this function documents itself as holding.
+    const { kinds, strands } = strandsFor(['data', 'data'], A, B)
+    expect(kinds).toEqual(['data'])
+    expect(strands).toHaveLength(1)
+    expect(strands[0]).toMatchObject({ dx: 0, dy: 0 })
+  })
+
   it('gives each strand a DISTINCT marker key, or they share one arrowhead', () => {
     // The keys become marker ids. Two strands sharing a key would share a
     // marker, which is precisely the shared-arrowhead defect in another costume.

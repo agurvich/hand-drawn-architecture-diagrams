@@ -57,7 +57,10 @@ Register entry: `decisions.md` → *An edge carries a set of kinds*.
 - **SPEC-008's scene-highlight guard now measures paint.** `e2e/scenes.spec.ts` read
   `getComputedStyle(lit).color` off the connection's container, which is the accent whether or not
   anything is drawn with it — so it passed on a kinded line for exactly the reason its own comment
-  says it was rewritten to prevent. It now compares the drawn line's `stroke` as well.
+  says it was rewritten to prevent. It now asserts the drawn line's `stroke` **is** the accent, and
+  compares it against the *dimmed* line rather than the unaccented one: while a scene is
+  highlighting, every other connection is dimmed, so the unaccented selector matches nothing and
+  comparing against it compares against `null`.
 - **`DiagramIOPanel` gained a second export warning.** `undocumentableShapeCount` counts shapes the
   format cannot hold; a kinded connection is fully documentable, so that count is zero for it and
   the panel said nothing. `connectionsWithUndocumentedKinds` is a separate count with a separate
@@ -73,17 +76,31 @@ Local: `npm run build`, `npm run typecheck`, `npm run lint` (4 warnings, all pre
 in files this diff touched), `npx prettier --check .`, `npm test`, `sh scripts/spec-lint.sh`,
 `sh scripts/docs-lint.sh`, `sh scripts/docs-lint-test.sh`, and the full Playwright suite.
 
-Four gates were proved to bite by defeating them: deleting the `kinds` clause from `sameEntry`
-reddens four tests; mistyping `light-green` as `lightgreen` reddens two, including the corpus replay
-that is the spec's measured evidence (strokes 80 and 188 → `data`, 259 → `permission`); reverting
-`fromDocument`'s fresh `kinds` array reddens the shared-array test; and removing the highlight halo
-reddens the scene-accent test.
+Nine gates were proved to bite by defeating them, each with the mutation named: deleting the `kinds`
+clause from `sameEntry` (4 tests); mistyping `light-green` as `lightgreen` (2, including the corpus
+replay that is the spec's measured evidence — strokes 80 and 188 → `data`, 259 → `permission`);
+reverting `fromDocument`'s fresh `kinds` array; reverting `getDefaultProps`' fresh array; removing
+the highlight halo; painting the strands black so the highlight reaches no line; deleting
+`KIND_DASH` (2); reverting the `strandsFor` dedupe; and counting a half-bound connection in the
+export warning.
 
-**What the two diff reviews found, recorded because the lesson is not about this spec.** An earlier
+**What three review rounds found, recorded because the lesson is not about this spec.** An earlier
 run of the full e2e suite was reported as green on the strength of `playwright | tail -25`, which
 exits with `tail`'s status, and whose last lines said "633 passed" four lines below a "4 failed"
-list. Both reviewers found the two real failures independently. Both also found that FR-001's
-shared-array criterion could not fail — the test built the fix inline and passed with both
+list. Both round-one reviewers found the two real failures independently. Both also found that
+FR-001's shared-array criterion could not fail — the test built the fix inline and passed with both
 production creation sites reverted — and the system-frame review found that scene highlighting was
-inert on precisely the lines this spec creates, a state no test in the diff ever visited. All are
-fixed above. Nothing was deferred to a green CI run.
+inert on precisely the lines this spec creates, a state no test in the diff ever visited.
+
+**The round aimed at those fixes found the same defect class inside them**, which is why it was
+budgeted: three of the new criteria could not fail either. The `getDefaultProps` e2e asserted
+behaviour a shared array and a fresh one share, because `updateShape` replaces the array and tldraw
+freezes props — so it now reads array identity in the page, the only thing that separates them. The
+strengthened scenes assertion compared against a selector that matches nothing while dimming is
+active. And the dash patterns shipped with an acceptance criterion and no test. Every gate added
+since is listed above with the mutation that reddens it.
+
+`process.md` §3 says to stop when findings land in the previous round's fixes rather than in the
+subject. That is where round three landed, so it is the last: the fixes are mechanical, each is
+verified by re-planting the mutation it was reported with, and no further round was run. Nothing was
+deferred to a green CI run.

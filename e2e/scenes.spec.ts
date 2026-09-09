@@ -990,7 +990,12 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
         litColor: getComputedStyle(lit).color,
         plainColor: plain ? getComputedStyle(plain).color : null,
         litStroke: strokeOf(lit),
-        plainStroke: plain ? strokeOf(plain) : null,
+        // The DIMMED line, not the `plain` one. While a scene is highlighting,
+        // every other connection is dimmed, so `plain` is null and comparing
+        // against it is comparing against nothing -- which is how the first
+        // version of this assertion passed with the highlight reaching no line
+        // at all.
+        dimStroke: strokeOf(dim),
         dimOpacity: parseFloat(getComputedStyle(dim).opacity),
       }
     })
@@ -999,8 +1004,9 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     // The accent must differ from an unaccented line, not merely exist.
     expect(painted!.litColor).not.toBe('rgb(0, 0, 0)')
     // And it must reach the LINE, not stop at the container.
-    expect(painted!.litStroke).not.toBeNull()
-    expect(painted!.litStroke).not.toBe(painted!.plainStroke)
+    expect(painted!.dimStroke).not.toBeNull()
+    expect(painted!.litStroke).toBe('rgb(26, 95, 180)')
+    expect(painted!.litStroke).not.toBe(painted!.dimStroke)
   })
 
   test('dimmed content stays legible', async ({ page }) => {
