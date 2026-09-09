@@ -14,6 +14,7 @@ import {
   fromDocument,
   NODE_SHAPE_TYPE,
   CONNECTION_SHAPE_TYPE,
+  SHAPE_ID_PREFIX,
   CONNECTION_BINDING_TYPE,
   ACTOR_BINDING_TYPE,
   chosenActorBinding,
@@ -139,6 +140,42 @@ export function undocumentableShapeCount(editor: Editor): number {
   const document = exportDocument(editor)
   const onPage = editor.getCurrentPageShapes().length
   return onPage - (document.nodes.length + document.connections.length)
+}
+
+/**
+ * How many connections carry kinds the JSON does not describe.
+ *
+ * A DIFFERENT question from `undocumentableShapeCount`, which counts shapes the
+ * format cannot hold at all -- a kinded connection is fully documentable, so
+ * that count is zero for it and the panel would say nothing. SPEC-018 put edge
+ * kinds on the canvas and left them out of the document deliberately, but a
+ * diagram whose whole meaning is which lines are data and which are permission
+ * should not round-trip into a plain one in silence.
+ *
+ * Delete this the moment the document carries kinds -- it is a warning about a
+ * gap, not a feature.
+ */
+export function connectionsWithUndocumentedKinds(editor: Editor): number {
+  /*
+   * DERIVED FROM THE EXPORT, not a shape-type test -- the same rule
+   * `undocumentableShapeCount` above follows, and for a sharper reason here. A
+   * HALF-BOUND connection is a `diagramConnection` that the document cannot
+   * carry, so a shape-type test counted it and the panel said both "1 shape
+   * cannot be described and is not included" and "1 connection carries edge
+   * kinds; it comes back with no kinds". The second is false: it does not come
+   * back at all. Two warnings, one of them wrong, about one line.
+   */
+  const exported = new Set(exportDocument(editor).connections.map((connection) => connection.id))
+  return editor.getCurrentPageShapes().filter((shape) => {
+    if (shape.type !== CONNECTION_SHAPE_TYPE) return false
+    if (((shape.props as { kinds?: readonly string[] }).kinds?.length ?? 0) === 0) return false
+    return exported.has(documentIdOf(shape.id))
+  }).length
+}
+
+/** A shape id as the document writes it. `document.ts` strips the same prefix. */
+function documentIdOf(shapeId: string): string {
+  return shapeId.startsWith(SHAPE_ID_PREFIX) ? shapeId.slice(SHAPE_ID_PREFIX.length) : shapeId
 }
 
 /**

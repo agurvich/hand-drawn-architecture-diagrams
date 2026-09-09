@@ -76,7 +76,10 @@ test.describe('SPEC-005 FR-002 — drawing a connection', () => {
     // Props stay at their defaults however far the endpoints travel. If a future
     // change starts storing anchors, this fails -- which is the point.
     const props = await page.evaluate((id) => window.__editor!.getShape(id as never)!.props, conn)
-    expect(props).toEqual({ start: { x: 0, y: 0 }, end: { x: 100, y: 0 } })
+    // `kinds` is a DEFAULT, not an anchor: SPEC-018 added it and it stays empty
+    // here. The claim this test makes -- that no coordinate is ever written to
+    // props -- is unchanged.
+    expect(props).toEqual({ start: { x: 0, y: 0 }, end: { x: 100, y: 0 }, kinds: [] })
   })
 })
 

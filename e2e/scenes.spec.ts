@@ -977,9 +977,25 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
       const plain = document.querySelector(
         '[data-testid="diagram-connection"]:not(.diagram-connection--highlighted):not(.diagram-connection--dimmed)',
       )
+      // PAINT, not just the container's inherited colour. Reading `color` off
+      // the container says what `currentColor` WOULD resolve to, not whether
+      // anything is drawn with it -- and SPEC-018's kinded strands are painted
+      // with `var(--edge-kind-*)`, so a highlight that reached only
+      // `currentColor` left them untouched while this assertion still passed.
+      const strokeOf = (el: Element) => {
+        const line = el.querySelector('line')
+        return line ? getComputedStyle(line).stroke : null
+      }
       return {
         litColor: getComputedStyle(lit).color,
         plainColor: plain ? getComputedStyle(plain).color : null,
+        litStroke: strokeOf(lit),
+        // The DIMMED line, not the `plain` one. While a scene is highlighting,
+        // every other connection is dimmed, so `plain` is null and comparing
+        // against it is comparing against nothing -- which is how the first
+        // version of this assertion passed with the highlight reaching no line
+        // at all.
+        dimStroke: strokeOf(dim),
         dimOpacity: parseFloat(getComputedStyle(dim).opacity),
       }
     })
@@ -987,6 +1003,10 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     expect(painted!.dimOpacity).toBeLessThan(1)
     // The accent must differ from an unaccented line, not merely exist.
     expect(painted!.litColor).not.toBe('rgb(0, 0, 0)')
+    // And it must reach the LINE, not stop at the container.
+    expect(painted!.dimStroke).not.toBeNull()
+    expect(painted!.litStroke).toBe('rgb(26, 95, 180)')
+    expect(painted!.litStroke).not.toBe(painted!.dimStroke)
   })
 
   test('dimmed content stays legible', async ({ page }) => {

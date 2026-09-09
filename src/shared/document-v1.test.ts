@@ -49,8 +49,11 @@ function records(name: string) {
  * reads.
  *
  * It is EXPECTED to need one edit, in the phase that adds `scenes` to
- * `fromDocument`'s return -- and in no other phase. A change here outside that
- * phase means v1 documents stopped meaning what they meant.
+ * `fromDocument`'s return -- and otherwise only when a RECORD prop gains a
+ * default, which is not the same thing as the document format changing. SPEC-018
+ * added `kinds: []` to every connection record; `DocumentConnection` is
+ * untouched and `toDocument` never reads it, so v1 documents still mean exactly
+ * what they meant. Any other change here does mean they stopped.
  */
 const EXPECTED = {
   'connections-and-defaults.json': {
@@ -121,6 +124,7 @@ const EXPECTED = {
             x: 100,
             y: 0,
           },
+          kinds: [],
         },
       },
       {
@@ -139,6 +143,7 @@ const EXPECTED = {
             x: 100,
             y: 0,
           },
+          kinds: [],
         },
       },
     ],

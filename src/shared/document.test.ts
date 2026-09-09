@@ -60,7 +60,7 @@ function exportableConnection(id: string): ExportableConnection {
     x: 0,
     y: 0,
     rotation: 0,
-    props: { start: { x: 0, y: 0 }, end: { x: 0, y: 0 } },
+    props: { start: { x: 0, y: 0 }, end: { x: 0, y: 0 }, kinds: [] },
   }
 }
 

@@ -32,6 +32,14 @@ export interface ConnectionEndpoints {
    * built and the one place that can resolve a binding.
    */
   actorId: string | null
+  /**
+   * The kinds this connection carries, as its props hold them.
+   *
+   * PASSED IN like `actorId`, and for the same reason: this module has no store
+   * access and this spec does not give it any. `mergeIndex.ts` is the one place
+   * `ConnectionEndpoints` is built.
+   */
+  kinds: readonly string[]
 }
 
 /** What the derivation concluded about one connection. */
@@ -60,6 +68,20 @@ export interface MergeEntry {
    * exactly what differs between them.
    */
   actorIds: string[]
+  /**
+   * EVERY DISTINCT KIND among the members, in the same normal form the props
+   * hold: deduplicated, ordered by plain `<`.
+   *
+   * The rule is SPEC-015's, applied to a second field: *a folded view shows
+   * every answer, never none*. Showing the representative's kinds would
+   * mislabel every other member; showing none would hide exactly what folding
+   * exists to reveal.
+   *
+   * An unmerged line carries its own connection's kinds, so one field serves
+   * both cases and the renderer has no branch -- the shape `actorIds` already
+   * takes.
+   */
+  kinds: string[]
   /**
    * The shapes the line is drawn against, after resolution. Null on a terminal
    * with no binding -- the shape's own start/end prop is used there, as SPEC-005
@@ -115,6 +137,7 @@ interface Member {
   /** Did collapse actually move either endpoint? Rule 5's input. */
   resolved: boolean
   actorId: string | null
+  kinds: readonly string[]
 }
 
 /**
@@ -128,6 +151,20 @@ function distinctActors(members: readonly { actorId: string | null }[]): string[
   for (const member of members) {
     if (member.actorId !== null) seen.add(member.actorId)
   }
+  return [...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+}
+
+/**
+ * Every distinct kind among a set of connections, in the same deterministic
+ * order `distinctActors` uses and for the same reason.
+ *
+ * Deliberately a sibling of `distinctActors` rather than a generalisation of
+ * it: one takes a nullable field off each member and the other a list, and the
+ * shared version would be a function whose only job is to hide which.
+ */
+function distinctKinds(members: readonly { kinds: readonly string[] }[]): string[] {
+  const seen = new Set<string>()
+  for (const member of members) for (const kind of member.kinds) seen.add(kind)
   return [...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
 }
 
@@ -150,6 +187,7 @@ export function computeMergeIndex(
         endNodeId: resolveId(c.endNodeId, getShape),
         count: 1,
         actorIds: c.actorId === null ? [] : [c.actorId],
+        kinds: distinctKinds([c]),
       })
       continue
     }
@@ -167,6 +205,7 @@ export function computeMergeIndex(
         endNodeId: end ? visibleStandInFor(end, getShape).id : c.endNodeId,
         count: 1,
         actorIds: c.actorId === null ? [] : [c.actorId],
+        kinds: distinctKinds([c]),
       })
       continue
     }
@@ -185,6 +224,7 @@ export function computeMergeIndex(
         endNodeId: vt,
         count: 1,
         actorIds: c.actorId === null ? [] : [c.actorId],
+        kinds: distinctKinds([c]),
       })
       continue
     }
@@ -198,6 +238,7 @@ export function computeMergeIndex(
       endNodeId: vt,
       resolved: vs !== c.startNodeId || vt !== c.endNodeId,
       actorId: c.actorId,
+      kinds: c.kinds,
     }
     const group = groups.get(key)
     if (group) group.push(member)
@@ -222,6 +263,7 @@ export function computeMergeIndex(
           endNodeId: m.endNodeId,
           count: 1,
           actorIds: m.actorId === null ? [] : [m.actorId],
+          kinds: distinctKinds([m]),
         })
       }
       continue
@@ -238,6 +280,10 @@ export function computeMergeIndex(
     // representative's -- that silently misattributes the rest -- and not none,
     // which was the old rule and hid the thing collapse exists to reveal.
     const mergedActors = distinctActors(members)
+    // And every distinct KIND, by the same rule. A merged line that showed only
+    // the representative's kinds would call a data transfer a permission edge
+    // because the smallest id happened to be one.
+    const mergedKinds = distinctKinds(members)
 
     for (const m of members) {
       out.set(m.id, {
@@ -246,6 +292,7 @@ export function computeMergeIndex(
         endNodeId: m.endNodeId,
         count: m === representative ? members.length : 1,
         actorIds: m === representative ? mergedActors : m.actorId === null ? [] : [m.actorId],
+        kinds: m === representative ? mergedKinds : distinctKinds([m]),
       })
     }
   }

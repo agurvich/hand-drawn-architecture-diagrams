@@ -941,7 +941,9 @@ export function fromDocument(
     x: 0,
     y: 0,
     rotation: 0,
-    props: { ...connectionShapeDefaultProps },
+    // A FRESH `kinds` array per connection: the spread is shallow, so every
+    // imported connection would otherwise share one. See `getDefaultProps`.
+    props: { ...connectionShapeDefaultProps, kinds: [] },
   }))
 
   const bindings: BindingDescriptor[] = document.connections.flatMap((connection) => [

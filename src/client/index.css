@@ -4,6 +4,32 @@
    make SPEC-001 FR-003's "the page did not scroll" criterion pass. Without
    them a drawing drag on iPad scrolls or rubber-bands the page instead of
    drawing, which is the single most important thing this spec verifies. */
+/* THE EDGE-KIND PALETTE, and the app's first custom properties of its own --
+   everything else here consumes tldraw's `--tl-*` or the JS-set `--dock-top`.
+
+   One definition site each, so handoff F6 (custom shapes ignore the dark theme)
+   has one place to change rather than three literals buried in a component.
+   The hues are the ones the project owner reached for on the iPad without being
+   asked: orange for data movement, light-green for permission. `sequence` had
+   no colour of its own -- he drew it in black, which is the default pen -- so it
+   gets a neutral slate that reads as structure rather than as an accent.
+
+   DARKER than the pen colours they stand for, because these are meaningful
+   graphics and WCAG 1.4.11 asks 3:1 against the canvas. Measured against white:
+   data 4.72:1, permission 4.38:1, sequence 6.13:1. His own orange was 2.89:1.
+
+   And colour is not the only thing separating them: each kind also carries a
+   dash pattern, which lives in `KIND_DASH` in `ConnectionShapeUtil.tsx` and NOT
+   in a custom property -- `strokeDasharray` is an SVG attribute the component
+   sets, so there is nothing here for it to read. Orange and green is precisely
+   the pair a red-green colour-blind reader cannot tell apart, and the
+   `aria-label` helps a screen reader rather than them. */
+:root {
+  --edge-kind-data: #b35c00;
+  --edge-kind-permission: #2f8a2f;
+  --edge-kind-sequence: #5b6270;
+}
+
 html,
 body,
 #root {
@@ -743,6 +769,20 @@ body {
   color: #1a5fb4;
 }
 
+.diagram-connection__halo {
+  /* THE HIGHLIGHT CHANNEL THAT SURVIVES KIND COLOURING. The rule above reaches
+     paint only through `currentColor`, which a kinded strand does not use -- so
+     highlighting a coloured line changed nothing at all while the merge-count
+     badge beside it, which does use `currentColor`, turned blue. Drawn behind
+     the strands, in the accent colour, so the kinds stay readable while the
+     line is picked out.
+
+     70%, not 35%: this is a state indicator, so WCAG 1.4.11 wants 3:1 against
+     the canvas and the first value composited to 1.73:1 -- in the same commit
+     that darkened the palette for exactly that rule. At 70% it is 3.35:1. */
+  opacity: 70%;
+}
+
 /*
  * The sketch-recognition toggle.
  *
@@ -1095,6 +1135,103 @@ body {
   border-radius: 6px;
   font: inherit;
   touch-action: manipulation;
+}
+
+.kind-field {
+  /* A `<fieldset>`, so the browser's own border and padding have to go before
+     it looks like the other stacked fields rather than like a form control from
+     1998. */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.kind-field__legend {
+  padding: 0;
+  font:
+    600 13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+}
+
+.kind-field__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* 44px, like every other control in this dock: the target device is an iPad
+     and a 13px checkbox with a 13px label is not a touch target. */
+  min-height: 44px;
+  font:
+    13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #222;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kind-field:disabled .kind-field__option {
+  color: #777;
+  cursor: default;
+}
+
+.kind-field__checkbox {
+  /* 44x44 ON THE CONTROL ITSELF, not on the row around it.
+
+     The first version was a 20px native checkbox inside a 44px label, reasoning
+     that the label carries the target -- true for a pointer, and not what
+     SPEC-016's touch-target sweep measures: it walks every input inside the
+     dock and reads the element's own rect. A control that is only big enough
+     when you count its parent is a control that gate cannot verify, so the
+     element is the target and the box is painted inside it.
+
+     `appearance: none` plus a background image rather than a pseudo-element:
+     pseudo-elements on inputs are not reliable across engines, and the target
+     device runs WebKit. */
+  appearance: none;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: no-repeat center / 20px 20px
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect x='1.5' y='1.5' width='17' height='17' rx='4' fill='%23fff' stroke='%23767676' stroke-width='1.5'/%3E%3C/svg%3E");
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kind-field__checkbox:checked {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Crect x='1.5' y='1.5' width='17' height='17' rx='4' fill='%232563eb' stroke='%232563eb' stroke-width='1.5'/%3E%3Cpath d='M5.5 10.5l3 3 6-6' fill='none' stroke='%23fff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.kind-field__checkbox:focus-visible {
+  /* `appearance: none` takes the native focus ring with it, and this control is
+     asserted to be keyboard-operable. */
+  outline: 2px solid #2563eb;
+  outline-offset: -6px;
+  border-radius: 8px;
+}
+
+.kind-field:disabled .kind-field__checkbox {
+  cursor: default;
+  opacity: 55%;
+}
+
+.kind-field__note {
+  max-width: 240px;
+  margin: 0;
+  font:
+    12px/1.3 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #444;
 }
 
 .selection-panel__link {

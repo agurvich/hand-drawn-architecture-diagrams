@@ -6,6 +6,7 @@ import {
   importDocument,
   replacedSceneCount,
   undocumentableShapeCount,
+  connectionsWithUndocumentedKinds,
 } from '../documentIO'
 
 interface DiagramIOPanelProps {
@@ -78,6 +79,11 @@ export function DiagramIOPanel({ editor, open: openProp, onOpenChange }: Diagram
   const replacedScenes = useValue(
     'replaced scenes',
     () => (open && editor ? replacedSceneCount(editor) : 0),
+    [open, editor],
+  )
+  const kindedConnections = useValue(
+    'connections carrying kinds',
+    () => (open && editor ? connectionsWithUndocumentedKinds(editor) : 0),
     [open, editor],
   )
   const undocumentable = useValue(
@@ -216,6 +222,18 @@ export function DiagramIOPanel({ editor, open: openProp, onOpenChange }: Diagram
         <p className="diagram-io__warning" data-testid="diagram-io-undocumentable">
           {undocumentable} shape{undocumentable === 1 ? '' : 's'} on this page cannot be described
           by the JSON and {undocumentable === 1 ? 'is' : 'are'} not included.
+        </p>
+      )}
+      {kindedConnections > 0 && (
+        // A SEPARATE warning, because it is a different fact. Those shapes ARE
+        // in the JSON -- what is missing is what they carry, so the count above
+        // is zero for them and would have said nothing at all. A diagram whose
+        // meaning is which lines are data and which are permission should not
+        // come back plain in silence.
+        <p className="diagram-io__warning" data-testid="diagram-io-undocumented-kinds">
+          {kindedConnections} connection{kindedConnections === 1 ? '' : 's'} carr
+          {kindedConnections === 1 ? 'ies' : 'y'} edge kinds, which the JSON does not describe yet.
+          {kindedConnections === 1 ? ' It comes' : ' They come'} back with no kinds.
         </p>
       )}
       <button

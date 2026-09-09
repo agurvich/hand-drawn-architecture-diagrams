@@ -418,7 +418,7 @@ export async function hiddenShapeIds(page: Page, type?: string): Promise<string[
  * against a build where no stroke ever reaches it -- which is exactly how
  * SPEC-005 shipped a handle nothing dragged.
  */
-export async function penStroke(page: Page, path: Array<[number, number]>) {
+export async function penStroke(page: Page, path: Array<[number, number]>, colour?: string) {
   const cdp = await page.context().newCDPSession(page)
   const pen = (type: 'mousePressed' | 'mouseMoved' | 'mouseReleased', x: number, y: number) =>
     cdp.send('Input.dispatchMouseEvent', {
@@ -432,9 +432,20 @@ export async function penStroke(page: Page, path: Array<[number, number]>) {
       force: 0.6,
     })
 
-  await page.evaluate(() => {
+  await page.evaluate((c) => {
+    /*
+     * THE PEN COLOUR, set through the instance record rather than by clicking
+     * tldraw's style panel, which is chrome this suite deliberately does not
+     * depend on. `'tldraw:color'` is `DefaultColorStyle.id`; `stylesForNextShape`
+     * is what the style panel itself writes.
+     *
+     * If that key were ever wrong the stroke would come out black and the
+     * kind-inference tests would go red, so the mechanism cannot rot silently
+     * into a test that passes for the wrong reason.
+     */
+    if (c) window.__editor!.updateInstanceState({ stylesForNextShape: { 'tldraw:color': c } })
     window.__editor!.setCurrentTool('draw')
-  })
+  }, colour)
   await pen('mousePressed', path[0]![0], path[0]![1])
   for (const [x, y] of path.slice(1)) await pen('mouseMoved', x, y)
   const last = path[path.length - 1]!
@@ -565,4 +576,25 @@ export async function actorOverflow(page: Page): Promise<string | null> {
     () =>
       document.querySelector('[data-testid="diagram-connection-actors-more"]')?.textContent ?? null,
   )
+}
+
+/** A connection's kinds, as its record holds them. */
+export async function connectionKinds(page: Page, id: string): Promise<string[]> {
+  return page.evaluate((cid) => {
+    // THROW rather than optional-chain into a cast. `?.props as {kinds}` reads
+    // as safe and is not: on a missing shape it produces `undefined.kinds`, a
+    // TypeError from inside the page with no useful message. A named failure
+    // says which shape.
+    const shape = window.__editor!.getShape(cid as never)
+    if (!shape) throw new Error(`no shape ${cid}`)
+    return (shape.props as { kinds: string[] }).kinds
+  }, id)
+}
+
+/** Select a connection and wait for the kind field to be there. */
+export async function openKindField(page: Page, connectionId: string) {
+  await page.evaluate((id) => {
+    window.__editor!.setSelectedShapes([id as never])
+  }, connectionId)
+  await page.getByTestId('kind-field').waitFor()
 }

@@ -2,7 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { recognise, isPurposeful, type Point } from '@shared/sketch'
 import { loadCorpus } from '@shared/sketch/__corpus__/loadCorpus'
 import { ARROWS, RECTANGLES } from '@shared/sketch/__corpus__/labels'
-import { shouldConnect } from './convertPolicy'
+import { DefaultColorStyle } from 'tldraw'
+import {
+  shouldConnect,
+  kindForStrokeColour,
+  kindsForStrokeColour,
+  MAPPED_STROKE_COLOURS,
+  COLOUR_REACHABLE_KINDS,
+} from './convertPolicy'
 
 /**
  * THE REGRESSION THIS SPEC'S OWN SUCCESS CREATES.
@@ -129,5 +136,63 @@ describe('recognition does not eat the handwriting it is now surrounded by', () 
     expect(shouldConnect(box, true, undefined, 'b').connect).toBe(false)
     expect(shouldConnect(box, true, 'a', undefined).connect).toBe(false)
     expect(shouldConnect(box, true, 'a', 'a').connect).toBe(false)
+  })
+})
+
+describe('SPEC-018 FR-004 — the colour he drew in picks the kind', () => {
+  /** Every stroke that converts, with the kinds it would be created with. */
+  function convertedKinds(): Record<number, string[]> {
+    const out: Record<number, string[]> = {}
+    for (const index of converting()) out[index] = kindsForStrokeColour(strokes[index]!.colour)
+    return out
+  }
+
+  it('gives his three arrows the kinds his own colours name', () => {
+    // MEASURED against the drawing, not against an invented example. Two orange
+    // transfers between buckets and one light-green line from an IAM role to
+    // the transfer it authorises -- which is SPEC-011's feature drawn by hand,
+    // because he never found the dropdown.
+    expect(convertedKinds()).toEqual({ 80: ['data'], 188: ['data'], 259: ['permission'] })
+  })
+
+  it('gives NOTHING a kind that does not become a connection', () => {
+    // The failure this guards is a rule that reads colour before it reads
+    // intent: 7 strokes are coloured and only 3 of them are connections, so a
+    // kind appearing on a fourth means something started converting that
+    // should not have.
+    expect(Object.keys(convertedKinds())).toHaveLength(ARROWS.length)
+  })
+
+  it('does not change WHICH strokes convert', () => {
+    // Colour is read after the decision, never as part of it. The assertion
+    // above this describe block is the real check; this states the dependency
+    // so a future rule that lets colour influence conversion reddens here too.
+    expect(converting()).toEqual([...ARROWS])
+  })
+
+  it('leaves a converting stroke in an unmapped colour with no kinds', () => {
+    // A CONSTRUCTED case, because the corpus cannot tick this one: every stroke
+    // that converts there is coloured. Black is the interesting input -- it is
+    // 269 of the 276 strokes and the default pen.
+    expect(kindsForStrokeColour('black')).toEqual([])
+    expect(kindsForStrokeColour('blue')).toEqual([])
+    expect(kindsForStrokeColour(undefined)).toEqual([])
+    expect(kindForStrokeColour('black')).toBeNull()
+  })
+
+  it('reads colours tldraw actually produces, so a typo cannot hide as a refusal', () => {
+    // The criterion that bites. `lightgreen` for `light-green` answers "no kind"
+    // exactly as a deliberate omission does, so no test of the map's own
+    // behaviour can see it -- only checking the keys against tldraw's own list.
+    for (const colour of MAPPED_STROKE_COLOURS) {
+      expect(DefaultColorStyle.values as readonly string[]).toContain(colour)
+    }
+  })
+
+  it('reaches data and permission from a colour, and sequence only from the panel', () => {
+    // Stated so the asymmetry is deliberate rather than an oversight: he never
+    // gave sequence a colour of its own -- he drew it in black, which is the
+    // default pen and therefore not a choice.
+    expect([...COLOUR_REACHABLE_KINDS]).toEqual(['data', 'permission'])
   })
 })

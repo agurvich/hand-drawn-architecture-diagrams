@@ -30,8 +30,9 @@ function conn(
   start: string | null,
   end: string | null,
   actorId: string | null = null,
+  kinds: readonly string[] = [],
 ): ConnectionEndpoints {
-  return { connectionId: id, startNodeId: start, endNodeId: end, actorId }
+  return { connectionId: id, startNodeId: start, endNodeId: end, actorId, kinds }
 }
 
 /** The visible line set, as a consumer sees it: id -> "start->end xN". */
@@ -122,6 +123,7 @@ describe('computeMergeIndex — rule 1, an unbound terminal', () => {
       endNodeId: null,
       count: 1,
       actorIds: [],
+      kinds: [],
     })
   })
 
@@ -161,6 +163,7 @@ describe('computeMergeIndex — rule 2, a binding pointing at a shape that is go
       endNodeId: 'shape:gone',
       count: 1,
       actorIds: [],
+      kinds: [],
     })
   })
 })
@@ -609,5 +612,124 @@ describe('computeMergeIndex — the actor SET is deterministic', () => {
     ])
     const index = computeMergeIndex([conn('shape:k', 'shape:a', 'shape:b')], get)
     expect(index.get('shape:k')?.actorIds).toEqual([])
+  })
+})
+
+describe('computeMergeIndex — kinds, SPEC-018 FR-005', () => {
+  /**
+   * The same rule as actors, applied to a second field: *a folded view shows
+   * every answer, never none*. A merged line that showed only the
+   * representative's kinds would call a data transfer a permission edge because
+   * the smallest id happened to be one.
+   */
+  const folded = [
+    { id: 'shape:p', parent: PAGE, collapsed: true },
+    { id: 'shape:c1', parent: 'shape:p' },
+    { id: 'shape:c2', parent: 'shape:p' },
+    { id: 'shape:c3', parent: 'shape:p' },
+    { id: 'shape:y', parent: PAGE },
+  ]
+
+  /** The kinds on the line that is actually drawn. */
+  function shownKinds(connections: ConnectionEndpoints[]): string[] {
+    const index = computeMergeIndex(connections, world(folded))
+    for (const entry of index.values()) if (!entry.hidden) return entry.kinds
+    throw new Error('nothing visible')
+  }
+
+  it('carries EVERY kind its members name', () => {
+    expect(
+      shownKinds([
+        conn('shape:k1', 'shape:c1', 'shape:y', null, ['data']),
+        conn('shape:k2', 'shape:c2', 'shape:y', null, ['permission']),
+      ]),
+    ).toEqual(['data', 'permission'])
+  })
+
+  it('is DISTINCT: two members naming the same kind contribute one entry', () => {
+    expect(
+      shownKinds([
+        conn('shape:k1', 'shape:c1', 'shape:y', null, ['data']),
+        conn('shape:k2', 'shape:c2', 'shape:y', null, ['data', 'sequence']),
+      ]),
+    ).toEqual(['data', 'sequence'])
+  })
+
+  it('does not depend on the order the members arrive in', () => {
+    // Store order is what differs between two clients, and two clients must
+    // draw the same line without coordinating.
+    const members: Array<readonly string[]> = [['sequence'], ['data'], ['permission']]
+    const permutations = [
+      [0, 1, 2],
+      [2, 0, 1],
+      [1, 2, 0],
+    ]
+    for (const order of permutations) {
+      expect(
+        shownKinds([
+          conn('shape:k1', 'shape:c1', 'shape:y', null, members[order[0]!]!),
+          conn('shape:k2', 'shape:c2', 'shape:y', null, members[order[1]!]!),
+          conn('shape:k3', 'shape:c3', 'shape:y', null, members[order[2]!]!),
+        ]),
+      ).toEqual(['data', 'permission', 'sequence'])
+    }
+  })
+
+  it('a HIDDEN member keeps its OWN kinds, so expanding restores each line', () => {
+    // The members are not rewritten by the merge. Expanding the container drops
+    // the group and every line reads its own entry again -- which is only true
+    // if the hidden entries were never overwritten with the union.
+    const index = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', null, ['data']),
+        conn('shape:k2', 'shape:c2', 'shape:y', null, ['permission']),
+      ],
+      world(folded),
+    )
+    const hidden = [...index.entries()].find(([, e]) => e.hidden)!
+    expect(hidden[1].kinds).toEqual(hidden[0] === 'shape:k1' ? ['data'] : ['permission'])
+
+    const expanded = computeMergeIndex(
+      [
+        conn('shape:k1', 'shape:c1', 'shape:y', null, ['data']),
+        conn('shape:k2', 'shape:c2', 'shape:y', null, ['permission']),
+      ],
+      world(folded.map((s) => (s.id === 'shape:p' ? { ...s, collapsed: false } : s))),
+    )
+    expect(expanded.get('shape:k1')?.kinds).toEqual(['data'])
+    expect(expanded.get('shape:k2')?.kinds).toEqual(['permission'])
+  })
+
+  it('an unkinded line has an EMPTY set, not a null — one field, no branch', () => {
+    const get = world([
+      { id: 'shape:a', parent: PAGE },
+      { id: 'shape:b', parent: PAGE },
+    ])
+    const index = computeMergeIndex([conn('shape:k', 'shape:a', 'shape:b')], get)
+    expect(index.get('shape:k')?.kinds).toEqual([])
+  })
+
+  it('every exit path answers, including the ones that never reach a group', () => {
+    // Five `out.set` calls, and a field missing from any of them is `undefined`
+    // reaching a renderer that expects an array. Rule 1 (unbound terminal),
+    // rule 2 (a shape that is gone) and rule 3 (both ends the same) are the
+    // three that never see the grouping code at all.
+    const get = world([
+      { id: 'shape:a', parent: PAGE },
+      { id: 'shape:p', parent: PAGE, collapsed: true },
+      { id: 'shape:c1', parent: 'shape:p' },
+      { id: 'shape:c2', parent: 'shape:p' },
+    ])
+    const index = computeMergeIndex(
+      [
+        conn('shape:half', 'shape:a', null, null, ['data']),
+        conn('shape:gone', 'shape:a', 'shape:vanished', null, ['permission']),
+        conn('shape:internal', 'shape:c1', 'shape:c2', null, ['sequence']),
+      ],
+      get,
+    )
+    expect(index.get('shape:half')?.kinds).toEqual(['data'])
+    expect(index.get('shape:gone')?.kinds).toEqual(['permission'])
+    expect(index.get('shape:internal')?.kinds).toEqual(['sequence'])
   })
 })

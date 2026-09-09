@@ -7,6 +7,7 @@ import { NameField } from './fields/NameField'
 import { IconField } from './fields/IconField'
 import { NodeStatus } from './fields/NodeStatus'
 import { ActorField } from './fields/ActorField'
+import { KindField } from './fields/KindField'
 
 interface SelectionPanelProps {
   /** The mounted editor, or null before `onMount` has run. */
@@ -137,7 +138,12 @@ export function SelectionPanel({ editor, ioOpen }: SelectionPanelProps) {
           <NodeStatus editor={editor} id={state.subject.id} />
         </>
       )}
-      {state.subject.kind === 'connection' && <ActorField editor={editor} id={state.subject.id} />}
+      {state.subject.kind === 'connection' && (
+        <>
+          <ActorField editor={editor} id={state.subject.id} />
+          <KindField editor={editor} id={state.subject.id} />
+        </>
+      )}
     </div>
   )
 }

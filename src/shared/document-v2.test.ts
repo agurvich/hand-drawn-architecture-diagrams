@@ -43,8 +43,12 @@ function records(name: string) {
  * a frozen expectation living next to the thing that writes it is one careless
  * `>` from being rewritten to match whatever the code now does.
  *
- * It is EXPECTED to need one edit, in the phase that changes `fromDocument`'s
- * return -- and in no other phase.
+ * It is EXPECTED to need one edit in the phase that changes `fromDocument`'s
+ * return, and otherwise only when a RECORD prop gains a default -- which is not
+ * the same thing as the document format changing. SPEC-018 added `kinds: []` to
+ * every connection record; `DocumentConnection` is untouched and `toDocument`
+ * never reads it, so v2 documents still mean exactly what they meant. Any other
+ * change here does mean they stopped.
  */
 const EXPECTED = {
   'minimal.json': {
@@ -122,6 +126,7 @@ const EXPECTED = {
             x: 100,
             y: 0,
           },
+          kinds: [],
         },
       },
     ],
@@ -260,6 +265,7 @@ const EXPECTED = {
             x: 100,
             y: 0,
           },
+          kinds: [],
         },
       },
       {
@@ -278,6 +284,7 @@ const EXPECTED = {
             x: 100,
             y: 0,
           },
+          kinds: [],
         },
       },
     ],

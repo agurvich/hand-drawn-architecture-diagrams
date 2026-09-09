@@ -104,6 +104,15 @@ cd "$ROOT"
 # The lesson worth keeping: when this gate tightens, look first for a fact whose
 # only home is here. There is usually one, and moving it is a fix rather than a
 # concession.
+#
+# 2026-09-08 (SPEC-018): the lesson held. Two digest lines took the file to 15815
+# -- 185 bytes, thin again -- and the only-home fact this time was the reason the
+# e2e browser is Chromium at an emulated iPad viewport rather than Playwright's
+# WebKit iPad descriptors. It moved to architecture.md -> Known Constraints, and
+# the file came back to 15633. That is ~367 bytes, about two digest lines: LESS
+# headroom than the 525 the previous re-ratchet left, and recorded as such rather
+# than rounded up. The cap was still not raised. The next spec that needs a line
+# should expect to go looking for a third only-home fact before it writes one.
 CLAUDE_MAX_BYTES=16000
 
 # The whole Key Decisions section, measured as bytes. This is the guard that cannot be

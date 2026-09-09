@@ -22,6 +22,7 @@ to status only — no prose.
 | SPEC-015 | Actors on a merged edge | Completed | SPEC-006, SPEC-011, SPEC-014 |
 | SPEC-016 | Selection properties panel | Completed | SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015 |
 | SPEC-017 | Recognition that works on a real hand | Completed | SPEC-010 |
+| SPEC-018 | Edge kinds | Completed | SPEC-005, SPEC-006, SPEC-010, SPEC-011, SPEC-015, SPEC-016, SPEC-017 |
 
 ## Arcs (build order)
 
@@ -69,8 +70,8 @@ Group related specs and record the order to build them in. Keep this section: a 
   edge showed no actor when its members disagreed, and now shows them all -- which is why it is last
   and why it carries the superseded markers.
 
-- **iPad readiness:** SPEC-016 -> SPEC-017 -> (edge kinds) -> (node header/body) ->
-  (one drawing path) -> (iPad chrome)
+- **iPad readiness:** SPEC-016 -> SPEC-017 -> SPEC-018 -> (edge kinds in the document) ->
+  (node header/body) -> (one drawing path) -> (iPad chrome)
 
   The tool was used on its target device for the first time on 2026-09-08 and almost nothing about
   that session was predicted by the suite. `docs/handoff/2026-09-08-ipad-findings.md` holds the
@@ -83,3 +84,10 @@ Group related specs and record the order to build them in. Keep this section: a 
   unknown behind it that F2 does not: scale-normalisation alone moved the corpus from 1 recognised
   box to 8, so there is at least one more defect to find before that work can be sized. The call is
   the project owner's, made 2026-09-08.
+
+  SPEC-018 puts edge kinds on the canvas and leaves them out of the JSON document, which is the seam
+  SPEC-011 -> SPEC-012 was cut along: the feature first, then the document version bump and the
+  frozen corpus of the version before it. The follow-on is a placeholder, not a file.
+
+  SPEC-018 also ANSWERS the deferred edge-sets question rather than inheriting it -- by declining
+  the feature. See `decisions.md` -> *An edge carries a set of kinds*.
