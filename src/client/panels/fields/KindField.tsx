@@ -44,35 +44,27 @@ export function KindField({ editor, id }: KindFieldProps) {
   )
 
   /*
-   * THE COUNT COMES FROM THE MERGE INDEX, as it does in `ActorField`.
+   * BOTH READINGS COME FROM THE MERGE INDEX, in ONE scope, as `ActorField`
+   * does.
    *
    * The panel and the canvas must not say different sentences about one line. A
    * merged line is drawn by its representative and the representative is the
    * only member you can hit-test, so reading the raw props here would offer an
-   * editable control for a line the canvas is drawing as several.
+   * editable control for a line the canvas is drawing as several -- and would
+   * show that one member's kinds where the canvas shows every member's.
    */
-  const count = useValue(
-    'merge count',
-    () => (selected ? (getMergeIndex(editor).get(selected)?.count ?? 1) : 1),
-    [editor, selected],
-  )
-
-  /*
-   * THE VALUES come from the merge index too — which for an unmerged line is
-   * that connection's own kinds, and for a merged one is every kind its members
-   * name. The checkboxes then show what the LINE says, which is what the reader
-   * is looking at. They are disabled in the merged case, so showing the union
-   * cannot be mistaken for an editable set.
-   */
-  const kinds = useValue(
-    'kinds',
-    () => (selected ? (getMergeIndex(editor).get(selected)?.kinds ?? []) : []),
+  const entry = useValue(
+    'kind field merge entry',
+    () => {
+      const found = selected ? getMergeIndex(editor).get(selected) : undefined
+      return { count: found?.count ?? 1, kinds: found?.kinds ?? [] }
+    },
     [editor, selected],
   )
 
   if (!selected) return null
-  const merged = count > 1
-  const has = new Set(kinds)
+  const merged = entry.count > 1
+  const has = new Set(entry.kinds)
 
   const toggle = (kind: string, on: boolean) => {
     const shape = editor.getShape(selected)
@@ -118,8 +110,8 @@ export function KindField({ editor, id }: KindFieldProps) {
         // already says the line stands for several connections; this says what
         // follows from that, which is the different sentence.
         <p className="kind-field__note" data-testid="kind-field-merged">
-          This line stands for {count} connections, so it shows every kind they carry. Expand the
-          container to change one.
+          This line stands for {entry.count} connections, so it shows every kind they carry. Expand
+          the container to change one.
         </p>
       )}
     </fieldset>

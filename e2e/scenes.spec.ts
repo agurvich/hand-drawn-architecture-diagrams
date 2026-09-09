@@ -977,9 +977,20 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
       const plain = document.querySelector(
         '[data-testid="diagram-connection"]:not(.diagram-connection--highlighted):not(.diagram-connection--dimmed)',
       )
+      // PAINT, not just the container's inherited colour. Reading `color` off
+      // the container says what `currentColor` WOULD resolve to, not whether
+      // anything is drawn with it -- and SPEC-018's kinded strands are painted
+      // with `var(--edge-kind-*)`, so a highlight that reached only
+      // `currentColor` left them untouched while this assertion still passed.
+      const strokeOf = (el: Element) => {
+        const line = el.querySelector('line')
+        return line ? getComputedStyle(line).stroke : null
+      }
       return {
         litColor: getComputedStyle(lit).color,
         plainColor: plain ? getComputedStyle(plain).color : null,
+        litStroke: strokeOf(lit),
+        plainStroke: plain ? strokeOf(plain) : null,
         dimOpacity: parseFloat(getComputedStyle(dim).opacity),
       }
     })
@@ -987,6 +998,9 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
     expect(painted!.dimOpacity).toBeLessThan(1)
     // The accent must differ from an unaccented line, not merely exist.
     expect(painted!.litColor).not.toBe('rgb(0, 0, 0)')
+    // And it must reach the LINE, not stop at the container.
+    expect(painted!.litStroke).not.toBeNull()
+    expect(painted!.litStroke).not.toBe(painted!.plainStroke)
   })
 
   test('dimmed content stays legible', async ({ page }) => {

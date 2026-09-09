@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 import {
   openRoom,
   newParticipant,
+  shapeCount,
   addNode,
   addConnection,
   connectionKinds,
@@ -246,10 +249,18 @@ test.describe('SPEC-018 FR-003 — setting kinds from the panel', () => {
     await expect(page.getByTestId('kind-permission')).toBeDisabled()
     await expect(page.getByTestId('kind-field-merged')).toContainText('stands for 2 connections')
 
+    // AND THE CANVAS DRAWS THE UNION, which is the half nothing asserted: with
+    // `kindsFor` reading `shape.props.kinds` instead of the merge index, every
+    // test above still passed, because the panel reads the index itself.
+    const merged = await strandColours(page, visible)
+    expect(merged).toHaveLength(2)
+    expect(new Set(merged).size).toBe(2)
+
     // And EXPANDING gives each line its own kinds back, unmodified.
     await setCollapsed(page, outer, false)
     expect(await connectionKinds(page, k1)).toEqual(['data'])
     expect(await connectionKinds(page, k2)).toEqual(['permission'])
+    expect(await strandColours(page, k1)).toHaveLength(1)
   })
 
   test('a kind set on one client reaches the other', async ({ page, browser }) => {
@@ -270,10 +281,10 @@ test.describe('SPEC-018 FR-003 — setting kinds from the panel', () => {
       await page.getByTestId('kind-data').check()
 
       await second.page.waitForFunction(
-        (cid) =>
-          (window.__editor!.getShape(cid as never)?.props as { kinds: string[] }).kinds.includes(
-            'data',
-          ),
+        (cid) => {
+          const shape = window.__editor!.getShape(cid as never)
+          return !!shape && (shape.props as { kinds: string[] }).kinds.includes('data')
+        },
         conn,
         { timeout: 15_000 },
       )
@@ -357,5 +368,119 @@ test.describe('SPEC-018 FR-001 — re-aiming preserves the kinds', () => {
     )
     expect(endBinding).toBe(c)
     expect(await connectionKinds(page, conn)).toEqual(['data', 'sequence'])
+  })
+})
+
+test.describe('SPEC-018 FR-002 — scene highlighting survives kind colouring', () => {
+  test('a highlighted KINDED line is painted differently from an unhighlighted one', async ({
+    page,
+  }) => {
+    /*
+     * The regression this spec could have shipped. Scene accenting is
+     * `color: #1a5fb4` on the connection's container, which reaches paint only
+     * through `currentColor` -- and a kinded strand is painted with
+     * `var(--edge-kind-*)`. So highlighting a coloured line changed nothing at
+     * all, while the merge-count badge beside it, which does use
+     * `currentColor`, turned blue: a half-applied highlight.
+     *
+     * `scenes.spec.ts` cannot see this. It reads `getComputedStyle(lit).color`
+     * off the CONTAINER, which is still blue whether or not anything is drawn
+     * with it -- so it passes on a kinded line for the wrong reason.
+     */
+    await openRoom(page, roomId('ek-highlight'))
+    const a = await addNode(page, 'A', { x: 100, y: 100 })
+    const b = await addNode(page, 'B', { x: 500, y: 350 })
+    const c = await addNode(page, 'C', { x: 100, y: 500 })
+    const lit = await addConnection(page, a, b)
+    const other = await addConnection(page, a, c)
+    await setKinds(page, lit, ['data'])
+    await setKinds(page, other, ['data'])
+
+    const before = await strandColours(page, lit)
+
+    await page.evaluate((id) => {
+      window.__editor!.select(id as never)
+    }, lit)
+    await page.getByTestId('narration-open').click()
+    await page.getByTestId('narration-capture').click()
+    await page.evaluate(() => {
+      window.__editor!.selectNone()
+    })
+    await expect(page.locator('.diagram-connection--highlighted')).toHaveCount(1)
+
+    // The strand keeps its KIND colour -- pointing at a line must not stop it
+    // saying what it carries -- and the accent arrives as a halo behind it.
+    expect(await strandColours(page, lit)).toEqual(before)
+    await expect(
+      page.locator(`[data-shape-id="${lit}"] [data-testid="diagram-connection-halo"]`),
+    ).toHaveCount(1)
+    await expect(
+      page.locator(`[data-shape-id="${other}"] [data-testid="diagram-connection-halo"]`),
+    ).toHaveCount(0)
+  })
+})
+
+test.describe('SPEC-018 FR-001 — a room persisted before kinds existed', () => {
+  test('a pre-migration CONNECTION record loads, draws, and is editable', async ({
+    browser,
+    request,
+  }) => {
+    /*
+     * The end-to-end half of the migration criterion. The unit tests prove the
+     * migration is correct and that it is registered in the schema; this proves
+     * a record that a ROOM actually holds survives the worker, the socket and
+     * the client store. `icons.spec.ts` does the same for the node shape's
+     * `AddIcon` and is the precedent for the fixture.
+     *
+     * The fixture is a separate file rather than an extension of
+     * `room-pre-migration.json`: that one asserts `shapeCount === 1`, and
+     * quietly making it three would weaken a test belonging to another spec.
+     */
+    const room = roomId('ekmig')
+    const fixture: unknown = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), 'e2e/fixtures/room-pre-migration-connection.json'),
+        'utf8',
+      ),
+    )
+    const seeded = await request.put(`/api/dev/snapshot/${room}`, { data: fixture })
+    expect(seeded.ok()).toBe(true)
+
+    const p = await newParticipant(browser)
+    try {
+      await openRoom(p.page, room)
+      await expect.poll(() => shapeCount(p.page), { timeout: 20_000 }).toBe(3)
+
+      const conn = 'shape:seeded-legacy-conn'
+      expect(await connectionKinds(p.page, conn)).toEqual([])
+      expect(await strandColours(p.page, conn)).toHaveLength(1)
+
+      // And it is editable afterwards, which is what distinguishes a migrated
+      // record from one that merely failed quietly.
+      await openKindField(p.page, conn)
+      await p.page.getByTestId('kind-permission').check()
+      expect(await connectionKinds(p.page, conn)).toEqual(['permission'])
+    } finally {
+      await p.ctx.close()
+    }
+  })
+})
+
+test.describe('SPEC-018 FR-001 — getDefaultProps gives each connection its own array', () => {
+  test('two connections created through the tool do not share one kinds array', async ({
+    page,
+  }) => {
+    // The unit test covers `fromDocument`; this covers the other creation site,
+    // which needs a live ShapeUtil. Written because the first version of the
+    // unit test built the fix inline and passed with BOTH sites reverted.
+    await openRoom(page, roomId('ek-share'))
+    const a = await addNode(page, 'A', { x: 100, y: 100 })
+    const b = await addNode(page, 'B', { x: 500, y: 350 })
+    const k1 = await addConnection(page, a, b)
+    const k2 = await addConnection(page, b, a)
+
+    await setKinds(page, k1, ['data'])
+    expect(await connectionKinds(page, k1)).toEqual(['data'])
+    expect(await connectionKinds(page, k2)).toEqual([])
   })
 })

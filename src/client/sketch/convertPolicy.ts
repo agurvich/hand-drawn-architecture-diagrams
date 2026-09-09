@@ -67,14 +67,23 @@ export function shouldConnect<Id extends string>(
  * key against `DefaultColorStyle.values`, because a typo here -- `lightgreen`
  * for `light-green` -- answers "no kind" exactly as a deliberate omission does.
  */
-const KIND_BY_COLOUR: Readonly<Record<string, EdgeKind>> = {
+const KIND_BY_COLOUR: Readonly<Record<string, EdgeKind | undefined>> = {
   orange: 'data',
   'light-green': 'permission',
 }
 
-/** The kind a stroke's colour asks for, or null -- which includes black. */
+/**
+ * The kind a stroke's colour asks for, or null -- which includes black.
+ *
+ * `Object.hasOwn` rather than a bare lookup: a plain object inherits
+ * `constructor`, `toString` and `__proto__`, so `KIND_BY_COLOUR['constructor']`
+ * is the `Object` function and a bare `|| null` would hand a FUNCTION back
+ * through a signature promising `EdgeKind | null`. Unreachable through tldraw's
+ * closed colour enum, and one line to make unreachable by construction instead.
+ */
 export function kindForStrokeColour(colour: string | undefined): EdgeKind | null {
-  return (colour !== undefined && KIND_BY_COLOUR[colour]) || null
+  if (colour === undefined) return null
+  return Object.hasOwn(KIND_BY_COLOUR, colour) ? (KIND_BY_COLOUR[colour] ?? null) : null
 }
 
 /**
@@ -94,5 +103,5 @@ export const MAPPED_STROKE_COLOURS = Object.keys(KIND_BY_COLOUR)
 
 /** Every kind reachable from a colour; the rest are panel-only. */
 export const COLOUR_REACHABLE_KINDS: readonly EdgeKind[] = EDGE_KINDS.filter((kind) =>
-  Object.values(KIND_BY_COLOUR).includes(kind),
+  MAPPED_STROKE_COLOURS.some((colour) => KIND_BY_COLOUR[colour] === kind),
 )

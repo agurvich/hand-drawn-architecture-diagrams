@@ -212,6 +212,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
         : ' diagram-connection--dimmed'
     const safeId = shape.id.replace(/[^a-zA-Z0-9]/g, '')
     const strands = strandsFor(this.kindsFor(shape), a, b)
+    const highlighted = dimming && ids.has(shape.id)
     return (
       <svg
         className={`tl-svg-container${accent}`}
@@ -250,6 +251,30 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             </marker>
           ))}
         </defs>
+        {highlighted && (
+          /*
+           * THE HIGHLIGHT, as a halo behind the strands rather than as the
+           * strand colour.
+           *
+           * Scene accenting is `color` on this container, which reaches paint
+           * only through `currentColor` -- and a kinded strand is painted with
+           * `var(--edge-kind-*)`, so highlighting a coloured line changed
+           * nothing while the merge-count badge beside it, which does use
+           * `currentColor`, turned blue. A half-applied highlight is worse than
+           * none. Drawn underneath, so the kinds stay readable.
+           */
+          <line
+            className="diagram-connection__halo"
+            data-testid="diagram-connection-halo"
+            x1={a.x}
+            y1={a.y}
+            x2={b.x}
+            y2={b.y}
+            stroke="currentColor"
+            strokeWidth={9}
+            strokeLinecap="round"
+          />
+        )}
         {strands.strands.map((strand) => (
           <line
             key={strand.key}
@@ -261,6 +286,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             y2={b.y + strand.dy}
             stroke={strand.colour}
             strokeWidth={2}
+            strokeDasharray={strand.dash}
             markerEnd={`url(#arrow-${safeId}-${strand.key})`}
           />
         ))}
@@ -427,6 +453,20 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
 const KIND_STRAND_GAP = 5
 
 /**
+ * A dash pattern per kind, so colour is not the only thing separating them.
+ *
+ * Orange and green is exactly the pair a red-green colour-blind reader cannot
+ * distinguish, and the line's `aria-label` serves a screen reader rather than
+ * them. `data` stays solid because it is the commonest and an unbroken line is
+ * the cheapest to read.
+ */
+const KIND_DASH: Readonly<Record<EdgeKind, string | undefined>> = {
+  data: undefined,
+  permission: '7 4',
+  sequence: '1.5 4',
+}
+
+/**
  * What to actually draw for a line's kinds.
  *
  * ZERO KINDS IS THE OLD RENDERING: one strand, `currentColor`, no offset. A
@@ -452,15 +492,31 @@ export function strandsFor(
   b: { x: number; y: number },
 ): {
   kinds: string[]
-  strands: Array<{ key: string; kind: string | undefined; colour: string; dx: number; dy: number }>
+  strands: Array<{
+    key: string
+    kind: string | undefined
+    colour: string
+    /** A SECOND channel, so the strands are separable without colour vision. */
+    dash: string | undefined
+    dx: number
+    dy: number
+  }>
 } {
-  const known = kinds.filter((kind): kind is EdgeKind =>
-    (EDGE_KINDS as readonly string[]).includes(kind),
-  )
+  // DEDUPED as well as filtered. Every write goes through `normaliseKinds`, so a
+  // repeat should not reach here -- but this function is exported, and two
+  // strands for one kind would share a React key AND a `<marker>` id, and would
+  // push the whole set off the centre it documents itself as holding.
+  const known = [
+    ...new Set(
+      kinds.filter((kind): kind is EdgeKind => (EDGE_KINDS as readonly string[]).includes(kind)),
+    ),
+  ]
   if (known.length === 0) {
     return {
       kinds: [],
-      strands: [{ key: 'plain', kind: undefined, colour: 'currentColor', dx: 0, dy: 0 }],
+      strands: [
+        { key: 'plain', kind: undefined, colour: 'currentColor', dash: undefined, dx: 0, dy: 0 },
+      ],
     }
   }
   // Unit normal to the line. A degenerate line (both ends at one point) has no
@@ -478,6 +534,7 @@ export function strandsFor(
       key: kind,
       kind,
       colour: `var(--edge-kind-${kind})`,
+      dash: KIND_DASH[kind],
       // `|| 0` normalises NEGATIVE ZERO, which `-dy / length` produces for a
       // horizontal line and which renders as the string "-0" in an SVG
       // attribute. Cosmetic on screen, not cosmetic in a test that asserts a

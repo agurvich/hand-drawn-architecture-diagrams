@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { strandsFor } from './ConnectionShapeUtil'
 import { EDGE_KINDS } from '@shared/shapes'
 
@@ -109,5 +111,41 @@ describe('strandsFor — a kind this build does not know', () => {
     expect(kinds).toEqual([])
     expect(strands).toHaveLength(1)
     expect(strands[0]!.colour).toBe('currentColor')
+  })
+})
+
+describe('the vocabulary and the stylesheet cannot drift apart', () => {
+  /*
+   * A KIND WITH NO COLOUR DRAWS NOTHING, and nothing else would catch it.
+   *
+   * `strandsFor` emits `var(--edge-kind-<kind>)` for every entry of
+   * `EDGE_KINDS`. A fourth kind added to the vocabulary without a matching
+   * custom property resolves to an empty value, and the strand is drawn with no
+   * stroke at all -- invisible, while still consuming an offset slot and
+   * pushing every real strand off centre. `KIND_LABELS` in `KindField` is an
+   * exhaustive `Record`, so TypeScript catches a missing LABEL; nothing catches
+   * a missing colour, because CSS has no type system to fail in.
+   */
+  const css = readFileSync(resolve(process.cwd(), 'src/client/index.css'), 'utf8')
+
+  for (const kind of EDGE_KINDS) {
+    it(`--edge-kind-${kind} is defined in index.css`, () => {
+      expect(css).toMatch(new RegExp(`--edge-kind-${kind}\\s*:\\s*#`))
+    })
+  }
+
+  it('THE CHECK BITES on a kind with no custom property', () => {
+    // A gate is not tested by running it on the thing it guards.
+    expect(css).not.toMatch(/--edge-kind-a-kind-from-2027\s*:\s*#/)
+  })
+
+  it('every strand a known kind produces names a property that exists', () => {
+    // The two halves joined: what the renderer emits, checked against what the
+    // stylesheet defines, rather than each checked against the vocabulary
+    // separately.
+    for (const strand of strandsFor([...EDGE_KINDS], A, B).strands) {
+      const name = strand.colour.replace(/^var\(|\)$/g, '')
+      expect(css, `${strand.kind} draws with ${name}, which nothing defines`).toContain(`${name}:`)
+    }
   })
 })

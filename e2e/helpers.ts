@@ -580,10 +580,15 @@ export async function actorOverflow(page: Page): Promise<string | null> {
 
 /** A connection's kinds, as its record holds them. */
 export async function connectionKinds(page: Page, id: string): Promise<string[]> {
-  return page.evaluate(
-    (cid) => (window.__editor!.getShape(cid as never)?.props as { kinds: string[] }).kinds,
-    id,
-  )
+  return page.evaluate((cid) => {
+    // THROW rather than optional-chain into a cast. `?.props as {kinds}` reads
+    // as safe and is not: on a missing shape it produces `undefined.kinds`, a
+    // TypeError from inside the page with no useful message. A named failure
+    // says which shape.
+    const shape = window.__editor!.getShape(cid as never)
+    if (!shape) throw new Error(`no shape ${cid}`)
+    return (shape.props as { kinds: string[] }).kinds
+  }, id)
 }
 
 /** Select a connection and wait for the kind field to be there. */

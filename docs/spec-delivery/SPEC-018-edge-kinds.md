@@ -7,9 +7,10 @@
   the connection shape's first migration (`AddKinds`). One edge says everything it is; the diagram
   gains no parallel edge layers.
 - **The canvas draws them.** `strandsFor` in `ConnectionShapeUtil` returns one offset strand per
-  known kind, each with its own `<marker>`, or the plain `currentColor` line when there are none.
-  Colours are `--edge-kind-*` in `index.css` — the app's first custom properties of its own — and
-  the kinds are in the shape's accessible name.
+  known kind, each with its own `<marker>` and its own dash pattern, or the plain `currentColor` line
+  when there are none. Colours are `--edge-kind-*` in `index.css` — the app's first custom properties
+  of its own — and the kinds are in the shape's accessible name. Scene highlighting arrives as a
+  halo drawn behind the strands, so the accent reaches a coloured line at all.
 - **The panel sets them.** `KindField` (`src/client/panels/fields/`), mounted under `ActorField`;
   read-only on a merged line.
 - **The colour of the stroke picks the kind.** `kindForStrokeColour` / `kindsForStrokeColour` beside
@@ -53,6 +54,14 @@ Register entry: `decisions.md` → *An edge carries a set of kinds*.
   **declined**. Superseded markers sit at `CLAUDE.md` → Key Decisions → *Scope* and
   `architecture.md` → *Deferred / Non-goals*.
 - **`penStroke` (e2e) takes an optional pen colour**, set through `stylesForNextShape`.
+- **SPEC-008's scene-highlight guard now measures paint.** `e2e/scenes.spec.ts` read
+  `getComputedStyle(lit).color` off the connection's container, which is the accent whether or not
+  anything is drawn with it — so it passed on a kinded line for exactly the reason its own comment
+  says it was rewritten to prevent. It now compares the drawn line's `stroke` as well.
+- **`DiagramIOPanel` gained a second export warning.** `undocumentableShapeCount` counts shapes the
+  format cannot hold; a kinded connection is fully documentable, so that count is zero for it and
+  the panel said nothing. `connectionsWithUndocumentedKinds` is a separate count with a separate
+  message, and it is deleted by the spec that puts kinds in the document.
 - **The e2e-browser rationale moved out of `CLAUDE.md`** to `architecture.md` → Known Constraints. It
   was the only home of that fact and it was spending the always-loaded byte budget; the budget's
   reasoning is updated beside `CLAUDE_MAX_BYTES` (15633/16000, ~367 bytes, recorded as thinner than
@@ -60,11 +69,21 @@ Register entry: `decisions.md` → *An edge carries a set of kinds*.
 
 ## Verification
 
-Local: `npm run build`, `npm run typecheck`, `npm run lint` (4 pre-existing warnings, none in
-touched files), `npx prettier --check`, `npm test`, `sh scripts/spec-lint.sh`,
-`sh scripts/docs-lint.sh` and `sh scripts/docs-lint-test.sh`, plus the full Playwright suite.
+Local: `npm run build`, `npm run typecheck`, `npm run lint` (4 warnings, all pre-existing and none
+in files this diff touched), `npx prettier --check .`, `npm test`, `sh scripts/spec-lint.sh`,
+`sh scripts/docs-lint.sh`, `sh scripts/docs-lint-test.sh`, and the full Playwright suite.
 
-Two gates were proved to bite by defeating them: deleting the `kinds` clause from `sameEntry` reddens
-four tests, and mistyping `light-green` as `lightgreen` in the colour map reddens two — including
-the corpus replay, which is the spec's measured evidence (his strokes 80 and 188 → `data`, 259 →
-`permission`). Nothing was deferred to a green CI run.
+Four gates were proved to bite by defeating them: deleting the `kinds` clause from `sameEntry`
+reddens four tests; mistyping `light-green` as `lightgreen` reddens two, including the corpus replay
+that is the spec's measured evidence (strokes 80 and 188 → `data`, 259 → `permission`); reverting
+`fromDocument`'s fresh `kinds` array reddens the shared-array test; and removing the highlight halo
+reddens the scene-accent test.
+
+**What the two diff reviews found, recorded because the lesson is not about this spec.** An earlier
+run of the full e2e suite was reported as green on the strength of `playwright | tail -25`, which
+exits with `tail`'s status, and whose last lines said "633 passed" four lines below a "4 failed"
+list. Both reviewers found the two real failures independently. Both also found that FR-001's
+shared-array criterion could not fail — the test built the fix inline and passed with both
+production creation sites reverted — and the system-frame review found that scene highlighting was
+inert on precisely the lines this spec creates, a state no test in the diff ever visited. All are
+fixed above. Nothing was deferred to a green CI run.

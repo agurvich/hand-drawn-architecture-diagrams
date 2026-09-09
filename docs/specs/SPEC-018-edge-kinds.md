@@ -50,6 +50,12 @@ drawing a third layer, and he chose it.
   document, with the version bump and a frozen corpus of the previous version), and it is taken
   again deliberately rather than by running out of room. Recorded as the next entry in the *iPad
   readiness* arc.
+
+  **The gap is told to the user, though.** Out of scope is a decision about the data model, not a
+  licence to lose someone's work in silence: a diagram whose meaning is which lines are data and
+  which are permission must not round-trip into a plain one with no warning. The export panel says
+  how many connections carry kinds the JSON does not describe. That warning is deleted by the spec
+  that closes the gap.
 - **Parallel edge sets.** Settled above; a diagram gets one edge with several kinds, not several
   edges.
 - **Filtering the canvas by kind** — "show only the data flow". A lens over kinds is a scene-shaped
@@ -99,7 +105,12 @@ key it does not know.
       the schema, and the renderer draws nothing for it — asserted in both halves, because the
       acceptance is the deliberate part.
 - [ ] Two connections created in one batch do not share one `kinds` array: mutating one connection's
-      kinds leaves the other's unchanged.
+      kinds leaves the other's unchanged. **Asserted against the real creation sites** — `fromDocument`
+      in a unit test, `getDefaultProps` in e2e — never against two objects the test builds itself
+      with the fix written into them, which passes with both sites reverted.
+- [ ] A **room** persisted before `kinds` existed opens, draws, and is editable afterwards. The unit
+      tests prove the migration is correct and registered; only this proves a record the worker and
+      the socket carried actually survives.
 
 ### FR-002: The canvas draws every kind on the line
 
@@ -110,8 +121,16 @@ line's own geometry. A line with no kinds is drawn exactly as it is today — on
 `currentColor` — so nothing about the existing appearance changes for a diagram that has not used
 this feature.
 
-Colour is the glance, not the only channel: the kinds are named in the line's accessible name, for
-the same reason SPEC-015's actor icons carry `aria-label` rather than relying on the glyph.
+Colour is the glance and not the only channel, twice over. The kinds are named in the line's
+accessible name, for the same reason SPEC-015's actor icons carry `aria-label` rather than relying on
+the glyph — and each kind also carries a **dash pattern**, because `aria-label` serves a screen
+reader and does nothing for a red-green colour-blind reader, and orange-and-green is exactly the
+pair they cannot separate.
+
+**And the accent has to survive the colouring.** Scene highlighting (SPEC-008) is `color` on the
+connection's container and reaches paint only through `currentColor`, which a kinded strand does not
+use. Left alone, highlighting a coloured line would change nothing while the merge-count badge beside
+it turned blue — a half-applied highlight, which is worse than none.
 
 Every kind's colour is a CSS custom property — the first this app defines for itself; `index.css`
 today only consumes tldraw's `--tl-*` and the JS-set `--dock-top`. Handoff F6 says custom shapes
@@ -146,6 +165,15 @@ exists is Playwright. That is where a computed colour can be read at all.
 - [ ] Geometry and hit-testing are untouched: `getGeometry` returns the same single edge for a
       three-kind connection as for an unkinded one, and a click on the centre of a three-kind line
       selects it.
+- [ ] Two kinds on one line are separable **without colour vision** — each kind's strand carries a
+      distinct dash pattern.
+- [ ] Every kind in the vocabulary has a colour defined in the stylesheet. A kind added without one
+      draws an invisible strand that still consumes an offset slot, and TypeScript cannot catch it
+      because CSS has no type system to fail in.
+- [ ] **A scene-highlighted kinded line is painted differently from an unhighlighted one**, and its
+      strands keep their kind colours while highlighted. SPEC-008's own guard reads `color` off the
+      container, which is true whether or not anything is drawn with it, so this criterion is
+      asserted on the strand and on the accent that reaches it.
 
 ### FR-003: The properties panel sets a connection's kinds
 

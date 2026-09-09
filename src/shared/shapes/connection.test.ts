@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createTLStore } from 'tldraw'
 import { syncSchemaOptions } from '../../client/shapes/registry'
+import { DOCUMENT_VERSION, fromDocument, parseDocument } from '../document'
 import {
   CONNECTION_SHAPE_TYPE,
   EDGE_KINDS,
@@ -167,15 +168,46 @@ describe('normaliseKinds — the normal form two clients agree on', () => {
 })
 
 describe('the default props are not shared between connections', () => {
-  it('gives each connection its own kinds array', () => {
-    // `{ ...connectionShapeDefaultProps }` is a SHALLOW copy, so without the
-    // explicit rewrite at each creation site every connection would share one
-    // array. Harmless for start/end, which nothing mutates in place; not
-    // harmless for an array somebody will reasonably push to.
-    const a = { ...connectionShapeDefaultProps, kinds: [] as string[] }
-    const b = { ...connectionShapeDefaultProps, kinds: [] as string[] }
-    a.kinds.push('data')
-    expect(b.kinds).toEqual([])
+  /*
+   * ASSERTED ON A REAL CREATION SITE, not on two hand-built literals.
+   *
+   * The first version of this test built `{ ...connectionShapeDefaultProps,
+   * kinds: [] }` twice in its own body -- which is the fix, written out inline,
+   * so it passed with BOTH production creation sites reverted to a bare spread.
+   * A test that contains the thing it is checking for cannot fail. Two
+   * reviewers found it independently.
+   *
+   * `fromDocument` is pure and needs no editor, so it covers one of the two
+   * sites here; `getDefaultProps` needs a live ShapeUtil and is covered in
+   * `e2e/edge-kinds.spec.ts`.
+   */
+  it('gives each connection created by fromDocument its own kinds array', () => {
+    const parsed = parseDocument(
+      JSON.stringify({
+        version: DOCUMENT_VERSION,
+        nodes: [
+          { id: 'a', label: 'A', x: 0, y: 0, w: 100, h: 60 },
+          { id: 'b', label: 'B', x: 300, y: 0, w: 100, h: 60 },
+        ],
+        connections: [
+          { id: 'k1', sourceId: 'a', targetId: 'b' },
+          { id: 'k2', sourceId: 'b', targetId: 'a' },
+        ],
+        scenes: [],
+      }),
+    )
+    if (!parsed.ok) throw new Error(parsed.error)
+    const { connections } = fromDocument(parsed.document, 'page:test')
+    expect(connections).toHaveLength(2)
+
+    const [first, second] = connections
+    expect(first!.props.kinds).not.toBe(second!.props.kinds)
+    // And not the module-level default either, which is the array both would
+    // otherwise be pointing at.
+    expect(first!.props.kinds).not.toBe(connectionShapeDefaultProps.kinds)
+
+    first!.props.kinds.push('data')
+    expect(second!.props.kinds).toEqual([])
     expect(connectionShapeDefaultProps.kinds).toEqual([])
   })
 })

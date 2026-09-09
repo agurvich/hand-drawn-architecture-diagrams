@@ -142,6 +142,29 @@ export function undocumentableShapeCount(editor: Editor): number {
 }
 
 /**
+ * How many connections carry kinds the JSON does not describe.
+ *
+ * A DIFFERENT question from `undocumentableShapeCount`, which counts shapes the
+ * format cannot hold at all -- a kinded connection is fully documentable, so
+ * that count is zero for it and the panel would say nothing. SPEC-018 put edge
+ * kinds on the canvas and left them out of the document deliberately, but a
+ * diagram whose whole meaning is which lines are data and which are permission
+ * should not round-trip into a plain one in silence.
+ *
+ * Delete this the moment the document carries kinds -- it is a warning about a
+ * gap, not a feature.
+ */
+export function connectionsWithUndocumentedKinds(editor: Editor): number {
+  return editor
+    .getCurrentPageShapes()
+    .filter(
+      (shape) =>
+        shape.type === CONNECTION_SHAPE_TYPE &&
+        ((shape.props as { kinds?: readonly string[] }).kinds?.length ?? 0) > 0,
+    ).length
+}
+
+/**
  * How many scenes an import would replace.
  *
  * Its own function because scenes are NOT page shapes: they never enter

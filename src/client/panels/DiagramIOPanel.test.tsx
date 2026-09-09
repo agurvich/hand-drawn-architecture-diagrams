@@ -8,12 +8,15 @@ const exportDocument = vi.fn()
 const importDocument = vi.fn()
 const undocumentableShapeCount = vi.fn()
 const replacedSceneCount = vi.fn()
+const connectionsWithUndocumentedKinds = vi.fn()
 
 vi.mock('../documentIO', () => ({
   exportDocument: (...args: unknown[]) => exportDocument(...args) as unknown,
   importDocument: (...args: unknown[]) => importDocument(...args) as unknown,
   undocumentableShapeCount: (...args: unknown[]) => undocumentableShapeCount(...args) as unknown,
   replacedSceneCount: (...args: unknown[]) => replacedSceneCount(...args) as unknown,
+  connectionsWithUndocumentedKinds: (...args: unknown[]) =>
+    connectionsWithUndocumentedKinds(...args) as unknown,
 }))
 
 const editor = {} as Editor
@@ -42,6 +45,7 @@ beforeEach(() => {
   })
   undocumentableShapeCount.mockReturnValue(0)
   replacedSceneCount.mockReturnValue(0)
+  connectionsWithUndocumentedKinds.mockReturnValue(0)
 })
 
 afterEach(() => {
@@ -108,6 +112,33 @@ describe('DiagramIOPanel — FR-004', () => {
   it('shows no warning when everything on the page is documentable', () => {
     open()
     expect(screen.queryByTestId('diagram-io-undocumentable')).not.toBeInTheDocument()
+  })
+
+  it('warns SEPARATELY that edge kinds are not in the JSON', () => {
+    // A different fact from the one above, and invisible to it: a kinded
+    // connection IS documentable, so `undocumentableShapeCount` is 0 for it and
+    // the first warning says nothing at all. The diagram would round-trip into
+    // a plain one in silence.
+    connectionsWithUndocumentedKinds.mockReturnValue(2)
+    open()
+    expect(screen.getByTestId('diagram-io-undocumented-kinds')).toHaveTextContent(
+      /2 connections carry edge kinds/,
+    )
+    expect(screen.queryByTestId('diagram-io-undocumentable')).not.toBeInTheDocument()
+  })
+
+  it('says it in the singular for one connection', () => {
+    connectionsWithUndocumentedKinds.mockReturnValue(1)
+    open()
+    expect(screen.getByTestId('diagram-io-undocumented-kinds')).toHaveTextContent(
+      /1 connection carries edge kinds/,
+    )
+  })
+
+  it('is SILENT when no connection carries a kind', () => {
+    // A warning that always fires is a warning nobody reads.
+    open()
+    expect(screen.queryByTestId('diagram-io-undocumented-kinds')).not.toBeInTheDocument()
   })
 })
 
