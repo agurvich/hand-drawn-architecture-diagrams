@@ -4,6 +4,21 @@
    make SPEC-001 FR-003's "the page did not scroll" criterion pass. Without
    them a drawing drag on iPad scrolls or rubber-bands the page instead of
    drawing, which is the single most important thing this spec verifies. */
+/* THE EDGE-KIND PALETTE, and the app's first custom properties of its own --
+   everything else here consumes tldraw's `--tl-*` or the JS-set `--dock-top`.
+
+   One definition site each, so handoff F6 (custom shapes ignore the dark theme)
+   has one place to change rather than three literals buried in a component.
+   The hues are the ones the project owner reached for on the iPad without being
+   asked: orange for data movement, light-green for permission. `sequence` had
+   no colour of its own -- he drew it in black, which is the default pen -- so it
+   gets a neutral slate that reads as structure rather than as an accent. */
+:root {
+  --edge-kind-data: #e08000;
+  --edge-kind-permission: #3f9d3f;
+  --edge-kind-sequence: #6b7280;
+}
+
 html,
 body,
 #root {

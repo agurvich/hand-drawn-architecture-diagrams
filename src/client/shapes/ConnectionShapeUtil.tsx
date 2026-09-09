@@ -21,6 +21,8 @@ import {
   connectionShapeMigrations,
   connectionShapeProps,
   CONNECTION_BINDING_TYPE,
+  EDGE_KINDS,
+  type EdgeKind,
   type ConnectionShape,
   type ConnectionBinding,
   type ConnectionTerminal,
@@ -99,6 +101,20 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   /** How many connections this line stands for; 1 when it is not merged. */
   mergeCount(shape: ConnectionShape): number {
     return getMergeIndex(this.editor).get(shape.id)?.count ?? 1
+  }
+
+  /**
+   * The kinds this line SAYS -- which for a merged line is every kind its
+   * members name, not the representative's.
+   *
+   * Index first, raw props as the fallback, exactly as `nodeIdFor` does and for
+   * the same reason (a shape on another page, or a store read mid-change).
+   * Going through one accessor is what makes "a merged line renders its kinds
+   * by the same rule as an unmerged one" true by construction rather than by
+   * two code paths that agree today.
+   */
+  kindsFor(shape: ConnectionShape): readonly string[] {
+    return getMergeIndex(this.editor).get(shape.id)?.kinds ?? shape.props.kinds
   }
 
   /**
@@ -194,30 +210,60 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
       : ids.has(shape.id)
         ? ' diagram-connection--highlighted'
         : ' diagram-connection--dimmed'
+    const safeId = shape.id.replace(/[^a-zA-Z0-9]/g, '')
+    const strands = strandsFor(this.kindsFor(shape), a, b)
     return (
-      <svg className={`tl-svg-container${accent}`} data-testid="diagram-connection">
+      <svg
+        className={`tl-svg-container${accent}`}
+        data-testid="diagram-connection"
+        // COLOUR IS NOT THE ONLY CHANNEL. The kinds are the whole meaning of a
+        // coloured line, and a reader who cannot see the colour -- or cannot
+        // tell orange from light-green -- has no other way to get them.
+        // Silent when there are no kinds: an ordinary line gains no label.
+        aria-label={strands.kinds.length > 0 ? `Kinds: ${strands.kinds.join(', ')}` : undefined}
+        data-kinds={strands.kinds.length > 0 ? strands.kinds.join(' ') : undefined}
+      >
         <defs>
-          <marker
-            id={`arrow-${shape.id.replace(/[^a-zA-Z0-9]/g, '')}`}
-            viewBox="0 0 10 10"
-            refX="9"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
-          </marker>
+          {strands.strands.map((strand) => (
+            /*
+             * ONE MARKER PER STRAND, with an EXPLICIT fill.
+             *
+             * A marker's `currentColor` resolves against the marker's own
+             * inherited colour, not the colour of the line referencing it -- so
+             * one shared marker over coloured strands draws coloured lines with
+             * default-coloured arrowheads. Verified in a browser, not assumed.
+             * (`fill="context-stroke"` works in Chromium and would need one
+             * marker; an explicit fill is the safer bet across WebKit, which is
+             * what the target device runs.)
+             */
+            <marker
+              key={strand.key}
+              id={`arrow-${safeId}-${strand.key}`}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill={strand.colour} />
+            </marker>
+          ))}
         </defs>
-        <line
-          x1={a.x}
-          y1={a.y}
-          x2={b.x}
-          y2={b.y}
-          stroke="currentColor"
-          strokeWidth={2}
-          markerEnd={`url(#arrow-${shape.id.replace(/[^a-zA-Z0-9]/g, '')})`}
-        />
+        {strands.strands.map((strand) => (
+          <line
+            key={strand.key}
+            data-testid="diagram-connection-strand"
+            data-kind={strand.kind}
+            x1={a.x + strand.dx}
+            y1={a.y + strand.dy}
+            x2={b.x + strand.dx}
+            y2={b.y + strand.dy}
+            stroke={strand.colour}
+            strokeWidth={2}
+            markerEnd={`url(#arrow-${safeId}-${strand.key})`}
+          />
+        ))}
         {count > 1 && (
           // The count is information about MERGING, so a line standing for one
           // connection renders nothing at all rather than a decorative x1.
@@ -374,6 +420,71 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
     return this.editor
       .getBindingsFromShape<ConnectionBinding>(shape, CONNECTION_BINDING_TYPE)
       .map((b) => b.toId)
+  }
+}
+
+/** Perpendicular offset between two strands of one line, in shape units. */
+const KIND_STRAND_GAP = 5
+
+/**
+ * What to actually draw for a line's kinds.
+ *
+ * ZERO KINDS IS THE OLD RENDERING: one strand, `currentColor`, no offset. A
+ * diagram that has never used this feature looks exactly as it did, which is
+ * FR-002's first criterion and the reason this returns a strand rather than
+ * `null` for the empty case -- one code path, not a legacy branch beside a new
+ * one.
+ *
+ * A kind this build does not recognise is DROPPED here rather than drawn. The
+ * record keeps it (`normaliseKinds` is deliberate about that: deleting a newer
+ * build's kind would be data loss), and the schema accepts it -- but
+ * `var(--edge-kind-nonsense)` resolves to nothing, so drawing it would produce
+ * an invisible strand that still consumes an offset slot and shifts every real
+ * one. The record remembers; the canvas declines to guess.
+ *
+ * Offsets are centred on the geometry, so the line you click is the line you
+ * see: one strand sits on the edge itself, two straddle it, three put the
+ * middle one on it.
+ */
+export function strandsFor(
+  kinds: readonly string[],
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): {
+  kinds: string[]
+  strands: Array<{ key: string; kind: string | undefined; colour: string; dx: number; dy: number }>
+} {
+  const known = kinds.filter((kind): kind is EdgeKind =>
+    (EDGE_KINDS as readonly string[]).includes(kind),
+  )
+  if (known.length === 0) {
+    return {
+      kinds: [],
+      strands: [{ key: 'plain', kind: undefined, colour: 'currentColor', dx: 0, dy: 0 }],
+    }
+  }
+  // Unit normal to the line. A degenerate line (both ends at one point) has no
+  // direction to be perpendicular to, so every strand lands on top of the
+  // others -- which is the honest answer for a line with no length.
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const length = Math.hypot(dx, dy)
+  const nx = length < 1e-6 ? 0 : -dy / length
+  const ny = length < 1e-6 ? 0 : dx / length
+  const centre = (known.length - 1) / 2
+  return {
+    kinds: known,
+    strands: known.map((kind, i) => ({
+      key: kind,
+      kind,
+      colour: `var(--edge-kind-${kind})`,
+      // `|| 0` normalises NEGATIVE ZERO, which `-dy / length` produces for a
+      // horizontal line and which renders as the string "-0" in an SVG
+      // attribute. Cosmetic on screen, not cosmetic in a test that asserts a
+      // strand sits exactly on the line.
+      dx: nx * (i - centre) * KIND_STRAND_GAP || 0,
+      dy: ny * (i - centre) * KIND_STRAND_GAP || 0,
+    })),
   }
 }
 
