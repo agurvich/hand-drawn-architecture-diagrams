@@ -56,6 +56,7 @@ function deriveMergeIndex(editor: Editor): MergeIndex {
       // Resolved HERE because `merge.ts` has no store access and this spec does
       // not give it any. This is the one place `ConnectionEndpoints` is built.
       actorId: actorIdOf(editor, shape.id),
+      kinds: (shape.props as { kinds?: readonly string[] }).kinds ?? [],
     })
   }
   // The same scene-aware accessor visibility.ts uses. Collapse is read in two
@@ -81,7 +82,16 @@ function sameIndex(a: MergeIndex, b: MergeIndex): boolean {
   return true
 }
 
-function sameEntry(a: MergeEntry, b: MergeEntry): boolean {
+/**
+ * EXPORTED for its own test, which is not a testing convenience.
+ *
+ * This is the `isEqual` of the `computed` above, so a field the derivation
+ * produces and this function ignores is a field whose changes are INVISIBLE --
+ * and invisible with every `computeMergeIndex` unit test still green, because
+ * those test the derivation and nothing tests the memo. Nothing outside this
+ * module calls it in production.
+ */
+export function sameEntry(a: MergeEntry, b: MergeEntry): boolean {
   return (
     a.hidden === b.hidden &&
     a.count === b.count &&
@@ -94,6 +104,12 @@ function sameEntry(a: MergeEntry, b: MergeEntry): boolean {
     // and no warning. The array is rebuilt every derivation, so comparing it by
     // identity would be the same as ignoring it, only harder to notice.
     a.actorIds.length === b.actorIds.length &&
-    a.actorIds.every((id, i) => id === b.actorIds[i])
+    a.actorIds.every((id, i) => id === b.actorIds[i]) &&
+    // KINDS TOO, by content, for exactly the reason above. Toggling a kind
+    // changes nothing else on the entry, so leaving it out here would make the
+    // panel write to the store and the canvas never repaint -- no error, no
+    // warning, and every unit test green.
+    a.kinds.length === b.kinds.length &&
+    a.kinds.every((kind, i) => kind === b.kinds[i])
   )
 }
