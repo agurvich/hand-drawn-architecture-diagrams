@@ -44,7 +44,11 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   static override migrations = connectionShapeMigrations
 
   override getDefaultProps(): ConnectionShape['props'] {
-    return { ...connectionShapeDefaultProps }
+    // `kinds` REWRITTEN, not inherited from the spread. The spread is shallow,
+    // so every connection would otherwise share one array -- harmless for
+    // `start`/`end`, which nothing mutates in place, and not for an array, which
+    // somebody will reasonably `push` to.
+    return { ...connectionShapeDefaultProps, kinds: [] }
   }
 
   /**

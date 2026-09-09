@@ -113,14 +113,21 @@ this feature.
 Colour is the glance, not the only channel: the kinds are named in the line's accessible name, for
 the same reason SPEC-015's actor icons carry `aria-label` rather than relying on the glyph.
 
-Every kind's colour is a CSS custom property. Handoff F6 says custom shapes ignore the dark theme;
-this spec does not fix that, and it does not add a new site that will have to be found when someone
-does.
+Every kind's colour is a CSS custom property — the first this app defines for itself; `index.css`
+today only consumes tldraw's `--tl-*` and the JS-set `--dock-top`. Handoff F6 says custom shapes
+ignore the dark theme; this spec does not fix that, and it does not add a new site that will have to
+be found when someone does.
+
+**These criteria are settled in e2e, not in jsdom.** Nothing in this repo mounts a `ShapeUtil`'s
+`component()` or a panel field under Testing Library; every connection-rendering assertion that
+exists is Playwright. That is where a computed colour can be read at all.
 
 #### Acceptance Criteria:
 
-- [ ] `kinds: []` renders exactly one stroke, and every existing connection-rendering test from
-      SPEC-005, SPEC-011 and SPEC-015 passes unchanged.
+- [ ] `kinds: []` renders exactly one stroke, asserted by a **new** check. The existing SPEC-005 /
+      SPEC-011 / SPEC-015 specs must also still pass, but that half is weak evidence and is not the
+      criterion: none of them asserts on the line element, its stroke or its marker at all — they
+      assert count badges, actor labels and the dim/highlight classes.
 - [ ] `kinds: ['data']` renders one stroke, and its colour is the data colour rather than the
       default.
 - [ ] `kinds: ['data', 'permission']` renders two strokes, one in each kind's colour, neither of them
@@ -128,9 +135,10 @@ does.
 - [ ] Each drawn stroke ends in an arrowhead **of its own colour**. A `<marker>`'s `currentColor`
       resolves against the marker's own inherited colour, not the referencing line's, so one shared
       marker yields coloured lines with default-coloured arrowheads — the failure this criterion
-      exists to catch. Asserted as "each stroke's `markerEnd` names a marker whose `fill` is that
-      kind's custom property", since jsdom does not resolve `currentColor` and a computed-colour
-      assertion would pass vacuously.
+      exists to catch, and it is reproducible: two lines and one shared marker give two arrowheads
+      in the default colour. Asserted **in e2e on the arrowhead's computed fill**, which is the
+      strictly stronger form. This repo has no jsdom test that mounts a connection's component, so
+      there is no unit-test home to weaken this criterion into.
 - [ ] The connection's accessible name names each of its kinds; a connection with no kinds gains no
       such text.
 - [ ] No colour literal for a kind appears in the component — each is a CSS custom property with one
