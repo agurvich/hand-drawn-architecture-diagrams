@@ -81,7 +81,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-018 are Completed.
+**Current work:** SPEC-019 (a vocabulary the user writes).
 
 ---
 
