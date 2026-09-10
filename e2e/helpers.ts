@@ -625,7 +625,7 @@ export async function kindFieldLabels(page: Page): Promise<string[]> {
 export async function createKind(page: Page, label: string, colour: string, dash = 'solid') {
   await page.getByTestId('kind-add').click()
   await page.getByTestId('kind-form-label').fill(label)
-  await page.getByTestId(`kind-form-colour-${colour}`).click()
+  await page.getByTestId(`kind-form-colour-${colour}`).check()
   await page.getByTestId('kind-form-dash').selectOption(dash)
   await page.getByTestId('kind-form-save').click()
 }
@@ -634,7 +634,15 @@ export async function createKind(page: Page, label: string, colour: string, dash
 export async function strandPaint(
   page: Page,
   connectionId: string,
-): Promise<Array<{ kind: string | null; stroke: string; dash: string; unresolved: boolean }>> {
+): Promise<
+  Array<{
+    kind: string | null
+    stroke: string
+    dash: string
+    markerEnd: string
+    unresolved: boolean
+  }>
+> {
   return page.evaluate((cid) => {
     const svg = document.querySelector(
       `[data-shape-id="${cid}"] [data-testid="diagram-connection"]`,
@@ -646,6 +654,11 @@ export async function strandPaint(
         kind: (line as HTMLElement).dataset.kind ?? null,
         stroke: style.stroke,
         dash: style.strokeDasharray,
+        // The COMPUTED value, not the attribute. A FuncIRI the browser refused
+        // to parse computes to `none` while the attribute still reads
+        // `url(#…)` and `getElementById` still finds the marker -- so both of
+        // the obvious checks pass on a strand with no arrowhead.
+        markerEnd: style.markerEnd,
         unresolved: (line as HTMLElement).dataset.unresolved === 'true',
       }
     })

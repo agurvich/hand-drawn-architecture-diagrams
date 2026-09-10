@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { strandsFor, accessibleKinds } from './ConnectionShapeUtil'
+import { strandsFor, accessibleKinds, haloWidth } from './ConnectionShapeUtil'
 import {
   overlayVocabulary,
   KIND_PALETTE,
@@ -181,6 +181,82 @@ describe('strandsFor — offsets are centred on the geometry', () => {
       expect(Number.isFinite(strand.dx)).toBe(true)
       expect(Number.isFinite(strand.dy)).toBe(true)
     }
+  })
+})
+
+describe('the marker key — an id that survives a user-written label', () => {
+  /*
+   * THE DEFECT A REVIEWER FOUND BY USING THE APP, which no test in the change
+   * could have caught.
+   *
+   * The marker id goes into a FuncIRI, `url(#arrow-…)`, and an unquoted
+   * `url()` token containing a space, a quote or a paren is invalid CSS -- so
+   * the browser drops the `marker-end` declaration entirely and the strand
+   * loses its arrowhead. On a directed diagram that is the edge's direction,
+   * silently gone.
+   *
+   * Safe while SPEC-018's three kinds were code constants. Not safe now, and
+   * multi-word verbs -- "reads from", "writes to" -- are exactly what the
+   * vocabulary that motivated this spec wants. The e2e counterpart asserts the
+   * COMPUTED `marker-end`, because a DOM `getElementById` lookup succeeds even
+   * when the browser's FuncIRI parse has already failed.
+   */
+  const messy = new Map([
+    ...seeds,
+    ['flows to', { id: 'k1', label: 'flows to', colour: 'violet', dash: '12 5' }],
+    ['says "hi" (loudly)', { id: 'k2', label: 'says "hi" (loudly)', colour: 'teal', dash: '7 4' }],
+  ])
+
+  it('contains nothing that needs quoting in a url()', () => {
+    const { strands } = strandsFor(['flows to', 'says "hi" (loudly)'], messy, A, B)
+    for (const strand of strands) {
+      expect(strand.markerKey, `${strand.kind} produces an unusable marker id`).toMatch(
+        /^[a-zA-Z0-9]+$/,
+      )
+    }
+  })
+
+  it('stays DISTINCT when two labels sanitise to the same string', () => {
+    // `flows to` and `flows-to` both reduce to `flowsto`. Two strands sharing a
+    // marker id share one arrowhead -- the shared-arrowhead defect SPEC-018
+    // fixed, arriving again through the sanitiser.
+    const both = new Map([
+      ...messy,
+      ['flows-to', { id: 'k3', label: 'flows-to', colour: 'red', dash: 'solid' }],
+    ])
+    const keys = strandsFor(['flows to', 'flows-to'], both, A, B).strands.map((s) => s.markerKey)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('gives the plain no-kind strand a key too', () => {
+    expect(strandsFor([], seeds, A, B).strands[0]!.markerKey).toBe('plain')
+  })
+
+  it('survives a label that is ONLY punctuation', () => {
+    const only = new Map([['→', { id: 'k4', label: '→', colour: 'red', dash: 'solid' }]])
+    const key = strandsFor(['→'], only, A, B).strands[0]!.markerKey
+    expect(key).toMatch(/^[a-zA-Z0-9]+$/)
+    expect(key.length).toBeGreaterThan(0)
+  })
+})
+
+describe('haloWidth — the highlight covers every strand, not the middle one', () => {
+  /*
+   * The halo was a fixed 9 while strands are offset by `KIND_STRAND_GAP`, so
+   * five kinds span 20px and four of the five sat entirely outside it -- which
+   * reads as "that one strand is highlighted" rather than "this line is".
+   * Invisible while the vocabulary was three words in code.
+   */
+  it('covers the outermost strand at any count', () => {
+    for (let n = 1; n <= 8; n++) {
+      const outermost = ((n - 1) / 2) * 5
+      expect(haloWidth(n) / 2, `${n} strands`).toBeGreaterThan(outermost)
+    }
+  })
+
+  it('is unchanged for a line with one strand', () => {
+    // The plain and single-kind cases are what SPEC-008's halo was tuned on.
+    expect(haloWidth(1)).toBe(9)
   })
 })
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE, normaliseKinds } from '@shared/shapes'
 import {
@@ -47,6 +47,20 @@ export function refuseKindWrite(
     return `“${pair.label}” already uses that colour and dash — pick one or the other.`
   }
   return null
+}
+
+/**
+ * The first colour-and-dash pair no entry is using, or the first pair at all if
+ * every one is taken -- in which case the form refuses on save and says why,
+ * which is the honest outcome rather than a silent write.
+ */
+function freePair(entries: readonly KindEntry[]): { colour: string; dash: string } {
+  for (const dash of Object.keys(KIND_DASHES)) {
+    for (const colour of Object.keys(KIND_PALETTE)) {
+      if (!pairCollision(colour, dash, entries)) return { colour, dash }
+    }
+  }
+  return { colour: Object.keys(KIND_PALETTE)[0]!, dash: Object.keys(KIND_DASHES)[0]! }
 }
 
 /** The dash key an entry's resolved dash came from, for editing it back. */
@@ -148,6 +162,10 @@ export function KindField({ editor, id }: KindFieldProps) {
   }
 
   const create = (label: string, colour: string, dash: string) => {
+    // Guarded again here, not only in the form. `refuseKindWrite` is the rule;
+    // `KindForm` is one caller of it, and a second caller added later would
+    // otherwise bypass it silently.
+    if (refuseKindWrite(label, colour, dash, vocabulary)) return
     /*
      * A GENERATED id, never one derived from the label. A derived id would make
      * creating a kind called `data`, after the seed `data` had been renamed to
@@ -169,6 +187,7 @@ export function KindField({ editor, id }: KindFieldProps) {
   }
 
   const save = (target: KindEntry, label: string, colour: string, dash: string) => {
+    if (refuseKindWrite(label, colour, dash, vocabulary, target.id)) return
     const trimmed = label.trim()
     const renaming = trimmed !== target.label
     /*
@@ -187,9 +206,13 @@ export function KindField({ editor, id }: KindFieldProps) {
           typeName: KIND_RECORD_TYPE,
           // A record at the SEED's id, so renaming a seed replaces it rather
           // than adding a fourth entry beside it.
-          id: target.id.startsWith('k')
-            ? (target.id as DiagramKind['id'])
-            : kindRecordId(target.id),
+          // A record at the ENTRY's own id, unconditionally. `KindEntry.id` is
+          // the BARE id -- `overlayVocabulary` strips the prefix -- so both a
+          // seed's `data` and a created kind's `k1a2b3` need prefixing, and
+          // `kindRecordId` is deliberately blind to which it was given.
+          // Branching on the shape of the id put a created kind's record at an
+          // unprefixed id, which `idValidator` refuses.
+          id: kindRecordId(target.id),
           label: trimmed,
           colour,
           dash,
@@ -225,6 +248,12 @@ export function KindField({ editor, id }: KindFieldProps) {
           disables every control in it, which is one place to be right rather
           than three -- and it is what makes the add and edit controls
           unreachable on a merged line without a second condition. */}
+      {/* `disabled` is on the fieldset AND on each control.
+          The fieldset alone genuinely blocks interaction, but a control's own
+          `disabled` is what an assistive technology and a test both read off
+          the element -- so a keyboard user was told six checkboxes and seven
+          buttons were operable, activated one, and got silence. Belt and
+          braces, and the braces are the part that is announced. */}
       <legend className="kind-field__legend">Carries</legend>
       {vocabulary.map((kind) =>
         editingId === kind.id ? (
@@ -242,6 +271,7 @@ export function KindField({ editor, id }: KindFieldProps) {
                 type="checkbox"
                 className="kind-field__checkbox"
                 data-testid={`kind-${kind.label}`}
+                disabled={merged}
                 checked={has.has(kind.label)}
                 onChange={(event) => toggle(kind.label, event.target.checked)}
               />
@@ -256,6 +286,7 @@ export function KindField({ editor, id }: KindFieldProps) {
               type="button"
               className="kind-field__edit"
               data-testid={`kind-edit-${kind.label}`}
+              disabled={merged}
               aria-label={`Edit ${kind.label}`}
               onClick={() => setEditingId(kind.id)}
             >
@@ -274,6 +305,7 @@ export function KindField({ editor, id }: KindFieldProps) {
             className="kind-field__checkbox"
             data-testid={`kind-${label}`}
             data-unresolved="true"
+            disabled={merged}
             checked
             onChange={() => toggle(label, false)}
           />
@@ -293,6 +325,7 @@ export function KindField({ editor, id }: KindFieldProps) {
           type="button"
           className="kind-field__add"
           data-testid="kind-add"
+          disabled={merged}
           onClick={() => setAdding(true)}
         >
           + New kind
@@ -323,9 +356,34 @@ interface KindFormProps {
  * rules cannot differ between them.
  */
 function KindForm({ entries, initial, onCancel, onSubmit }: KindFormProps) {
+  const nameInput = useRef<HTMLInputElement>(null)
+  /*
+   * FOCUS MOVES INTO THE FORM when it opens, because opening it UNMOUNTS the
+   * button that had focus -- `+ New kind` or `Edit` is replaced by the form
+   * itself. Focus then lands on `<body>` and the next Tab restarts from the top
+   * of the document (`best-practices/accessibility` -> 2.4.3). The name field is
+   * the right landing place: it is the first thing to fill in.
+   *
+   * Restoring focus to the trigger on close is the caller's job, since the
+   * caller is what still exists afterwards.
+   */
+  useEffect(() => {
+    nameInput.current?.focus()
+  }, [])
+  // One `name` per mounted form, so two forms could never share a radio group.
+  const radioGroup = useId()
+  const errorId = `${radioGroup}-error`
   const [label, setLabel] = useState(initial?.label ?? '')
-  const [colour, setColour] = useState(initial?.colour ?? Object.keys(KIND_PALETTE)[0]!)
-  const [dash, setDash] = useState(initial ? dashKeyOf(initial) : 'solid')
+  /*
+   * A NEW kind opens on a colour-and-dash pair nothing else is using.
+   *
+   * The first version defaulted to the first palette entry and a solid line --
+   * which is exactly `data`, so pressing Create on a fresh form was refused for
+   * a collision the user had not made and could not see. A default that is
+   * always invalid is a default that teaches people to distrust the form.
+   */
+  const [colour, setColour] = useState(initial?.colour ?? freePair(entries).colour)
+  const [dash, setDash] = useState(initial ? dashKeyOf(initial) : freePair(entries).dash)
   const [error, setError] = useState<string | null>(null)
 
   const submit = () => {
@@ -342,34 +400,64 @@ function KindForm({ entries, initial, onCancel, onSubmit }: KindFormProps) {
       <label className="kind-form__label">
         <span>Name</span>
         <input
+          ref={nameInput}
           type="text"
           className="kind-form__input"
           data-testid="kind-form-label"
           value={label}
+          // The refusal is announced by `role="alert"` when it appears, and
+          // TIED TO THE FIELD as well -- a user who tabs back to the input
+          // afterwards is otherwise told nothing about why it was refused.
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? errorId : undefined}
           onChange={(event) => {
             setLabel(event.target.value)
             setError(null)
           }}
+          // ENTER SUBMITS. Not a `<form>`, because this field is already inside
+          // the panel's markup and a nested form would submit the outer one;
+          // one key handler on the field you are typing in is the whole of it.
+          // On an iPad the software keyboard's Return is the obvious confirm,
+          // and without this it did nothing at all.
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              submit()
+            }
+          }}
         />
       </label>
-      <div className="kind-form__swatches" role="radiogroup" aria-label="Colour">
+      {/* NATIVE RADIOS, not buttons with `role="radio"`.
+          The first version was eight `<button role="radio">` in a
+          `role="radiogroup"`, which announces correctly and then does nothing:
+          a custom radiogroup owes a roving `tabIndex` and arrow-key handling
+          (`best-practices/accessibility` -> 2.1.1), and without them all eight
+          are separate tab stops and the arrow keys are dead. A `<fieldset>` of
+          real radios gets one tab stop, arrow-key selection, grouped
+          announcement and form semantics with no JavaScript at all -- and the
+          swatch is painted on the input the same way the checkboxes are. */}
+      <fieldset className="kind-form__swatches">
+        <legend className="kind-form__swatches-legend">Colour</legend>
         {Object.entries(KIND_PALETTE).map(([name, { hex }]) => (
-          <button
-            key={name}
-            type="button"
-            role="radio"
-            aria-checked={colour === name}
-            aria-label={name}
-            data-testid={`kind-form-colour-${name}`}
-            className="kind-form__swatch"
-            style={{ background: hex }}
-            onClick={() => {
-              setColour(name)
-              setError(null)
-            }}
-          />
+          <label key={name} className="kind-form__swatch-label">
+            <input
+              type="radio"
+              name={radioGroup}
+              className="kind-form__swatch"
+              data-testid={`kind-form-colour-${name}`}
+              value={name}
+              checked={colour === name}
+              style={{ '--kind-swatch': hex } as CSSProperties}
+              onChange={() => {
+                setColour(name)
+                setError(null)
+              }}
+            />
+            {/* The colour name, for anyone who cannot see the swatch. */}
+            <span className="kind-form__swatch-name">{name}</span>
+          </label>
         ))}
-      </div>
+      </fieldset>
       <label className="kind-form__label">
         <span>Line</span>
         <select
@@ -389,7 +477,7 @@ function KindForm({ entries, initial, onCancel, onSubmit }: KindFormProps) {
         </select>
       </label>
       {error && (
-        <p className="kind-form__error" data-testid="kind-form-error" role="alert">
+        <p id={errorId} className="kind-form__error" data-testid="kind-form-error" role="alert">
           {error}
         </p>
       )}

@@ -100,6 +100,25 @@ export function resolveKind(
   label: string,
 ): ResolvedKind {
   const entry = vocabulary.get(label)
-  if (!entry) return { colour: KIND_UNRESOLVED.hex, dash: KIND_UNRESOLVED.dash, resolved: false }
-  return { colour: KIND_PALETTE[entry.colour]!.hex, dash: entry.dash, resolved: true }
+  /*
+   * UNRESOLVED covers two different absences, deliberately collapsed.
+   *
+   * No entry for the label, and an entry naming a palette colour THIS BUILD
+   * DOES NOT HAVE -- reachable from a mismatched client build, and from the
+   * `?unvalidated` dev schema, which by design skips the palette check the
+   * record validator applies. The second one used to be `KIND_PALETTE[...]!`,
+   * a non-null assertion that turns a stale colour key into a TypeError inside
+   * `ShapeUtil.component()`: the whole canvas fails, not one strand.
+   *
+   * SPEC-018's version of this hazard was an INVISIBLE strand, guarded by a
+   * test binding the vocabulary to the stylesheet. That test retired with the
+   * custom properties on the grounds that a missing colour became a type error
+   * -- true for code-defined kinds, and not true for records, where the colour
+   * is runtime data. This is the fallback that replaces it.
+   */
+  const palette = entry ? KIND_PALETTE[entry.colour] : undefined
+  if (!entry || !palette) {
+    return { colour: KIND_UNRESOLVED.hex, dash: KIND_UNRESOLVED.dash, resolved: false }
+  }
+  return { colour: palette.hex, dash: entry.dash, resolved: true }
 }

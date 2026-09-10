@@ -262,6 +262,96 @@ test.describe('FR-004 — what the canvas paints', () => {
     expect(strands[0]!.unresolved).toBe(false)
   })
 
+  test('keeps the arrowhead on a kind whose name has a SPACE', async ({ page }) => {
+    /*
+     * Found by using the app, not by reading the diff, and no test in the
+     * change could have caught it: the marker id went into `url(#arrow-…)`
+     * with the raw label in it, and an unquoted `url()` token containing a
+     * space is invalid CSS -- so the browser dropped `marker-end` and the
+     * strand lost its arrowhead. On a directed diagram that is the direction
+     * of the edge, silently gone.
+     *
+     * Asserted on the COMPUTED value. SPEC-018's marker test resolved the id
+     * with `getElementById`, which succeeds even when the FuncIRI parse has
+     * already failed -- a check that passes against the bug it claims to catch.
+     *
+     * Multi-word verbs are not an edge case: "reads from", "writes to" and
+     * "flows to" are what the vocabulary that motivated this spec is made of.
+     */
+    await openRoom(page, roomId('kinds-spaces'))
+    const connection = await twoNodesAndALine(page)
+    await openKindField(page, connection)
+    await createKind(page, 'flows to', 'violet', 'long')
+    await page.getByTestId('kind-flows to').check()
+    await page.getByTestId('kind-data').check()
+
+    const strands = await strandPaint(page, connection)
+    expect(strands).toHaveLength(2)
+    for (const strand of strands) {
+      expect(strand.markerEnd, `${strand.kind} lost its arrowhead`).not.toBe('none')
+      expect(strand.markerEnd).toMatch(/^url\(/)
+    }
+  })
+
+  test('highlights EVERY strand of a multi-kind line, not the middle one', async ({ page }) => {
+    /*
+     * The halo is one wide line behind the strands, and it was a fixed width
+     * while the strands fan out by `KIND_STRAND_GAP` -- so on a long kind list
+     * the outer strands sat entirely outside it and the line read as "that one
+     * strand is highlighted".
+     */
+    await openRoom(page, roomId('kinds-halo'))
+    const connection = await twoNodesAndALine(page)
+    await openKindField(page, connection)
+    await page.getByTestId('kind-data').check()
+    await page.getByTestId('kind-permission').check()
+    await page.getByTestId('kind-sequence').check()
+
+    // Highlight it through a scene, which is the only thing that draws the halo.
+    await page.evaluate((cid) => {
+      window.__editor!.setSelectedShapes([])
+      const store = window.__editor!.store
+      const scene = {
+        typeName: 'diagramScene',
+        id: 'diagramScene:halo',
+        name: 'halo',
+        note: '',
+        collapsed: {},
+        highlighted: [cid],
+        index: 'a1',
+      }
+      store.put([scene as never])
+      store.put([
+        {
+          typeName: 'diagramSceneView',
+          id: 'diagramSceneView:current',
+          activeSceneId: 'diagramScene:halo',
+        } as never,
+      ])
+    }, connection)
+
+    const measured = await page.evaluate((cid) => {
+      const svg = document.querySelector(
+        `[data-shape-id="${cid}"] [data-testid="diagram-connection"]`,
+      )!
+      const halo = svg.querySelector('[data-testid="diagram-connection-halo"]')
+      const ys = [...svg.querySelectorAll('[data-testid="diagram-connection-strand"]')].map((l) =>
+        Number((l as SVGLineElement).getAttribute('y1')),
+      )
+      return {
+        haloWidth: halo ? Number(getComputedStyle(halo).strokeWidth.replace('px', '')) : null,
+        spread: Math.max(...ys) - Math.min(...ys),
+      }
+    }, connection)
+
+    // Three strands really do fan out, or the rest of this asserts nothing.
+    expect(measured.spread).toBeGreaterThan(0)
+    expect(measured.haloWidth).not.toBeNull()
+    // And the halo reaches past the OUTERMOST strand on both sides, rather than
+    // covering the middle one and fringing the others.
+    expect(measured.haloWidth!).toBeGreaterThan(measured.spread)
+  })
+
   test('repaints on a RECOLOUR with no write to the connection', async ({ page }) => {
     await openRoom(page, roomId('kinds-recolour'))
     const connection = await twoNodesAndALine(page)

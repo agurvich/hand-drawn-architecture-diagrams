@@ -144,6 +144,42 @@ describe('resolveKind', () => {
     })
   })
 
+  it('does not THROW on a palette colour this build does not have', () => {
+    /*
+     * The failure mode is the whole canvas, not one strand: this runs inside
+     * `ShapeUtil.component()`, so a TypeError there fails the render.
+     *
+     * Reachable without anybody doing anything wrong -- a client on a build
+     * whose palette has an entry this one lacks, or the `?unvalidated` dev
+     * schema, which by design skips the palette check the record validator
+     * applies. Written into the store past the validator for exactly that
+     * reason.
+     *
+     * SPEC-018 had this hazard as an INVISIBLE strand and guarded it with a
+     * test binding the vocabulary to the stylesheet. That test retired with the
+     * custom properties, on the grounds that a missing colour had become a type
+     * error -- true for kinds defined in code, and not true for records, where
+     * the colour is data somebody else wrote.
+     */
+    /*
+     * Built directly rather than through the store, because the record
+     * validator REFUSES this colour -- which is the defence in depth working,
+     * and is exactly why the store is the wrong venue for this test. The two
+     * routes that get past the validator are a peer on a different build and
+     * the `?unvalidated` dev schema, neither of which a unit test can stage
+     * honestly. What is under test is `resolveKind`, so it is called directly.
+     */
+    const vocabulary: ReadonlyMap<string, KindEntry> = new Map([
+      ['from-2027', { id: 'k9', label: 'from-2027', colour: 'chartreuse', dash: undefined }],
+    ])
+    expect(() => resolveKind(vocabulary, 'from-2027')).not.toThrow()
+    expect(resolveKind(vocabulary, 'from-2027')).toEqual({
+      colour: KIND_UNRESOLVED.hex,
+      dash: KIND_UNRESOLVED.dash,
+      resolved: false,
+    })
+  })
+
   it('treats `__proto__` as a label, not as a prototype lookup', () => {
     store.put([kind(newKindId('1'), { label: '__proto__', colour: 'teal', dash: 'solid' })])
     const vocabulary = getVocabulary(fakeEditor(store))

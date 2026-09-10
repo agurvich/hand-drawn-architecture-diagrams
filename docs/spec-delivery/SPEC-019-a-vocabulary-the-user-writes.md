@@ -58,8 +58,10 @@ Playwright suite.
 
 Gates proved to bite by planting the mutation each was reported with: adding a near-duplicate palette
 colour (the ΔE 20 floor); dropping the id exclusion from `labelCollision` (the case-only rename);
-registering the record at session scope; deriving created ids from the label; and letting the
-validator accept an untrimmed label.
+registering the record at session scope; deriving created ids from the label; letting the validator
+accept an untrimmed label; putting the raw label back in the marker id (unit **and** e2e); fixing the
+halo width (unit **and** e2e); restoring the non-null palette lookup; branching on the shape of an
+entry id; and hiding an unlisted label from the panel.
 
 **What the reviews found, recorded because the lessons are not about this spec.**
 
@@ -74,6 +76,55 @@ validator accept an untrimmed label.
   → 9 → 27, and 27 > 21), so it also contradicted FR-001's three seeds. It was the wrong rule as
   well: two strands are separated by a gap of *background*, so each one's adjacent colour is the
   canvas. Replaced by a perceptual floor, ΔE 20 in CIE Lab, which binds at 20.6.
+- **The diff review found the capability itself broken, and the reason it went unseen is the
+  lesson.** `save` branched on the *shape* of an entry's id — `startsWith('k')` — to decide whether
+  to prefix it, and got it backwards, so renaming or recolouring a **user-created** kind wrote a
+  record at an unprefixed id that `idValidator` refuses. That is the entire capability this spec
+  adds. Every rename and recolour test, unit and e2e, edited a **seed**: the created half of the id
+  space had no test at all. The tests were not vacuous, they were **unpopulated** — a failure mode
+  worth naming separately, because "does this test bite?" does not catch it and "which inputs does
+  the suite never use?" does. The fix is `kindRecordId(target.id)` unconditionally, which is what
+  that function's own docblock says it exists for.
+- **A guard was deleted as obsolete when only half of it was.** `connectionStrands.test.ts` bound
+  every kind to a matching `--edge-kind-*` property; the drift it checked really did retire with the
+  custom properties, but the failure class — *a kind that resolves to no colour* — did not. It got
+  worse: for a **record** the colour is runtime data, so a stale palette key went from an invisible
+  strand to a `TypeError` inside `ShapeUtil.component()`, failing the whole canvas. `resolveKind`
+  now falls back to the unresolved look, tested directly rather than through the store, because the
+  record validator refuses that colour — which is the defence in depth working, and the reason the
+  store is the wrong venue for the test.
+- **The colour swatches announced correctly and did nothing.** Eight `<button role="radio">` in a
+  `role="radiogroup"`: a screen reader says "radio button, 1 of 8", and then arrow keys are dead and
+  all eight are separate tab stops, because a custom radiogroup owes a roving `tabIndex` and key
+  handling. Replaced with native radios in a fieldset, which get one tab stop, arrow-key selection
+  and grouped announcement for free. Also: the refusal message is now tied to the input by
+  `aria-describedby`/`aria-invalid` rather than only announced once, and focus moves into the form
+  when it opens — opening it unmounts the button that had focus, so focus was landing on `<body>`.
+- **The second diff reviewer — the one that BUILDS the thing rather than reading it — found the
+  defect neither the diff nor any test could have shown.** A kind whose label contains a space,
+  quote or paren silently lost its arrowhead: the marker id went into a FuncIRI, and an unquoted
+  `url()` token containing a space is invalid CSS, so the browser dropped `marker-end` entirely. On
+  a directed diagram that is the edge's direction, gone, with nothing on screen saying why. Safe for
+  the whole of SPEC-018, because the three kinds were code constants; unsafe the moment the label
+  became user text — and multi-word verbs ("reads from", "writes to") are precisely what the
+  vocabulary that motivated this spec is made of. **The existing arrowhead test could not catch it
+  either**: it resolved the marker with `getElementById`, which succeeds after the browser has
+  already refused to parse the reference — CLAUDE.md's "a test that passes against the bug it claims
+  to catch", exactly. The new assertion reads the COMPUTED `marker-end`.
+- **Two more from the same review, both invisible until the vocabulary got long.** The
+  scene-highlight halo was a fixed width while strands fan out by `KIND_STRAND_GAP`, so with five
+  kinds four of the five sat outside it and the line read as "that one strand is highlighted"; it
+  now scales. And the merged-line panel was disabled by its `<fieldset>` — which genuinely blocks
+  interaction, but does not propagate `disabled` to each control, so an assistive technology
+  announced thirteen operable controls that did nothing. Also: Enter did not submit either form,
+  which on the target device is the software keyboard's only confirm.
+- **A default that was always invalid**, found because the Enter test failed for what looked like
+  the wrong reason: the new-kind form opened on the first palette colour and a solid line, which is
+  exactly `data`, so pressing Create on a fresh form was refused for a collision the user had not
+  made. It now opens on a free colour-and-dash pair.
+- **Both reviewers independently hit the same id defect**, one by reading the write path and one by
+  crashing the app into tldraw's error boundary while renaming. That is the argument for two frames
+  rather than two rounds, stated as evidence rather than as method.
 - **The plan review found two tests that could not fail** before either was written: "reading writes
   nothing" placed against a pure function that has no store in scope, and the `__proto__` guard
   placed in `convertPolicy.test.ts` after the plain object it guarded had been deleted. Both moved to

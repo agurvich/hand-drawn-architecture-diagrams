@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import type { Editor } from 'tldraw'
 import { KindField, refuseKindWrite } from './KindField'
-import { overlayVocabulary, KIND_RECORD_TYPE, type KindEntry } from '@shared/kinds'
+import { overlayVocabulary, KIND_PALETTE, KIND_RECORD_TYPE, type KindEntry } from '@shared/kinds'
 import { CONNECTION_SHAPE_TYPE } from '@shared/shapes'
 
 /**
@@ -130,17 +130,128 @@ describe('the field', () => {
     mount()
     fireEvent.click(screen.getByTestId('kind-enriches'))
     expect(updateShape).toHaveBeenCalledWith(expect.objectContaining({ props: { kinds: [] } }))
-    // It was never a kind here, so nothing in the vocabulary offers it.
-    expect(vocabulary.map((e) => e.label)).not.toContain('enriches')
+    /*
+     * And the checkbox GOES rather than being offered again -- it was never a
+     * kind here to re-check. Re-rendered with the connection's new kinds,
+     * because `updateShape` is a mock and the module-level `kinds` is what the
+     * component reads.
+     *
+     * An earlier version asserted that the vocabulary did not contain
+     * `enriches`, which was a tautology over the array this test itself sets.
+     */
+    kinds = []
+    cleanup()
+    mount()
+    expect(screen.queryByTestId('kind-enriches')).toBeNull()
   })
 
-  it('is disabled whole on a merged line, controls included', () => {
-    count = 3
+  it('gives the colour choice NATIVE radio semantics, not a hand-rolled group', () => {
+    /*
+     * The first version was eight `<button role="radio">`, which announces
+     * correctly and does nothing: a custom radiogroup owes a roving `tabIndex`
+     * and arrow-key handling, and without them every swatch is a separate tab
+     * stop and the arrow keys are dead. Asserted on the DOM rather than left to
+     * a review, because "announces correctly" is exactly what made it look fine.
+     */
     mount()
-    // `disabled` on the `<fieldset>` disables every control inside it, which is
-    // one place to be right rather than three.
+    fireEvent.click(screen.getByTestId('kind-add'))
+    const swatch = screen.getByTestId('kind-form-colour-violet') as HTMLInputElement
+    expect(swatch.tagName).toBe('INPUT')
+    expect(swatch.type).toBe('radio')
+    // One group, so arrow keys move within it and only one can be chosen.
+    const all = screen
+      .getAllByRole('radio')
+      .map((r) => (r as HTMLInputElement).name)
+      .filter(Boolean)
+    expect(new Set(all).size).toBe(1)
+    expect(all).toHaveLength(Object.keys(KIND_PALETTE).length)
+  })
+
+  it('names each colour for anyone who cannot see the swatch', () => {
+    mount()
+    fireEvent.click(screen.getByTestId('kind-add'))
+    expect(screen.getByRole('radio', { name: 'violet' })).toBeTruthy()
+  })
+
+  it('ties a refusal to the field, not only to the live region', () => {
+    // `role="alert"` announces it once, when it appears. A user who tabs back
+    // to the input afterwards is otherwise told nothing about why.
+    mount()
+    fireEvent.click(screen.getByTestId('kind-add'))
+    fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'data' } })
+    fireEvent.click(screen.getByTestId('kind-form-save'))
+    const input = screen.getByTestId('kind-form-label')
+    expect(input.getAttribute('aria-invalid')).toBe('true')
+    expect(input.getAttribute('aria-describedby')).toBe(
+      screen.getByTestId('kind-form-error').getAttribute('id'),
+    )
+  })
+
+  it('moves focus into the form when it opens', () => {
+    // Opening the form UNMOUNTS the button that had focus, so focus would land
+    // on <body> and the next Tab would restart from the top of the document.
+    mount()
+    fireEvent.click(screen.getByTestId('kind-add'))
+    expect(document.activeElement).toBe(screen.getByTestId('kind-form-label'))
+  })
+
+  it('is disabled whole on a merged line, EVERY control included', () => {
+    /*
+     * The fieldset alone genuinely blocks interaction -- but `disabled` on a
+     * control is what an assistive technology reads off the ELEMENT, and a
+     * fieldset's does not propagate to it. A keyboard user was told six
+     * checkboxes and seven buttons were operable, activated one, and got
+     * silence. Asserted per control, which is the only way to see it.
+     */
+    count = 3
+    kinds = ['data', 'enriches']
+    mount()
     expect((screen.getByTestId('kind-field') as HTMLFieldSetElement).disabled).toBe(true)
+    const field = screen.getByTestId('kind-field')
+    const controls = field.querySelectorAll('input, button, select')
+    expect(controls.length).toBeGreaterThan(0)
+    for (const control of controls) {
+      expect(
+        (control as HTMLInputElement).disabled,
+        `${control.getAttribute('data-testid') ?? control.tagName} says it is operable`,
+      ).toBe(true)
+    }
     expect(screen.getByTestId('kind-field-merged')).toBeTruthy()
+  })
+
+  it('opens on a colour and dash nothing else is using', () => {
+    /*
+     * The first version defaulted to the first palette entry and a solid line,
+     * which is exactly `data` -- so pressing Create on a fresh form was refused
+     * for a collision the user had not made. Found because the Enter test below
+     * failed for what looked like the wrong reason.
+     */
+    mount()
+    fireEvent.click(screen.getByTestId('kind-add'))
+    fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'enriches' } })
+    fireEvent.click(screen.getByTestId('kind-form-save'))
+    expect(screen.queryByTestId('kind-form-error')).toBeNull()
+    expect(put).toHaveBeenCalled()
+  })
+
+  it('submits the form on Enter', () => {
+    // On an iPad the software keyboard's Return is the obvious confirm, and it
+    // did nothing at all.
+    mount()
+    fireEvent.click(screen.getByTestId('kind-add'))
+    fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'enriches' } })
+    fireEvent.keyDown(screen.getByTestId('kind-form-label'), { key: 'Enter' })
+    expect(put).toHaveBeenCalledWith([expect.objectContaining({ label: 'enriches' })])
+  })
+
+  it('refuses on Enter exactly as it refuses on Save', () => {
+    // A second entry point to a guarded write is how a guard stops guarding.
+    mount()
+    fireEvent.click(screen.getByTestId('kind-add'))
+    fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'data' } })
+    fireEvent.keyDown(screen.getByTestId('kind-form-label'), { key: 'Enter' })
+    expect(put).not.toHaveBeenCalled()
+    expect(screen.getByTestId('kind-form-error')).toBeTruthy()
   })
 })
 
@@ -237,6 +348,40 @@ describe('renaming a kind', () => {
     // the rename one line at a time.
     expect(markHistoryStoppingPoint).toHaveBeenCalledTimes(1)
     expect(updateShape).toHaveBeenCalledTimes(2)
+  })
+
+  it('writes a CREATED kind’s record at a prefixed id too', () => {
+    /*
+     * THE HALF OF THE ID SPACE EVERY OTHER TEST HERE MISSED.
+     *
+     * Every rename and recolour case in this file and in the e2e spec edits a
+     * SEED. `KindEntry.id` is the bare id -- the overlay strips the prefix --
+     * so a created kind's entry id is `k…` and a seed's is `data`, and a
+     * version of `save` that branched on the shape of the id put the created
+     * kind's record at an UNPREFIXED id, which `idValidator` refuses. Every
+     * test passed, because none of them ever opened the edit form on a kind
+     * the user had made. The tests were not vacuous; they were unpopulated.
+     */
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: '12 5' }]
+    render(<KindField editor={editor} id={'shape:c' as never} />)
+    fireEvent.click(screen.getByTestId('kind-edit-enriches'))
+    fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'derives' } })
+    fireEvent.click(screen.getByTestId('kind-form-save'))
+    const record = put.mock.calls[0]![0]![0] as { id: string; label: string }
+    expect(record.id).toBe(`${KIND_RECORD_TYPE}:kabc`)
+    expect(record.label).toBe('derives')
+  })
+
+  it('rewrites connections carrying a CREATED kind’s label', () => {
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: '12 5' }]
+    pageShapes = [{ id: 'shape:1', type: CONNECTION_SHAPE_TYPE, props: { kinds: ['enriches'] } }]
+    render(<KindField editor={editor} id={'shape:c' as never} />)
+    fireEvent.click(screen.getByTestId('kind-edit-enriches'))
+    fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'derives' } })
+    fireEvent.click(screen.getByTestId('kind-form-save'))
+    expect(updateShape).toHaveBeenCalledWith(
+      expect.objectContaining({ props: { kinds: ['derives'] } }),
+    )
   })
 
   it('refuses a rename onto another kind and rewrites NOTHING', () => {

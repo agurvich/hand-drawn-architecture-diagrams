@@ -239,7 +239,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
              */
             <marker
               key={strand.key}
-              id={`arrow-${safeId}-${strand.key}`}
+              id={`arrow-${safeId}-${strand.markerKey}`}
               viewBox="0 0 10 10"
               refX="9"
               refY="5"
@@ -274,7 +274,16 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             x2={b.x}
             y2={b.y}
             stroke="currentColor"
-            strokeWidth={9}
+            /*
+             * WIDE ENOUGH FOR THE WHOLE BUNDLE. A fixed 9 covered the centre
+             * strand and nothing else: strands are offset by
+             * `KIND_STRAND_GAP`, so five kinds span 20px and four of the five
+             * sat entirely outside the halo -- which reads as "that one strand
+             * is highlighted" rather than "this line is". Harmless while the
+             * vocabulary was three words in code; a long kind list is normal
+             * once the user writes it.
+             */
+            strokeWidth={haloWidth(strands.strands.length)}
             strokeLinecap="round"
           />
         )}
@@ -291,7 +300,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             stroke={strand.colour}
             strokeWidth={2}
             strokeDasharray={strand.dash}
-            markerEnd={`url(#arrow-${safeId}-${strand.key})`}
+            markerEnd={`url(#arrow-${safeId}-${strand.markerKey})`}
           />
         ))}
         {count > 1 && (
@@ -479,6 +488,17 @@ export function accessibleKinds(
 const KIND_STRAND_GAP = 5
 
 /**
+ * How wide the scene-highlight halo has to be to sit behind EVERY strand.
+ *
+ * The bundle spans `(n - 1) * KIND_STRAND_GAP` centre to centre, plus the
+ * strokes themselves and a margin either side, so the accent reads as a halo
+ * rather than as a fringe down one edge of the line.
+ */
+export function haloWidth(strandCount: number): number {
+  return (strandCount - 1) * KIND_STRAND_GAP + 9
+}
+
+/**
  * What to actually draw for a line's kinds.
  *
  * ZERO KINDS IS THE OLD RENDERING: one strand, `currentColor`, no offset. A
@@ -509,6 +529,8 @@ export function strandsFor(
   kinds: string[]
   strands: Array<{
     key: string
+    /** Safe for an SVG id and a `url(#…)` reference; see below. */
+    markerKey: string
     kind: string | undefined
     colour: string
     /** A SECOND channel, so the strands are separable without colour vision. */
@@ -530,6 +552,7 @@ export function strandsFor(
       strands: [
         {
           key: 'plain',
+          markerKey: 'plain',
           kind: undefined,
           colour: 'currentColor',
           dash: undefined,
@@ -553,6 +576,21 @@ export function strandsFor(
     kinds: known,
     strands: known.map((kind, i) => ({
       key: kind,
+      /*
+       * A SEPARATE key for the `<marker>` id, and this is not tidiness.
+       *
+       * The id goes into a FuncIRI -- `url(#arrow-…)` -- and an unquoted
+       * `url()` token containing a space, a quote or a paren is invalid CSS, so
+       * the browser drops the whole `marker-end` declaration and the strand
+       * loses its arrowhead. On a directed diagram that is the direction of the
+       * edge, gone, with nothing on screen saying why.
+       *
+       * Safe under SPEC-018, where the three kinds were code constants. Not
+       * safe now: the label is user text, and multi-word verbs -- "reads from",
+       * "writes to" -- are exactly what a real vocabulary wants. The index
+       * keeps it unique when two labels sanitise to the same string.
+       */
+      markerKey: `${i}${kind.replace(/[^a-zA-Z0-9]/g, '')}`,
       kind,
       // Resolved through the VOCABULARY, not a constant. An unlisted label gets
       // the reserved unresolved look -- never `currentColor`, which is the

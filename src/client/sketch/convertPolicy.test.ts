@@ -252,7 +252,9 @@ describe('SPEC-018 FR-004 / SPEC-019 FR-006 — the colour he drew in picks the 
     // Black is the default pen and records no decision. That stays true because
     // no palette entry maps to it -- asserted in `kinds/palette.test.ts` too,
     // from the other side.
-    const everything = overlayVocabulary([])
-    expect(mappedStrokeColours(everything)).not.toContain('black')
+    // The real guard is `kinds/palette.test.ts`, which asserts no PALETTE entry
+    // names the black pen -- that is what makes this true for any vocabulary,
+    // not just this one. Restated from the consuming side.
+    expect(mappedStrokeColours(overlayVocabulary([]))).not.toContain('black')
   })
 })

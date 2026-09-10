@@ -980,7 +980,7 @@ test.describe('SPEC-008 FR-002 / FR-005 — authoring and the surface', () => {
       // PAINT, not just the container's inherited colour. Reading `color` off
       // the container says what `currentColor` WOULD resolve to, not whether
       // anything is drawn with it -- and SPEC-018's kinded strands are painted
-      // with `var(--edge-kind-*)`, so a highlight that reached only
+      // from the kind palette, so a highlight that reached only
       // `currentColor` left them untouched while this assertion still passed.
       const strokeOf = (el: Element) => {
         const line = el.querySelector('line')

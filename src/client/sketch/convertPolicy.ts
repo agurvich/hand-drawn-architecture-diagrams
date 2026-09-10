@@ -81,10 +81,14 @@ export function kindForStrokeColour(
 ): string | null {
   if (colour === undefined) return null
   /*
-   * FIRST BY LABEL ORDER, so two entries sharing a palette colour resolve the
-   * same way on every client. The vocabulary arrives in that order already, but
-   * relying on the caller for a determinism property is how it stops holding;
-   * `find` over an ordered list is the property stated where it matters.
+   * FIRST MATCH IN THE LIST, so two entries sharing a palette colour resolve
+   * the same way on every client.
+   *
+   * The determinism comes from `overlayVocabulary`, which sorts by label with
+   * plain `<` -- not from this `find`, which only promises to respect whatever
+   * order it is handed. Said plainly because an earlier version of this comment
+   * claimed the opposite, and a caller passing an unsorted vocabulary would
+   * make two clients disagree about what a stroke drew.
    */
   const match = vocabulary.find((entry) => KIND_PALETTE[entry.colour]?.pen === colour)
   return match?.label ?? null
