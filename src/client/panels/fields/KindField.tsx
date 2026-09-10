@@ -162,9 +162,13 @@ export function KindField({ editor, id }: KindFieldProps) {
   }
 
   const create = (label: string, colour: string, dash: string) => {
-    // Guarded again here, not only in the form. `refuseKindWrite` is the rule;
-    // `KindForm` is one caller of it, and a second caller added later would
-    // otherwise bypass it silently.
+    /*
+     * Belt and braces. `KindForm` refuses first, so this cannot fire today and
+     * NO TEST COVERS IT -- deleting it leaves the suite green, which is inherent
+     * to a second line of defence and is said here rather than implied. It
+     * exists so that a second caller added later cannot bypass the rule; such a
+     * caller would get a silent refusal, and would owe its own message.
+     */
     if (refuseKindWrite(label, colour, dash, vocabulary)) return
     /*
      * A GENERATED id, never one derived from the label. A derived id would make
@@ -187,6 +191,7 @@ export function KindField({ editor, id }: KindFieldProps) {
   }
 
   const save = (target: KindEntry, label: string, colour: string, dash: string) => {
+    // Belt and braces, as in `create` above, and untested for the same reason.
     if (refuseKindWrite(label, colour, dash, vocabulary, target.id)) return
     const trimmed = label.trim()
     const renaming = trimmed !== target.label
@@ -370,7 +375,10 @@ function KindForm({ entries, initial, onCancel, onSubmit }: KindFormProps) {
   useEffect(() => {
     nameInput.current?.focus()
   }, [])
-  // One `name` per mounted form, so two forms could never share a radio group.
+  // A generated `name` for the radio group. Only one form is mounted at a time,
+  // so this is not currently load-bearing and nothing asserts that it is --
+  // `useId` is just the correct way to name a group rather than inventing a
+  // constant that a second mounted form would collide with.
   const radioGroup = useId()
   const errorId = `${radioGroup}-error`
   const [label, setLabel] = useState(initial?.label ?? '')

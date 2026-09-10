@@ -56,7 +56,11 @@ Local: `npm run build`, `npm run typecheck`, `npm run lint`, `npx prettier --che
 `sh scripts/spec-lint.sh`, `sh scripts/docs-lint.sh`, `sh scripts/docs-lint-test.sh`, and the full
 Playwright suite.
 
-Gates proved to bite by planting the mutation each was reported with: adding a near-duplicate palette
+Gates proved to bite by planting the mutation each was reported with — with two stated exceptions:
+the `refuseKindWrite` calls inside `create` and `save` are a second line of defence that `KindForm`
+makes unreachable, so deleting them leaves the suite green, and the generated radio-group `name` is
+not asserted either. Both are said out loud rather than covered by a broader claim; the third review
+round is what noticed the claim was wider than the fact. adding a near-duplicate palette
 colour (the ΔE 20 floor); dropping the id exclusion from `labelCollision` (the case-only rename);
 registering the record at session scope; deriving created ids from the label; letting the validator
 accept an untrimmed label; putting the raw label back in the marker id (unit **and** e2e); fixing the

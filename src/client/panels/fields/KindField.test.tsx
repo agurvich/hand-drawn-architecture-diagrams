@@ -158,7 +158,9 @@ describe('the field', () => {
     const swatch = screen.getByTestId('kind-form-colour-violet') as HTMLInputElement
     expect(swatch.tagName).toBe('INPUT')
     expect(swatch.type).toBe('radio')
-    // One group, so arrow keys move within it and only one can be chosen.
+    // One group, so arrow keys move within it and only one can be chosen. This
+    // does NOT assert that the group name is generated -- a hardcoded constant
+    // passes, and would be fine while one form mounts at a time.
     const all = screen
       .getAllByRole('radio')
       .map((r) => (r as HTMLInputElement).name)
