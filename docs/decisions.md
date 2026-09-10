@@ -39,6 +39,8 @@ until the first real decision lands.
 - [Controls dock; they do not follow the shape](#controls-dock-they-do-not-follow-the-shape)
 - [A classifier is scored against a labelled population](#a-classifier-is-scored-against-a-labelled-population)
 - [An edge carries a set of kinds](#an-edge-carries-a-set-of-kinds)
+- [A kind is identified by its word](#a-kind-is-identified-by-its-word)
+- [Seeds in code, overrides in records](#seeds-in-code-overrides-in-records)
 
 ---
 
@@ -366,12 +368,17 @@ not drawing the third layer, and he paid it knowingly.
 deferral rather than an unrelated decision, so *Secondary features deferred pending real use* carries
 the marker. Edge sets solve a problem he declined to have.
 
-**The vocabulary is closed in code and OPEN at the record boundary.** The prop validates as an array
+**The vocabulary is closed in code and OPEN at the record boundary.**
+**SUPERSEDED 2026-09-10 by *A kind is identified by its word*: the vocabulary is no longer closed,
+and `EDGE_KINDS` no longer exists.** The rest of this paragraph still holds, and is the reason the
+change cost no migration. The prop validates as an array
 of strings, not as a union over the three. A closed validator turns a kind added by a newer build
 into a record rejected at the room boundary, which is the corruption mode `CLAUDE.md` names for every
 shape-prop change; the node shape's `icon` prop is the precedent. So an unknown kind is stored,
-normalised and carried across a merge -- and simply not drawn. The record remembers; the canvas
-declines to guess.
+normalised and carried across a merge. It was also simply not drawn; **SPEC-019 changed that half**,
+because once the words are the user's the commonest source of an unrecognised one is a concurrent
+rename rather than a newer build, and a label that is stored, invisible and unremovable is worse
+than one drawn in a colour that says "not a kind here".
 
 **Black is not a kind, and that call is the spec's rather than his.** Orange becomes `data` and
 light-green becomes `permission` when a stroke converts; every other colour, black included, gives no
@@ -385,4 +392,73 @@ none* -- the same rule, applied to a second field, for the same reason.
 
 **Not yet in the document.** Kinds do not export or import; that is the next spec in the *iPad
 readiness* arc, cut along the seam SPEC-011 -> SPEC-012 already used.
+
+---
+
+### A kind is identified by its word
+
+**Settled 2026-09-10 (SPEC-019).** The vocabulary of edge kinds is authored by the user, not fixed in
+code, and a connection stores each kind's **label** -- the word itself -- rather than a reference to
+the record that defines it.
+
+**Why the vocabulary opened.** SPEC-018's three kinds were read off ONE drawing, the AWS diagram
+drawn on 2026-09-07. The next design the project owner brought to the tool -- a fraud-detection
+system over federal spending data, 2026-09-08 -- carries four different verbs: *defines*, *enriches*,
+*signals*, *derives*. None of the three fit. One drawing is not a vocabulary, and the evidence
+arrived before the persisted format had been asked to carry the closed set, which is why SPEC-019
+comes before the document spec rather than after it. The call is the project owner's, made
+2026-09-10 when asked to choose between a fixed vocabulary edited in one file and a user-authored
+one.
+
+**Why the word and not an id.** A rename must then rewrite every connection carrying the old label,
+in one undoable step -- a real cost, taken for two returns. **No migration on the connection shape:**
+`kinds` is still `string[]` holding words, so no persisted record changes shape and no room is at
+risk. **An unknown word already survives:** `normaliseKinds` preserved one before this spec existed,
+for a different reason, and the renderer now draws it rather than dropping it. A third reason -- a
+document that stays readable and model-authorable, `kinds: ["enriches"]` rather than
+`kinds: ["diagramKind:k7"]` -- is real but does not carry the decision, because the spec that would
+put kinds in the document is not written.
+
+**The accepted cost.** Two clients editing one kind concurrently diverge. Rename-versus-rename gives
+two kinds; the commoner **rename-versus-toggle** leaves a connection carrying a word the vocabulary
+no longer defines, because the panel writes back the whole array it read. That is why an unresolved
+label is drawn, named in the accessible name, and offered as a checkbox that can be turned off:
+the divergence is made visible and reversible rather than prevented.
+
+**Rejected: deletion.** Create, rename and recolour only. Deleting a kind asks what happens to the
+connections carrying it, and answering it wrong loses meaning silently. Reversible in a later spec.
+
+**Rejected: a free colour picker.** Colour comes from a palette of eight, each measured at 3:1
+against the canvas and separated from the others by dE 20 in CIE Lab. A picker lets a user defeat
+WCAG on their own diagram, and the failure is invisible to the person who caused it.
+
+---
+
+### Seeds in code, overrides in records
+
+**Settled 2026-09-10 (SPEC-019).** The three kinds SPEC-018 shipped live in `SEED_KINDS`, in code. A
+`diagramKind` record **overrides** a seed of the same id or adds a new entry. Nothing is ever written
+to a room to make a seed exist.
+
+**The design this replaced, and why it was unsound.** The obvious approach is to write the three
+records into any room whose vocabulary is empty. SPEC-019's first spec review rejected it: three
+separate routes reach an empty vocabulary, and each re-seeds `data` behind a user who renamed it to
+something else, splitting their connections across two words with no way to merge them.
+
+- **Undo.** Creating a kind is undoable, and tldraw filters history on `source`, not scope, so a
+  document record lands on the undo stack like a shape. One undo after opening a fresh room empties
+  it.
+- **Import.** `documentIO` clears and re-puts scene records; a reader following that precedent
+  clears kinds too.
+- **Hydration.** In a synced room the store is empty *before* the first snapshot arrives, so "a room
+  with no kinds" is a claim about a moment, and there is no moment to pick.
+
+Overlaying removes the write, and with it all three. The general form, worth carrying: **a default
+that is computed is safer than a default that is written**, because a written default needs a moment
+to be written at, and every one of those moments is a state somebody can reach by accident.
+
+**A consequence, stated because it is not obvious.** An imported document leaves the room's kinds
+untouched -- the document carries no vocabulary, so it is authoritative about nothing here, and
+clearing them because the code beside it clears scenes would discard something the import has no
+replacement for.
 

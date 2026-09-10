@@ -166,6 +166,11 @@ mid-build. Reasoning: `decisions.md` → *Secondary features deferred pending re
   > parallel edge layers. Half the seam above was right — a `Connection` did gain a set-valued prop
   > — and the other half is not built: there is no lens, and filtering the canvas by kind is out of
   > scope. Full entry: `decisions.md` → *An edge carries a set of kinds*.
+  >
+  > **AMENDED 2026-09-10 (SPEC-019).** The set-valued prop is unchanged; what changed is where the
+  > VOCABULARY lives. SPEC-018's three kinds were fixed in code and are now the user's to write —
+  > `SEED_KINDS` in `src/shared/kinds/`, overridden by `diagramKind` records. `decisions.md` → *A
+  > kind is identified by its word*.
 - **Node-lens grouping** — regrouping nodes into regions by a shared metadata key, with barycenter
   crossing-reduction. Seam: a derived layout pass over records; it reads the graph and writes
   positions, so it needs no new shape.

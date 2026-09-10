@@ -4,32 +4,6 @@
    make SPEC-001 FR-003's "the page did not scroll" criterion pass. Without
    them a drawing drag on iPad scrolls or rubber-bands the page instead of
    drawing, which is the single most important thing this spec verifies. */
-/* THE EDGE-KIND PALETTE, and the app's first custom properties of its own --
-   everything else here consumes tldraw's `--tl-*` or the JS-set `--dock-top`.
-
-   One definition site each, so handoff F6 (custom shapes ignore the dark theme)
-   has one place to change rather than three literals buried in a component.
-   The hues are the ones the project owner reached for on the iPad without being
-   asked: orange for data movement, light-green for permission. `sequence` had
-   no colour of its own -- he drew it in black, which is the default pen -- so it
-   gets a neutral slate that reads as structure rather than as an accent.
-
-   DARKER than the pen colours they stand for, because these are meaningful
-   graphics and WCAG 1.4.11 asks 3:1 against the canvas. Measured against white:
-   data 4.72:1, permission 4.38:1, sequence 6.13:1. His own orange was 2.89:1.
-
-   And colour is not the only thing separating them: each kind also carries a
-   dash pattern, which lives in `KIND_DASH` in `ConnectionShapeUtil.tsx` and NOT
-   in a custom property -- `strokeDasharray` is an SVG attribute the component
-   sets, so there is nothing here for it to read. Orange and green is precisely
-   the pair a red-green colour-blind reader cannot tell apart, and the
-   `aria-label` helps a screen reader rather than them. */
-:root {
-  --edge-kind-data: #b35c00;
-  --edge-kind-permission: #2f8a2f;
-  --edge-kind-sequence: #5b6270;
-}
-
 html,
 body,
 #root {
@@ -1242,6 +1216,205 @@ body {
   color: #2563eb;
   font: inherit;
   text-decoration: underline;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* SPEC-019: editing the vocabulary in the same field that applies it.
+
+   A word is invented at the moment somebody needs it -- while drawing the line
+   that needs it -- so the add and edit controls sit here rather than in a
+   settings screen. Every one is 44x44 on ITS OWN rect, because SPEC-016's
+   sweep measures each control and not the row around it. */
+.kind-field__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kind-field__row .kind-field__option {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The colour the strand is actually drawn in, beside the word.
+   `aria-hidden`: the label already says which kind this is, and a screen
+   reader gains nothing from "orange square". */
+.kind-field__swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgb(0 0 0 / 25%);
+  border-radius: 3px;
+}
+
+.kind-field__option--unresolved {
+  color: #555;
+}
+
+.kind-field__unresolved-note {
+  font-size: 11px;
+  color: #777;
+}
+
+.kind-field__edit,
+.kind-field__add {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  font:
+    12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #333;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kind-field__add {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.kind-field:disabled .kind-field__edit,
+.kind-field:disabled .kind-field__add {
+  cursor: default;
+  opacity: 55%;
+}
+
+.kind-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 240px;
+  margin: 4px 0;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.kind-form__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font:
+    12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #333;
+}
+
+.kind-form__input,
+.kind-form__select {
+  box-sizing: border-box;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font:
+    13px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+.kind-form__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.kind-form__swatches-legend {
+  padding: 0;
+  font:
+    12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #333;
+}
+
+.kind-form__swatch-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+/* The colour name, for anyone who cannot see the swatch. Off-screen rather than
+   `display: none`, which would take it from a screen reader too. */
+.kind-form__swatch-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.kind-form__swatch {
+  /* A NATIVE radio, painted. 44x44 on the control's own rect, with the colour
+     filling a 20px box inside it -- the same trick `.kind-field__checkbox`
+     uses, and for the same reason: SPEC-016's sweep measures each control, not
+     the label around it. */
+  appearance: none;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 12px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-color: var(--kind-swatch);
+  background-clip: content-box;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.kind-form__swatch:checked {
+  border-color: #1a5fb4;
+}
+
+.kind-form__swatch:focus-visible {
+  outline: 2px solid #1a5fb4;
+  outline-offset: -2px;
+}
+
+.kind-form__error {
+  margin: 0;
+  font:
+    12px/1.3 system-ui,
+    -apple-system,
+    sans-serif;
+  color: #b3261e;
+}
+
+.kind-form__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.kind-form__actions button {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  font:
+    12px/1.2 system-ui,
+    -apple-system,
+    sans-serif;
   cursor: pointer;
   touch-action: manipulation;
 }

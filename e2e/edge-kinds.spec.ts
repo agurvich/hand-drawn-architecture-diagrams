@@ -380,8 +380,8 @@ test.describe('SPEC-018 FR-002 — scene highlighting survives kind colouring', 
     /*
      * The regression this spec could have shipped. Scene accenting is
      * `color: #1a5fb4` on the connection's container, which reaches paint only
-     * through `currentColor` -- and a kinded strand is painted with
-     * `var(--edge-kind-*)`. So highlighting a coloured line changed nothing at
+     * through `currentColor` -- and a kinded strand is painted from the kind
+     * palette. So highlighting a coloured line changed nothing at
      * all, while the merge-count badge beside it, which does use
      * `currentColor`, turned blue: a half-applied highlight.
      *

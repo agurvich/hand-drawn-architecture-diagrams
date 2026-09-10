@@ -1,6 +1,7 @@
 import { createBindingId, createShapeId, type Editor, type TLDrawShape, type TLShape } from 'tldraw'
 import { b64Vecs } from '@tldraw/tlschema'
 import { shouldConnect, kindsForStrokeColour } from './convertPolicy'
+import { vocabularyEntries } from '../kindVocabulary'
 import {
   NODE_SHAPE_TYPE,
   CONNECTION_SHAPE_TYPE,
@@ -159,7 +160,12 @@ export function convertStroke(editor: Editor, shape: TLDrawShape): boolean {
         // THE COLOUR HE DREW IN, carried through. Orange is a data transfer and
         // light-green a permission; black -- the default pen -- records no
         // decision and produces an ordinary line. See `kindForStrokeColour`.
-        props: { kinds: kindsForStrokeColour((shape.props as { color?: string }).color) },
+        props: {
+          kinds: kindsForStrokeColour(
+            (shape.props as { color?: string }).color,
+            vocabularyEntries(editor),
+          ),
+        },
       })
       // DIRECTION FOLLOWS THE STROKE: the end you started from is the source.
       for (const [terminal, toId] of [

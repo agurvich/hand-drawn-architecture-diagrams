@@ -2,13 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { recognise, isPurposeful, type Point } from '@shared/sketch'
 import { loadCorpus } from '@shared/sketch/__corpus__/loadCorpus'
 import { ARROWS, RECTANGLES } from '@shared/sketch/__corpus__/labels'
+import { overlayVocabulary, kindRecordId, KIND_RECORD_TYPE } from '@shared/kinds'
 import { DefaultColorStyle } from 'tldraw'
 import {
   shouldConnect,
   kindForStrokeColour,
   kindsForStrokeColour,
-  MAPPED_STROKE_COLOURS,
-  COLOUR_REACHABLE_KINDS,
+  mappedStrokeColours,
+  colourReachableKinds,
 } from './convertPolicy'
 
 /**
@@ -139,11 +140,23 @@ describe('recognition does not eat the handwriting it is now surrounded by', () 
   })
 })
 
-describe('SPEC-018 FR-004 — the colour he drew in picks the kind', () => {
+describe('SPEC-018 FR-004 / SPEC-019 FR-006 — the colour he drew in picks the kind', () => {
+  /*
+   * The vocabulary is PASSED IN, so this file still replays against the corpus
+   * with no live editor -- the property `convertPolicy.ts`'s header states and
+   * the reason that module was lifted out of `convertStroke` at all.
+   *
+   * The seed vocabulary is what a room with no kind records reads, so the
+   * measured evidence below is unchanged in substance: only the call sites gain
+   * an argument.
+   */
+  const seeds = overlayVocabulary([])
+
   /** Every stroke that converts, with the kinds it would be created with. */
   function convertedKinds(): Record<number, string[]> {
     const out: Record<number, string[]> = {}
-    for (const index of converting()) out[index] = kindsForStrokeColour(strokes[index]!.colour)
+    for (const index of converting())
+      out[index] = kindsForStrokeColour(strokes[index]!.colour, seeds)
     return out
   }
 
@@ -174,17 +187,17 @@ describe('SPEC-018 FR-004 — the colour he drew in picks the kind', () => {
     // A CONSTRUCTED case, because the corpus cannot tick this one: every stroke
     // that converts there is coloured. Black is the interesting input -- it is
     // 269 of the 276 strokes and the default pen.
-    expect(kindsForStrokeColour('black')).toEqual([])
-    expect(kindsForStrokeColour('blue')).toEqual([])
-    expect(kindsForStrokeColour(undefined)).toEqual([])
-    expect(kindForStrokeColour('black')).toBeNull()
+    expect(kindsForStrokeColour('black', seeds)).toEqual([])
+    expect(kindsForStrokeColour('blue', seeds)).toEqual([])
+    expect(kindsForStrokeColour(undefined, seeds)).toEqual([])
+    expect(kindForStrokeColour('black', seeds)).toBeNull()
   })
 
   it('reads colours tldraw actually produces, so a typo cannot hide as a refusal', () => {
     // The criterion that bites. `lightgreen` for `light-green` answers "no kind"
     // exactly as a deliberate omission does, so no test of the map's own
     // behaviour can see it -- only checking the keys against tldraw's own list.
-    for (const colour of MAPPED_STROKE_COLOURS) {
+    for (const colour of mappedStrokeColours(seeds)) {
       expect(DefaultColorStyle.values as readonly string[]).toContain(colour)
     }
   })
@@ -192,7 +205,56 @@ describe('SPEC-018 FR-004 — the colour he drew in picks the kind', () => {
   it('reaches data and permission from a colour, and sequence only from the panel', () => {
     // Stated so the asymmetry is deliberate rather than an oversight: he never
     // gave sequence a colour of its own -- he drew it in black, which is the
-    // default pen and therefore not a choice.
-    expect([...COLOUR_REACHABLE_KINDS]).toEqual(['data', 'permission'])
+    // default pen and therefore not a choice. SPEC-019 kept it that way on
+    // purpose: slate carries `pen: null`, because letting the grey pen claim
+    // `sequence` would have reversed a recorded decision as a side effect of
+    // putting the colour in a palette. The user can recolour it in one gesture.
+    expect(colourReachableKinds(seeds)).toEqual(['data', 'permission'])
+  })
+
+  it('reaches a USER-CREATED kind from the pen, with no code change', () => {
+    /*
+     * SPEC-019 FR-006, and the reason the vocabulary is a parameter rather than
+     * a constant. `violet` is a palette colour mapped to tldraw's violet pen; a
+     * kind created in it becomes drawable-into without anything here changing.
+     */
+    const withEnriches = overlayVocabulary([
+      {
+        typeName: KIND_RECORD_TYPE,
+        id: kindRecordId('k1'),
+        label: 'enriches',
+        colour: 'violet',
+        dash: 'long',
+      },
+    ])
+    expect(kindsForStrokeColour('violet', withEnriches)).toEqual(['enriches'])
+    // ...and stays unreachable in a room that has not created it.
+    expect(kindsForStrokeColour('violet', seeds)).toEqual([])
+  })
+
+  it('picks by LABEL ORDER when two kinds share a palette colour', () => {
+    // The choice has to be the same on every client, and store order is exactly
+    // what differs between them.
+    const shared = overlayVocabulary([
+      {
+        typeName: KIND_RECORD_TYPE,
+        id: kindRecordId('k2'),
+        label: 'zebra',
+        colour: 'orange',
+        dash: 'dotted',
+      },
+    ])
+    expect(shared.map((e) => e.label)).toEqual(['data', 'permission', 'sequence', 'zebra'])
+    expect(kindsForStrokeColour('orange', shared)).toEqual(['data'])
+  })
+
+  it('never claims black, whatever the vocabulary says', () => {
+    // Black is the default pen and records no decision. That stays true because
+    // no palette entry maps to it -- asserted in `kinds/palette.test.ts` too,
+    // from the other side.
+    // The real guard is `kinds/palette.test.ts`, which asserts no PALETTE entry
+    // names the black pen -- that is what makes this true for any vocabulary,
+    // not just this one. Restated from the consuming side.
+    expect(mappedStrokeColours(overlayVocabulary([]))).not.toContain('black')
   })
 })

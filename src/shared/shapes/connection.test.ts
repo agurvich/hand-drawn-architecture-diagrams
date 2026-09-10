@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { SEED_KINDS } from '../kinds'
 import { createTLStore } from 'tldraw'
 import { syncSchemaOptions } from '../../client/shapes/registry'
 import { DOCUMENT_VERSION, fromDocument, parseDocument } from '../document'
 import {
   CONNECTION_SHAPE_TYPE,
-  EDGE_KINDS,
   connectionShapeDefaultProps,
   connectionShapeMigrations,
   connectionShapeProps,
@@ -111,10 +111,12 @@ describe('the shipped schema, not just the validator', () => {
   })
 
   it('ACCEPTS a kind outside the vocabulary rather than rejecting the record', () => {
-    // Deliberate, and the half of FR-001 worth a test of its own. A validator
-    // closed over EDGE_KINDS would turn a kind added by a NEWER build into a
-    // record rejected at the room boundary -- the failure mode CLAUDE.md names
-    // for shape-prop changes. `icon` on the node shape is the precedent.
+    // Deliberate, and the half of FR-001 worth a test of its own. A closed
+    // validator would turn a word this build does not know into a record
+    // rejected at the room boundary -- the failure mode CLAUDE.md names for
+    // shape-prop changes. `icon` on the node shape is the precedent. Since
+    // SPEC-019 there is no closed set to be closed over: the words are the
+    // user's, and `src/shared/kinds/` holds the vocabulary as DATA.
     expect(() => connectionShapeProps.kinds.validate(['nonsense'])).not.toThrow()
     expect(() => connectionShapeProps.kinds.validate(['data', 'a-kind-from-2027'])).not.toThrow()
   })
@@ -146,10 +148,11 @@ describe('normaliseKinds — the normal form two clients agree on', () => {
     expect(normaliseKinds(['data', 'data', 'permission'])).toEqual(['data', 'permission'])
   })
 
-  it('KEEPS a string it does not recognise', () => {
-    // Dropping it would make a newer build's kind vanish the first time an older
-    // build touched the record -- data loss wearing validation's clothes. The
-    // renderer is what ignores it.
+  it('KEEPS a string this room has no kind for', () => {
+    // Dropping it would be data loss wearing validation's clothes. Since
+    // SPEC-019 the commonest source is a CONCURRENT RENAME rather than a newer
+    // build, and the renderer draws it unresolved rather than ignoring it, so
+    // the user can see it and turn it off.
     expect(normaliseKinds(['data', 'a-kind-from-2027'])).toEqual(['a-kind-from-2027', 'data'])
   })
 
@@ -160,10 +163,13 @@ describe('normaliseKinds — the normal form two clients agree on', () => {
     expect(input).toEqual(['permission', 'data'])
   })
 
-  it('leaves every declared kind intact', () => {
+  it('leaves every seeded kind intact', () => {
     // A vocabulary entry that normalisation silently dropped would be a kind you
-    // could set and never see again.
-    expect(normaliseKinds([...EDGE_KINDS])).toEqual([...EDGE_KINDS].sort())
+    // could set and never see again. Read from `SEED_KINDS` rather than from a
+    // constant in this file: the vocabulary moved, and a test that kept its own
+    // copy of it would stop tracking the thing it is checking.
+    const labels = SEED_KINDS.map((s) => s.label)
+    expect(normaliseKinds(labels)).toEqual([...labels].sort())
   })
 })
 

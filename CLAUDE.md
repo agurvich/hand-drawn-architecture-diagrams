@@ -81,7 +81,7 @@ sh scripts/docs-lint-test.sh   # whenever docs-lint.sh itself changed
 ## Specs
 
 Index + status: `@docs/specs/INDEX.md`. Each spec file's header carries its own `Status`.
-**Current work:** none — SPEC-001 through SPEC-018 are Completed.
+**Current work:** none — SPEC-001 through SPEC-019 are Completed.
 
 ---
 
@@ -109,17 +109,13 @@ is refused — each one was a way past the checks.
 - **Derived views are computed, never materialized** — a view that is a pure function of records is
   recomputed per client, not written back; two clients materializing one both write, and neither
   cleans up. Ties break on a total order over data both already have, never on creation order.
-- **A folded view shows every answer, never none** — a merged edge shows every distinct actor of the
-  connections it stands for, ordered by the same total order that picks the representative. Showing
-  none was lossy, not conservative; the cap on how many fit is the renderer's call, not the
-  derivation's.
-- **Controls dock; they do not follow the shape** — the properties panel is a right-hand column, not
-  anchored to the selection: a connection's bounds spans both endpoints' centres, so "beside the
-  shape" is meaningless for half of what it describes. Anchoring failed three reviews before that was
-  named.
+- **A folded view shows every answer, never none** — a merged edge shows every distinct actor and
+  kind of the connections it stands for. Showing none was lossy, not conservative.
+- **Controls dock; they do not follow the shape** — the properties panel is a right-hand column: a
+  connection's bounds spans both endpoints' centres, so "beside the shape" means nothing for half of
+  what it describes.
 - **A classifier is scored against a labelled population** — "276 strokes, 1 box" had the wrong
-  denominator: twelve are rectangles. Out of 276 the defect reads as under-recognition and the
-  repair looks like looser tolerances; out of 12 it is visible.
+  denominator: twelve are rectangles, and out of 276 the defect is invisible.
 - **Scope says who sees a record; history is decided per write** — tldraw records session-scoped
   changes on the shared undo stack too, so two fields wanting opposite undo behaviour cannot share
   one record.
@@ -135,8 +131,12 @@ is refused — each one was a way past the checks.
 
 - **Secondary features deferred pending real use** — node-lens grouping and the actor/action/trigger
   model wait until the tool is usable enough to judge them. Edge sets no longer: SPEC-018 declined them.
-- **An edge carries a set of kinds** — data / permission / sequence on one connection, never parallel
-  edge layers. The accepted cost: one edge has one pair of endpoints.
+- **An edge carries a set of kinds** — several kinds on one connection, never parallel edge layers.
+  The accepted cost: one edge has one pair of endpoints.
+- **A kind is identified by its word** — the vocabulary is the user's, and a connection stores the
+  label. SPEC-019 opened SPEC-018's closed three; a rename rewrites every connection.
+- **Seeds in code, overrides in records** — a default that is COMPUTED needs no moment to be written
+  at, and every such moment is a state reachable by accident.
 
 ## Out of Scope (don't build)
 

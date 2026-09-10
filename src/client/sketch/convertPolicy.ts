@@ -1,5 +1,5 @@
 import type { Verdict } from '@shared/sketch'
-import { EDGE_KINDS, type EdgeKind } from '@shared/shapes'
+import { KIND_PALETTE, type KindEntry } from '@shared/kinds'
 
 /**
  * WHEN A STROKE BECOMES A CONNECTION, as a decision on its own.
@@ -63,27 +63,35 @@ export function shouldConnect<Id extends string>(
  * panel instead. This is the spec's call rather than his -- see `decisions.md`
  * -> *An edge carries a set of kinds* -- and it is one line to reverse.
  *
- * Keyed by tldraw's own colour names. `kindForStrokeColour.test.ts` checks each
- * key against `DefaultColorStyle.values`, because a typo here -- `lightgreen`
- * for `light-green` -- answers "no kind" exactly as a deliberate omission does.
- */
-const KIND_BY_COLOUR: Readonly<Record<string, EdgeKind | undefined>> = {
-  orange: 'data',
-  'light-green': 'permission',
-}
-
-/**
- * The kind a stroke's colour asks for, or null -- which includes black.
+ * Keyed by tldraw's own colour names, through `KIND_PALETTE`'s `pen` field.
+ * `convertPolicy.test.ts` checks each against `DefaultColorStyle.values`,
+ * because a typo -- `lightgreen` for `light-green` -- answers "no kind" exactly
+ * as a deliberate omission does.
  *
- * `Object.hasOwn` rather than a bare lookup: a plain object inherits
- * `constructor`, `toString` and `__proto__`, so `KIND_BY_COLOUR['constructor']`
- * is the `Object` function and a bare `|| null` would hand a FUNCTION back
- * through a signature promising `EdgeKind | null`. Unreachable through tldraw's
- * closed colour enum, and one line to make unreachable by construction instead.
+ * THE VOCABULARY IS PASSED IN, not read from a store. This module is lifted out
+ * of `convertStroke` so it can be replayed against the recorded corpus with no
+ * live editor (see the header above), and that property is worth more than the
+ * convenience: it is the rule that can eat somebody's handwriting. A kind the
+ * user creates in a palette colour becomes reachable from the pen with no code
+ * change, which is the whole of SPEC-019 FR-006.
  */
-export function kindForStrokeColour(colour: string | undefined): EdgeKind | null {
+export function kindForStrokeColour(
+  colour: string | undefined,
+  vocabulary: readonly KindEntry[],
+): string | null {
   if (colour === undefined) return null
-  return Object.hasOwn(KIND_BY_COLOUR, colour) ? (KIND_BY_COLOUR[colour] ?? null) : null
+  /*
+   * FIRST MATCH IN THE LIST, so two entries sharing a palette colour resolve
+   * the same way on every client.
+   *
+   * The determinism comes from `overlayVocabulary`, which sorts by label with
+   * plain `<` -- not from this `find`, which only promises to respect whatever
+   * order it is handed. Said plainly because an earlier version of this comment
+   * claimed the opposite, and a caller passing an unsorted vocabulary would
+   * make two clients disagree about what a stroke drew.
+   */
+  const match = vocabulary.find((entry) => KIND_PALETTE[entry.colour]?.pen === colour)
+  return match?.label ?? null
 }
 
 /**
@@ -93,15 +101,26 @@ export function kindForStrokeColour(colour: string | undefined): EdgeKind | null
  * because a future rule that reads more than colour has somewhere to put its
  * answer. Exported for the corpus replay.
  */
-export function kindsForStrokeColour(colour: string | undefined): EdgeKind[] {
-  const kind = kindForStrokeColour(colour)
+export function kindsForStrokeColour(
+  colour: string | undefined,
+  vocabulary: readonly KindEntry[],
+): string[] {
+  const kind = kindForStrokeColour(colour, vocabulary)
   return kind === null ? [] : [kind]
 }
 
-/** The colours this build reads, for the test that checks them against tldraw's. */
-export const MAPPED_STROKE_COLOURS = Object.keys(KIND_BY_COLOUR)
+/** The pen colours this vocabulary reads, for the test that checks them against tldraw's. */
+export function mappedStrokeColours(vocabulary: readonly KindEntry[]): string[] {
+  return [
+    ...new Set(
+      vocabulary
+        .map((e) => KIND_PALETTE[e.colour]?.pen)
+        .filter((p) => p !== null && p !== undefined),
+    ),
+  ] as string[]
+}
 
 /** Every kind reachable from a colour; the rest are panel-only. */
-export const COLOUR_REACHABLE_KINDS: readonly EdgeKind[] = EDGE_KINDS.filter((kind) =>
-  MAPPED_STROKE_COLOURS.some((colour) => KIND_BY_COLOUR[colour] === kind),
-)
+export function colourReachableKinds(vocabulary: readonly KindEntry[]): string[] {
+  return vocabulary.filter((e) => KIND_PALETTE[e.colour]?.pen != null).map((e) => e.label)
+}

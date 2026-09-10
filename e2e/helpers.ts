@@ -598,3 +598,69 @@ export async function openKindField(page: Page, connectionId: string) {
   }, connectionId)
   await page.getByTestId('kind-field').waitFor()
 }
+
+/** Every kind record in the room, as the store holds them. */
+export async function kindRecords(
+  page: Page,
+): Promise<Array<{ id: string; label: string; colour: string; dash: string }>> {
+  return page.evaluate(() =>
+    window
+      .__editor!.store.allRecords()
+      .filter((r) => r.typeName === 'diagramKind')
+      .map((r) => r as unknown as { id: string; label: string; colour: string; dash: string }),
+  )
+}
+
+/** The labels the kind field offers, vocabulary and unresolved alike. */
+export async function kindFieldLabels(page: Page): Promise<string[]> {
+  return page
+    .getByTestId('kind-field')
+    .locator('input[type=checkbox]')
+    .evaluateAll((boxes) =>
+      boxes.map((b) => (b as HTMLElement).dataset.testid!.replace(/^kind-/, '')),
+    )
+}
+
+/** Create a kind through the panel: name, palette colour, dash. */
+export async function createKind(page: Page, label: string, colour: string, dash = 'solid') {
+  await page.getByTestId('kind-add').click()
+  await page.getByTestId('kind-form-label').fill(label)
+  await page.getByTestId(`kind-form-colour-${colour}`).check()
+  await page.getByTestId('kind-form-dash').selectOption(dash)
+  await page.getByTestId('kind-form-save').click()
+}
+
+/** The computed stroke and dash of each strand drawn for a connection. */
+export async function strandPaint(
+  page: Page,
+  connectionId: string,
+): Promise<
+  Array<{
+    kind: string | null
+    stroke: string
+    dash: string
+    markerEnd: string
+    unresolved: boolean
+  }>
+> {
+  return page.evaluate((cid) => {
+    const svg = document.querySelector(
+      `[data-shape-id="${cid}"] [data-testid="diagram-connection"]`,
+    )
+    if (!svg) throw new Error(`no connection svg for ${cid}`)
+    return [...svg.querySelectorAll('[data-testid="diagram-connection-strand"]')].map((line) => {
+      const style = getComputedStyle(line)
+      return {
+        kind: (line as HTMLElement).dataset.kind ?? null,
+        stroke: style.stroke,
+        dash: style.strokeDasharray,
+        // The COMPUTED value, not the attribute. A FuncIRI the browser refused
+        // to parse computes to `none` while the attribute still reads
+        // `url(#…)` and `getElementById` still finds the marker -- so both of
+        // the obvious checks pass on a strand with no arrowhead.
+        markerEnd: style.markerEnd,
+        unresolved: (line as HTMLElement).dataset.unresolved === 'true',
+      }
+    })
+  }, connectionId)
+}
