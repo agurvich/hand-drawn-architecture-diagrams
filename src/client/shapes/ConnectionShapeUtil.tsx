@@ -9,6 +9,8 @@ import {
   type TLShapeId,
   type TLShapeUtilCanBindOpts,
 } from 'tldraw'
+import { getVocabulary, resolveKind } from '../kindVocabulary'
+import type { KindEntry } from '@shared/kinds'
 import { getMergeIndex } from '../mergeIndex'
 import { NodeIcon } from '../icons/NodeIcon'
 import { actorsOnScreen, type OnScreenActor } from '../actorsOnScreen'
@@ -21,8 +23,6 @@ import {
   connectionShapeMigrations,
   connectionShapeProps,
   CONNECTION_BINDING_TYPE,
-  EDGE_KINDS,
-  type EdgeKind,
   type ConnectionShape,
   type ConnectionBinding,
   type ConnectionTerminal,
@@ -211,7 +211,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
         ? ' diagram-connection--highlighted'
         : ' diagram-connection--dimmed'
     const safeId = shape.id.replace(/[^a-zA-Z0-9]/g, '')
-    const strands = strandsFor(this.kindsFor(shape), a, b)
+    const strands = strandsFor(this.kindsFor(shape), getVocabulary(this.editor), a, b)
     const highlighted = dimming && ids.has(shape.id)
     return (
       <svg
@@ -221,7 +221,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
         // coloured line, and a reader who cannot see the colour -- or cannot
         // tell orange from light-green -- has no other way to get them.
         // Silent when there are no kinds: an ordinary line gains no label.
-        aria-label={strands.kinds.length > 0 ? `Kinds: ${strands.kinds.join(', ')}` : undefined}
+        aria-label={accessibleKinds(strands.strands)}
         data-kinds={strands.kinds.length > 0 ? strands.kinds.join(' ') : undefined}
       >
         <defs>
@@ -257,11 +257,14 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
            * strand colour.
            *
            * Scene accenting is `color` on this container, which reaches paint
-           * only through `currentColor` -- and a kinded strand is painted with
-           * `var(--edge-kind-*)`, so highlighting a coloured line changed
-           * nothing while the merge-count badge beside it, which does use
-           * `currentColor`, turned blue. A half-applied highlight is worse than
-           * none. Drawn underneath, so the kinds stay readable.
+           * only through `currentColor` -- and a kinded strand is painted from
+           * the palette, so highlighting a coloured line changed nothing while
+           * the merge-count badge beside it, which does use `currentColor`,
+           * turned blue. A half-applied highlight is worse than none. Drawn
+           * underneath, so the kinds stay readable.
+           *
+           * This is also why an UNRESOLVED strand is a reserved near-black and
+           * not `currentColor`: it would be the accent painted over the accent.
            */
           <line
             className="diagram-connection__halo"
@@ -280,6 +283,7 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
             key={strand.key}
             data-testid="diagram-connection-strand"
             data-kind={strand.kind}
+            data-unresolved={strand.resolved ? undefined : 'true'}
             x1={a.x + strand.dx}
             y1={a.y + strand.dy}
             x2={b.x + strand.dx}
@@ -449,22 +453,30 @@ export class ConnectionShapeUtil extends ShapeUtil<ConnectionShape> {
   }
 }
 
+/**
+ * The line's accessible name.
+ *
+ * COLOUR IS NOT THE ONLY CHANNEL. The kinds are the whole meaning of a coloured
+ * line, and a reader who cannot see the colour -- or cannot tell orange from
+ * green -- has no other way to get them. Silent when there are no kinds: an
+ * ordinary line gains no label.
+ *
+ * An unresolved label is NAMED as unresolved rather than listed as a kind. It is
+ * a word the diagram carries that this room's vocabulary does not define, and a
+ * reader who cannot see the strand's colour has no other way to learn that.
+ */
+export function accessibleKinds(
+  strands: readonly { kind: string | undefined; resolved: boolean }[],
+): string | undefined {
+  const named = strands.filter((s) => s.kind !== undefined)
+  if (named.length === 0) return undefined
+  return `Kinds: ${named
+    .map((s) => (s.resolved ? s.kind! : `${s.kind!} (not in the vocabulary)`))
+    .join(', ')}`
+}
+
 /** Perpendicular offset between two strands of one line, in shape units. */
 const KIND_STRAND_GAP = 5
-
-/**
- * A dash pattern per kind, so colour is not the only thing separating them.
- *
- * Orange and green is exactly the pair a red-green colour-blind reader cannot
- * distinguish, and the line's `aria-label` serves a screen reader rather than
- * them. `data` stays solid because it is the commonest and an unbroken line is
- * the cheapest to read.
- */
-const KIND_DASH: Readonly<Record<EdgeKind, string | undefined>> = {
-  data: undefined,
-  permission: '7 4',
-  sequence: '1.5 4',
-}
 
 /**
  * What to actually draw for a line's kinds.
@@ -475,12 +487,14 @@ const KIND_DASH: Readonly<Record<EdgeKind, string | undefined>> = {
  * `null` for the empty case -- one code path, not a legacy branch beside a new
  * one.
  *
- * A kind this build does not recognise is DROPPED here rather than drawn. The
- * record keeps it (`normaliseKinds` is deliberate about that: deleting a newer
- * build's kind would be data loss), and the schema accepts it -- but
- * `var(--edge-kind-nonsense)` resolves to nothing, so drawing it would produce
- * an invisible strand that still consumes an offset slot and shifts every real
- * one. The record remembers; the canvas declines to guess.
+ * A label the vocabulary does not list is drawn UNRESOLVED, not dropped.
+ * SPEC-018 dropped it, on the grounds that `var(--edge-kind-nonsense)` resolves
+ * to nothing and an invisible strand still consumes an offset slot. That was
+ * true of a CLOSED vocabulary, where an unknown label could only come from a
+ * newer build. With a vocabulary the user writes, the commonest source is a
+ * concurrent rename -- and a label that is stored, invisible and unremovable is
+ * worse than one drawn in a colour that says "this is not a kind here". The
+ * offset slot is now spent deliberately.
  *
  * Offsets are centred on the geometry, so the line you click is the line you
  * see: one strand sits on the edge itself, two straddle it, three put the
@@ -488,6 +502,7 @@ const KIND_DASH: Readonly<Record<EdgeKind, string | undefined>> = {
  */
 export function strandsFor(
   kinds: readonly string[],
+  vocabulary: ReadonlyMap<string, KindEntry>,
   a: { x: number; y: number },
   b: { x: number; y: number },
 ): {
@@ -498,6 +513,8 @@ export function strandsFor(
     colour: string
     /** A SECOND channel, so the strands are separable without colour vision. */
     dash: string | undefined
+    /** False for a label the vocabulary does not list. */
+    resolved: boolean
     dx: number
     dy: number
   }>
@@ -506,16 +523,20 @@ export function strandsFor(
   // repeat should not reach here -- but this function is exported, and two
   // strands for one kind would share a React key AND a `<marker>` id, and would
   // push the whole set off the centre it documents itself as holding.
-  const known = [
-    ...new Set(
-      kinds.filter((kind): kind is EdgeKind => (EDGE_KINDS as readonly string[]).includes(kind)),
-    ),
-  ]
+  const known = [...new Set(kinds)]
   if (known.length === 0) {
     return {
       kinds: [],
       strands: [
-        { key: 'plain', kind: undefined, colour: 'currentColor', dash: undefined, dx: 0, dy: 0 },
+        {
+          key: 'plain',
+          kind: undefined,
+          colour: 'currentColor',
+          dash: undefined,
+          resolved: true,
+          dx: 0,
+          dy: 0,
+        },
       ],
     }
   }
@@ -533,8 +554,11 @@ export function strandsFor(
     strands: known.map((kind, i) => ({
       key: kind,
       kind,
-      colour: `var(--edge-kind-${kind})`,
-      dash: KIND_DASH[kind],
+      // Resolved through the VOCABULARY, not a constant. An unlisted label gets
+      // the reserved unresolved look -- never `currentColor`, which is the
+      // accent on a highlighted connection and would vanish into the halo drawn
+      // behind these strands.
+      ...resolveKind(vocabulary, kind),
       // `|| 0` normalises NEGATIVE ZERO, which `-dy / length` produces for a
       // horizontal line and which renders as the string "-0" in an SVG
       // attribute. Cosmetic on screen, not cosmetic in a test that asserts a

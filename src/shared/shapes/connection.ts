@@ -19,21 +19,24 @@ import { T } from '@tldraw/validate'
 export const CONNECTION_SHAPE_TYPE = 'diagramConnection'
 
 /**
- * WHAT A LINE MEANS, as a closed vocabulary.
+ * WHAT A LINE MEANS -- a set of words, from a vocabulary the DIAGRAM carries.
  *
- * The project owner typed his edges with colour on the first real iPad session
- * without being asked to -- orange for data movement, light-green for
- * permission, black for structure and sequence. The model is a SET on one edge
- * rather than parallel edge sets, which he chose: he declined to draw a third
- * layer of edges, and one edge with three kinds is what he described instead.
+ * SUPERSEDED: SPEC-018 declared a closed vocabulary of three here --
+ * `EDGE_KINDS` = data / permission / sequence -- read off the first real iPad
+ * session, where the project owner typed his edges with colour without being
+ * asked. SPEC-019 removed that constant. The three were read off ONE drawing,
+ * and the next design he brought to the tool needed four different words. The
+ * vocabulary now lives in `src/shared/kinds/`: `SEED_KINDS` in code, overlaid
+ * by `diagramKind` records the user creates. See `decisions.md` -> *A kind is
+ * identified by its word*.
  *
- * The accepted cost, so nobody rediscovers it: one edge has one pair of
- * endpoints, so a step whose endpoints differ from the transfer's cannot be
- * expressed. See `decisions.md` -> *An edge carries a set of kinds*.
+ * What did NOT change is the model: a SET on one edge rather than parallel edge
+ * sets, which he chose -- he declined to draw a third layer of edges, and one
+ * edge with three kinds is what he described instead. The accepted cost, so
+ * nobody rediscovers it: one edge has one pair of endpoints, so a step whose
+ * endpoints differ from the transfer's cannot be expressed. See `decisions.md`
+ * -> *An edge carries a set of kinds*.
  */
-export const EDGE_KINDS = ['data', 'permission', 'sequence'] as const
-
-export type EdgeKind = (typeof EDGE_KINDS)[number]
 
 export interface ConnectionShapeProps {
   start: { x: number; y: number }
@@ -47,8 +50,9 @@ export interface ConnectionShapeProps {
    * order, which is exactly what differs between them. Same reason
    * `merge.ts`'s `distinctActors` sorts.
    *
-   * Typed `string[]` and not `EdgeKind[]` because the VALIDATOR is structural:
-   * see `connectionShapeProps` below.
+   * Typed `string[]`, and there is no narrower type to reach for: the
+   * vocabulary is data, not a union. The VALIDATOR is structural for the same
+   * reason -- see `connectionShapeProps` below.
    */
   kinds: string[]
 }
@@ -69,9 +73,11 @@ declare module '@tldraw/tlschema' {
  * clients already hold.
  *
  * An unrecognised string SURVIVES rather than being dropped. Dropping it here
- * would make a newer build's kind vanish the first time an older build touched
- * the record, which is data loss dressed as validation; the RENDERER is what
- * ignores it.
+ * would make a word this room's vocabulary does not define vanish the first
+ * time anything touched the record -- data loss dressed as validation. Since
+ * SPEC-019 the commonest source of one is a CONCURRENT RENAME, not an older
+ * build, and the renderer no longer ignores it either: it draws it unresolved,
+ * so the user can see it and turn it off.
  */
 export function normaliseKinds(kinds: readonly string[]): string[] {
   return [...new Set(kinds)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))

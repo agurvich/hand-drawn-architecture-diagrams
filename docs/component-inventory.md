@@ -59,9 +59,11 @@ index to find it. Add a row as part of the completion ritual when a spec ships s
 | panel fields | `src/client/panels/fields/` | `NameField`, `IconField` (was `IconPicker`), `ActorField` (was `ActorControl`), `NodeStatus` |
 | `connectionsPerformedBy` | `src/client/actors.ts` | The reverse actor read, routed through `actorIdOf` so concurrent attributions are not miscounted |
 | e2e chrome list | `e2e/chromeRects.ts` | `CHROME_SELECTORS` — the clusters the dock must clear, and the layout containers deliberately absent |
-| edge kinds | `src/shared/shapes/connection.ts` | `EDGE_KINDS`, `EdgeKind` and `normaliseKinds` — the closed vocabulary and the normal form two clients agree on |
-| `strandsFor` | `src/client/shapes/ConnectionShapeUtil.tsx` | What to draw for a line's kinds: one offset strand per known kind, or the plain line |
-| `KindField` | `src/client/panels/fields/KindField.tsx` | The kind checkboxes; read-only on a merged line |
-| `kindForStrokeColour` | `src/client/sketch/convertPolicy.ts` | Which kind a stroke's colour asks for, replayable against the corpus without an editor |
+| edge kinds | `src/shared/shapes/connection.ts` | `normaliseKinds` — the normal form two clients agree on. ~~`EDGE_KINDS`/`EdgeKind`, the closed vocabulary~~ removed by SPEC-019 |
+| kind vocabulary | `src/shared/kinds/` | The `diagramKind` record, `KIND_PALETTE`/`KIND_DASHES`, `SEED_KINDS`, and `overlayVocabulary` — seeds in code, overridden by records |
+| `getVocabulary` | `src/client/kindVocabulary.ts` | The room's kinds keyed by label, memoised per editor; `resolveKind` gives a label its colour, or the unresolved look |
+| `strandsFor` | `src/client/shapes/ConnectionShapeUtil.tsx` | What to draw for a line's kinds: one offset strand per label, resolved through the vocabulary, or the plain line |
+| `KindField` | `src/client/panels/fields/KindField.tsx` | The kind checkboxes plus creating, renaming and recolouring a kind; read-only on a merged line |
+| `kindForStrokeColour` | `src/client/sketch/convertPolicy.ts` | Which kind a stroke's colour asks for, given a vocabulary; replayable against the corpus without an editor |
 | `sameEntry` | `src/client/mergeIndex.ts` | The merge-index memo comparator, exported so a field it forgets is a test failure rather than a silent one |
-| e2e kind helpers | `e2e/helpers.ts` | `connectionKinds`, `openKindField`, and `penStroke`'s optional pen colour |
+| e2e kind helpers | `e2e/helpers.ts` | `connectionKinds`, `openKindField`, `createKind`, `kindRecords`, `kindFieldLabels`, `strandPaint`, and `penStroke`'s optional pen colour |

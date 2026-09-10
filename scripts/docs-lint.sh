@@ -113,6 +113,18 @@ cd "$ROOT"
 # headroom than the 525 the previous re-ratchet left, and recorded as such rather
 # than rounded up. The cap was still not raised. The next spec that needs a line
 # should expect to go looking for a third only-home fact before it writes one.
+#
+# 2026-09-10 (SPEC-019): it needed THREE lines, not one, and the advice above did
+# not apply -- there was no only-home fact left to move. What worked instead was
+# the other half of the rule: a digest line is one line, and three of them had
+# grown into paragraphs carrying the worked example from their own decisions.md
+# entry (the folded-view ordering, the anchoring that failed three reviews, the
+# 276-vs-12 denominator). Cutting each back to its CLAIM paid for the new lines
+# and left 336 bytes -- thinner again than SPEC-018's ~367, and recorded rather
+# than rounded up. The cap has now survived three re-ratchets unraised.
+#
+# So the search order is: first a fact whose only home is here, then a digest
+# line that has become a paragraph. Both are fixes; raising the number is not.
 CLAUDE_MAX_BYTES=16000
 
 # The whole Key Decisions section, measured as bytes. This is the guard that cannot be

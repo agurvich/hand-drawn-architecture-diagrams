@@ -250,6 +250,17 @@ export function importDocument(editor: Editor, document: DiagramDocument): void 
      * captured after an import would interleave wrongly. (And the obvious
      * `a${i + 1}` breaks outright at ten, since `'a10' < 'a2'`.)
      */
+    /*
+     * `diagramKind` records are NOT touched here, and that is a decision.
+     *
+     * Scenes are cleared and re-put just below because scenes are IN the
+     * document, so an imported one is authoritative about them. The document
+     * carries no vocabulary at all -- SPEC-019 left it out along the same seam
+     * SPEC-011 -> SPEC-012 was cut on -- so an imported document is
+     * authoritative about nothing here, and clearing the room's kinds because
+     * the code right beside this does would throw away a vocabulary the import
+     * has no replacement for. `e2e/edge-kind-vocabulary.spec.ts` asserts it.
+     */
     const oldScenes = editor.store
       .allRecords()
       .filter((record) => record.typeName === SCENE_RECORD_TYPE)

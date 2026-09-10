@@ -233,7 +233,8 @@ export function DiagramIOPanel({ editor, open: openProp, onOpenChange }: Diagram
         <p className="diagram-io__warning" data-testid="diagram-io-undocumented-kinds">
           {kindedConnections} connection{kindedConnections === 1 ? '' : 's'} carr
           {kindedConnections === 1 ? 'ies' : 'y'} edge kinds, which the JSON does not describe yet.
-          {kindedConnections === 1 ? ' It comes' : ' They come'} back with no kinds.
+          {kindedConnections === 1 ? ' It comes' : ' They come'} back with no kinds, and the
+          vocabulary this diagram defines is not carried either.
         </p>
       )}
       <button

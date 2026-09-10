@@ -23,7 +23,7 @@ to status only — no prose.
 | SPEC-016 | Selection properties panel | Completed | SPEC-008, SPEC-011, SPEC-013, SPEC-014, SPEC-015 |
 | SPEC-017 | Recognition that works on a real hand | Completed | SPEC-010 |
 | SPEC-018 | Edge kinds | Completed | SPEC-005, SPEC-006, SPEC-010, SPEC-011, SPEC-015, SPEC-016, SPEC-017 |
-| SPEC-019 | A vocabulary the user writes | In Progress | SPEC-008, SPEC-010, SPEC-016, SPEC-017, SPEC-018 |
+| SPEC-019 | A vocabulary the user writes | Completed | SPEC-008, SPEC-010, SPEC-016, SPEC-017, SPEC-018 |
 
 ## Arcs (build order)
 

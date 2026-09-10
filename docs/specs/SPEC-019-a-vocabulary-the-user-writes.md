@@ -1,7 +1,7 @@
 # Spec: A vocabulary the user writes
 
 **ID:** SPEC-019
-**Status:** In Progress
+**Status:** Completed
 **Last Updated:** 2026-09-10
 **Depends On:** SPEC-008, SPEC-010, SPEC-016, SPEC-017, SPEC-018
 
@@ -210,11 +210,22 @@ rewrite every connection carrying the old one, as a single undoable action.
 - [ ] Every palette colour clears 3:1 against **the light canvas background token**. Scoped
       to that token deliberately: a strand is also drawn over node fills and over the
       SPEC-018 halo, and a constant-vs-constant test cannot speak to those.
-- [ ] No two palette colours clear less than 3:1 against **each other** — two strands sit
-      `KIND_STRAND_GAP` apart, so adjacent-colour contrast is what WCAG 1.4.11 asks about.
-      This is a palette-level property and is asserted from `KIND_PALETTE` alone; whether two
-      *entries* are distinguishable is a runtime property of the vocabulary and belongs to
-      the FR-002/FR-003 write-side check, not here. `dash` is not a palette field.
+- [ ] **Not** pairwise contrast between palette colours. An earlier draft of this spec
+      required 3:1 between any two, which caps the palette at **two colours** and is
+      therefore unsatisfiable: a colour clearing 3:1 against white has relative luminance
+      ≤ 0.30, and pairwise 3:1 needs each `L + 0.05` to differ threefold, which runs below
+      zero at the third entry. The requirement was also the wrong reading — two strands are
+      separated by a `KIND_STRAND_GAP` of **background**, so each one's adjacent colour is
+      the canvas, which the criterion above already covers. What 1.4.1 asks for is that
+      colour is not the only channel, and that is the dash, enforced by the FR-002/FR-003
+      write-side check. Recorded rather than deleted: the arithmetic is not obvious and the
+      criterion looked reasonable.
+- [ ] The palette-level distinctness assertion is **perceptual, not luminance**: no two
+      palette colours sit closer than **ΔE 20** in CIE Lab, and `KIND_UNRESOLVED` clears the
+      same floor against every entry. Luminance contrast is the wrong metric for hues at
+      similar lightness, which is exactly what a palette of eight readable-on-white colours
+      is; ΔE is what separates them. The floor binds — the shipped eight sit at ΔE 20.6 at
+      their closest — so a ninth colour, or a swap, reddens it.
 - [ ] The colours painted are asserted in **e2e**, not jsdom — only a real browser resolves
       what is on the canvas, as the SPEC-018 delivery doc records.
 - [ ] The shape's accessible name lists every label the connection carries, unlisted ones

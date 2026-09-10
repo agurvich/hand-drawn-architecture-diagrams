@@ -1,5 +1,12 @@
 # Completed Spec — SPEC-018: Edge kinds
 
+> **SUPERSEDED IN PART by SPEC-019 (2026-09-10).** The closed three-kind vocabulary
+> (`EDGE_KINDS`, `EdgeKind`) is gone, the `--edge-kind-*` custom properties are gone, and an
+> unrecognised label is now DRAWN unresolved rather than dropped. What survives unchanged: the
+> `kinds` prop and its migration, the strand rendering, the merge union, the halo, and black
+> meaning no kind. A delivery doc is history, but a history that describes a mechanism the repo no
+> longer has is read as true by the next session — hence this marker rather than an edit.
+
 ## What was completed?
 
 - **A connection carries a set of kinds** — `data`, `permission`, `sequence` — from a closed

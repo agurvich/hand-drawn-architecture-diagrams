@@ -33,6 +33,8 @@ const TYPE_LITERALS = [
   "'diagramSceneView'",
   "'diagramOffScene'",
   "'diagramSketchMode'",
+  "'diagramKind'",
+  "'diagramKind:'",
 ]
 
 /**
@@ -51,6 +53,7 @@ const TYPE_DEFINITION_MODULES = [
   resolve(SHARED_DIR, 'scenes/scene.ts'),
   resolve(SHARED_DIR, 'scenes/sceneType.ts'),
   resolve(SHARED_DIR, 'sketch/mode.ts'),
+  resolve(SHARED_DIR, 'kinds/kindType.ts'),
 ]
 
 /** Source files under `root`, excluding tests and fixtures. */
