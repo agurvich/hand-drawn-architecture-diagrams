@@ -1,5 +1,12 @@
 /**
- * WHAT A KIND LOOKS LIKE: the closed sets a user picks from.
+ * WHAT A KIND LOOKS LIKE: the closed sets a user picks from, and the rules the
+ * write sites enforce over them.
+ *
+ * It also owns `labelCollision`, `pairCollision` and `freePair` (SPEC-020
+ * FR-003). They are here rather than beside the record because this module
+ * imports NOTHING, so `document.ts` can call them without reaching a tldraw
+ * package -- and because `freePair` is a loop over `pairCollision`, so splitting
+ * them meant a module cycle, a second copy of the rule, or that reach.
  *
  * Moved here from `index.css`'s `--edge-kind-*` custom properties when SPEC-019
  * made the vocabulary user-authored. A custom property cannot be read by a unit

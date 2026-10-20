@@ -187,29 +187,7 @@ describe('labelCollision', () => {
   })
 })
 
-describe('pairCollision', () => {
-  const vocabulary = overlayVocabulary([])
-
-  it('refuses a kind identical in both channels', () => {
-    // Two kinds the same colour AND the same dash are one kind to a reader, and
-    // the person who caused it cannot see that they did.
-    expect(pairCollision('orange', 'solid', vocabulary)?.id).toBe('data')
-  })
-
-  it('allows a shared colour when the dash differs', () => {
-    expect(pairCollision('orange', 'dotted', vocabulary)).toBeNull()
-  })
-
-  it('allows a shared dash when the colour differs', () => {
-    expect(pairCollision('teal', 'solid', vocabulary)).toBeNull()
-  })
-
-  it('does not collide an entry with itself while it is being edited', () => {
-    expect(pairCollision('orange', 'solid', vocabulary, 'data')).toBeNull()
-  })
-})
-
-describe('pairCollision still bites once entries hold KEYS', () => {
+describe('pairCollision — the rule, and the way it retired silently', () => {
   /*
    * THE RULE THAT RETIRED SILENTLY.
    *

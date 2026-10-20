@@ -149,11 +149,8 @@ describe('resolveKind', () => {
      * The failure mode is the whole canvas, not one strand: this runs inside
      * `ShapeUtil.component()`, so a TypeError there fails the render.
      *
-     * Reachable without anybody doing anything wrong -- a client on a build
-     * whose palette has an entry this one lacks, or the `?unvalidated` dev
-     * schema, which by design skips the palette check the record validator
-     * applies. Written into the store past the validator for exactly that
-     * reason.
+     * Reachable without anybody doing anything wrong: a client on a build whose
+     * palette has an entry this one lacks, syncing a record here.
      *
      * SPEC-018 had this hazard as an INVISIBLE strand and guarded it with a
      * test binding the vocabulary to the stylesheet. That test retired with the
@@ -164,10 +161,11 @@ describe('resolveKind', () => {
     /*
      * Built directly rather than through the store, because the record
      * validator REFUSES this colour -- which is the defence in depth working,
-     * and is exactly why the store is the wrong venue for this test. The two
-     * routes that get past the validator are a peer on a different build and
-     * the `?unvalidated` dev schema, neither of which a unit test can stage
-     * honestly. What is under test is `resolveKind`, so it is called directly.
+     * and is exactly why the store is the wrong venue for this test. The one
+     * route that gets past the validator is a record arriving over sync from a
+     * peer whose palette differs, which a unit test cannot stage honestly.
+     * (`?unvalidated` does NOT: it loosens `diagramNode` only.) What is under
+     * test is `resolveKind`, so it is called directly.
      */
     const vocabulary: ReadonlyMap<string, KindEntry> = new Map([
       ['from-2027', { id: 'k9', label: 'from-2027', colour: 'chartreuse', dash: 'solid' }],
@@ -178,6 +176,31 @@ describe('resolveKind', () => {
       dash: KIND_UNRESOLVED.dash,
       resolved: false,
     })
+  })
+
+  it('does not resolve a DASH key this build does not have', () => {
+    // The mirror of the colour case above, and it was missing: deleting the
+    // dash clause from `resolveKind` entirely -- so an unknown dash paints a
+    // resolved SOLID line instead of the unresolved look -- left all 189 tests
+    // in `src/client` and `src/shared/kinds` green.
+    const vocabulary: ReadonlyMap<string, KindEntry> = new Map([
+      ['from-2027', { id: 'k9', label: 'from-2027', colour: 'violet', dash: 'zigzag' }],
+    ])
+    expect(resolveKind(vocabulary, 'from-2027')).toEqual({
+      colour: KIND_UNRESOLVED.hex,
+      dash: KIND_UNRESOLVED.dash,
+      resolved: false,
+    })
+  })
+
+  it('does not resolve an INHERITED palette key', () => {
+    // `KIND_PALETTE['constructor']` is the Object function: truthy, `.hex`
+    // undefined, so a truthy bracket read resolved it with no colour -- which
+    // paints black, which SPEC-018 means as "no kind". Silently invisible.
+    const vocabulary: ReadonlyMap<string, KindEntry> = new Map([
+      ['odd', { id: 'k8', label: 'odd', colour: 'constructor', dash: 'solid' }],
+    ])
+    expect(resolveKind(vocabulary, 'odd').resolved).toBe(false)
   })
 
   it('treats `__proto__` as a label, not as a prototype lookup', () => {

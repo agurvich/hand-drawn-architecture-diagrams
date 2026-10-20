@@ -76,8 +76,23 @@ export function filesEscaping(
 ): string[] {
   const out: string[] = []
   for (const { path, text } of files) {
-    for (const m of text.matchAll(/from\s+'([^']+)'/g)) {
-      const spec = m[1]!
+    /*
+     * Two forms, because one of them has no `from`. A SIDE-EFFECT import --
+     * `import './x'` or `import 'tldraw'` -- carries no binding and slipped a
+     * `from`-only pattern entirely; prepending `import 'tldraw'` to `palette.ts`
+     * left every assertion here green. A DYNAMIC `await import('…')` has no
+     * `from` either. `import type` and `export … from` are both caught by the
+     * first pattern, verified.
+     *
+     * A double-quoted specifier still slips, and that is closed elsewhere:
+     * prettier's `singleQuote` plus `format:check` as a pre-push gate.
+     */
+    const specs = [
+      ...[...text.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]!),
+      ...[...text.matchAll(/^\s*import\s+'([^']+)'/gm)].map((m) => m[1]!),
+      ...[...text.matchAll(/import\('([^']+)'\)/g)].map((m) => m[1]!),
+    ]
+    for (const spec of specs) {
       if (!spec.startsWith('.')) continue
       const target = resolve(dirname(path), spec)
       if (!target.startsWith(root + '/') && target !== root) out.push(`${path}: ${spec}`)
@@ -214,9 +229,17 @@ describe('FR-001 — one definition, two consumers', () => {
     expect(violations).toEqual([])
   })
 
-  it('THE ESCAPE CHECK BITES on a two-hop relative import out of src/shared', () => {
-    // A gate is not tested by running it on the thing it guards. The fixture is
-    // a planted pair: one file points at another, and the SECOND one escapes.
+  it('THE ESCAPE CHECK BITES on a relative import out of src/shared', () => {
+    /*
+     * A gate is not tested by running it on the thing it guards.
+     *
+     * The check is PER FILE and textual -- it does not resolve a chain. The
+     * planted pair is still worth having, but for a narrower reason than an
+     * earlier comment here claimed: it asserts the gate flags the file that
+     * actually escapes and stays silent about the one that merely points at it.
+     * Transitivity comes from the universal quantification in the test below,
+     * not from walking a graph.
+     */
     const dir = resolve(FIXTURES, 'escape')
     const planted = ['hop-one.txt', 'hop-two.txt'].map((name) => ({
       path: resolve(SHARED_DIR, 'shapes', name),
@@ -225,6 +248,21 @@ describe('FR-001 — one definition, two consumers', () => {
     const violations = filesEscaping(SHARED_DIR, planted)
     expect(violations).toHaveLength(1)
     expect(violations[0]).toContain('../../../client/kindVocabulary')
+  })
+
+  it('BITES on the two forms that carry no `from` clause', () => {
+    // A side-effect import and a dynamic one. Both escaped a `from`-only
+    // pattern, and side-effect imports exist in this codebase today -- a shared
+    // module gaining one would have walked straight through.
+    const violations = filesEscaping(SHARED_DIR, [
+      {
+        path: resolve(SHARED_DIR, 'shapes', 'side-effect.txt'),
+        text: readFileSync(resolve(FIXTURES, 'escape', 'side-effect.txt'), 'utf8'),
+      },
+    ])
+    expect(violations).toHaveLength(2)
+    expect(violations.join(' ')).toContain('devOnly')
+    expect(violations.join(' ')).toContain('kindVocabulary')
   })
 
   it('and SAYS NOTHING about imports that stay inside, or allowlisted bare ones', () => {
@@ -268,5 +306,7 @@ describe('FR-001 — one definition, two consumers', () => {
     // safe because this module is a leaf: no bare specifier, no relative one.
     const text = readFileSync(resolve(SHARED_DIR, 'kinds/palette.ts'), 'utf8')
     expect([...text.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1])).toEqual([])
+    // Side-effect form too, which carries no `from`.
+    expect([...text.matchAll(/^\s*import\s+'([^']+)'/gm)].map((m) => m[1])).toEqual([])
   })
 })

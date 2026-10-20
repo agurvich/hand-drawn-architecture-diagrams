@@ -105,8 +105,15 @@ export function resolveKind(
    * UNRESOLVED covers three absences, deliberately collapsed: no entry for the
    * label, an entry naming a palette colour this build does not have, and an
    * entry naming a dash this build does not have. The last two are reachable
-   * from a mismatched client build and from the `?unvalidated` dev schema,
-   * which by design skips the checks the record validator applies.
+   * from a MISMATCHED BUILD -- a record arriving over sync from a peer whose
+   * palette has an entry this one lacks.
+   *
+   * NOT from `?unvalidated`, which an earlier version of this comment claimed:
+   * `devOnly.ts` loosens `diagramNode`'s props only and passes
+   * `customRecordSchemas` through untouched, so `kindRecordValidator` and its
+   * `keyOf` checks still reject an unknown colour or dash on that path. Tested,
+   * and corrected here because a reachability claim in a docstring has nothing
+   * downstream to catch it.
    *
    * `Object.hasOwn` FOR THE DASH, not a truthiness or `=== undefined` test:
    * `KIND_DASHES.solid` is legitimately `undefined`, so either of those makes
@@ -114,9 +121,16 @@ export function resolveKind(
    * `keyOf` in `kind.ts` guards the same trap the same way.
    */
   if (!entry) return { colour: KIND_UNRESOLVED.hex, dash: KIND_UNRESOLVED.dash, resolved: false }
-  const palette = KIND_PALETTE[entry.colour]
-  if (!palette || !Object.hasOwn(KIND_DASHES, entry.dash)) {
+  /*
+   * `Object.hasOwn` FOR THE COLOUR TOO, not a truthy bracket read.
+   * `KIND_PALETTE['constructor']` is the `Object` function -- truthy, with
+   * `.hex` undefined -- so such an entry resolved as `resolved: true` with no
+   * colour, which paints black, which per SPEC-018 means "no kind". Silently
+   * invisible: the exact hazard this fallback exists to replace, one line above
+   * the dash check that guards it deliberately.
+   */
+  if (!Object.hasOwn(KIND_PALETTE, entry.colour) || !Object.hasOwn(KIND_DASHES, entry.dash)) {
     return { colour: KIND_UNRESOLVED.hex, dash: KIND_UNRESOLVED.dash, resolved: false }
   }
-  return { colour: palette.hex, dash: KIND_DASHES[entry.dash], resolved: true }
+  return { colour: KIND_PALETTE[entry.colour]!.hex, dash: KIND_DASHES[entry.dash], resolved: true }
 }

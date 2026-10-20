@@ -39,6 +39,17 @@ describe('the vocabulary is seeds overlaid by records', () => {
     expect(overlayVocabulary([]).find((e) => e.id === 'permission')!.dash).toBe('dashed')
   })
 
+  it('carries a RECORD’s dash key through too, not just a seed’s', () => {
+    /*
+     * The record branch, asserted on a NON-SOLID dash deliberately. Reverting
+     * it to `KIND_DASHES[record.dash]` killed exactly one unrelated test, and
+     * only because that fixture's dash was `solid` -- `undefined`, which the
+     * `hasOwn` check happens to reject. With any other dash nothing caught it.
+     */
+    const vocabulary = overlayVocabulary([record(newKindId('7'), { dash: 'dotted' })])
+    expect(vocabulary.find((e) => e.id === 'k7')!.dash).toBe('dotted')
+  })
+
   it('lets a record at a seed id REPLACE that seed, not add a fourth', () => {
     const vocabulary = overlayVocabulary([record(kindRecordId('data'))])
     expect(vocabulary).toHaveLength(3)
