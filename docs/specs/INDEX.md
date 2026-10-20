@@ -24,6 +24,7 @@ to status only — no prose.
 | SPEC-017 | Recognition that works on a real hand | Completed | SPEC-010 |
 | SPEC-018 | Edge kinds | Completed | SPEC-005, SPEC-006, SPEC-010, SPEC-011, SPEC-015, SPEC-016, SPEC-017 |
 | SPEC-019 | A vocabulary the user writes | Completed | SPEC-008, SPEC-010, SPEC-016, SPEC-017, SPEC-018 |
+| SPEC-020 | Edge kinds in the JSON document | In Progress | SPEC-007, SPEC-009, SPEC-012, SPEC-018, SPEC-019 |
 
 ## Arcs (build order)
 
@@ -71,7 +72,7 @@ Group related specs and record the order to build them in. Keep this section: a 
   edge showed no actor when its members disagreed, and now shows them all -- which is why it is last
   and why it carries the superseded markers.
 
-- **iPad readiness:** SPEC-016 -> SPEC-017 -> SPEC-018 -> SPEC-019 -> (edge kinds in the document) ->
+- **iPad readiness:** SPEC-016 -> SPEC-017 -> SPEC-018 -> SPEC-019 -> SPEC-020 ->
   (node header/body) -> (one drawing path) -> (iPad chrome)
 
   The tool was used on its target device for the first time on 2026-09-08 and almost nothing about
@@ -88,7 +89,10 @@ Group related specs and record the order to build them in. Keep this section: a 
 
   SPEC-018 puts edge kinds on the canvas and leaves them out of the JSON document, which is the seam
   SPEC-011 -> SPEC-012 was cut along: the feature first, then the document version bump and the
-  frozen corpus of the version before it. The follow-on is a placeholder, not a file.
+  frozen corpus of the version before it. SPEC-020 closes it, and the owner's call on 2026-10-20 was
+  that the document is AUTHORITATIVE about the vocabulary -- it carries the words with their colours
+  and replaces the room's authored vocabulary on import, rather than merging or carrying labels
+  only.
 
   SPEC-019 comes BEFORE the document spec, not after it, and that order was forced by evidence
   rather than chosen: the three kinds SPEC-018 shipped were read off one drawing, and the second
