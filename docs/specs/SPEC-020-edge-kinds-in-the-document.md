@@ -98,6 +98,11 @@ The reviewer's call to accept or reject, not the author's to assert.
       deduplicated and ordered — so two clients exporting one diagram produce one string.
 - [ ] Strict on unknown keys and wrong types, on the same terms as every other field, and defensive
       about a non-array `kinds` at either site.
+- [ ] **When `vocabulary` is omitted, a connection word the build's three do not define is
+      dropped**, exactly as FR-005 drops a word with no free pair. Otherwise the one function whose
+      contract forbids it would emit a document `parseDocument` rejects. Only tests omit the
+      parameter today, and the Phase 4 tests are the first code to build kinded connections, so the
+      rule is stated rather than discovered.
 - [ ] **`toDocument`'s `vocabulary` parameter is a trailing OPTIONAL, and omitting it omits the
       key** — it does not default to `[]`. The three candidate arities each cost something:
       required edits 42 existing call sites, which `document.ts` argues against for `scenes` on the
@@ -174,11 +179,24 @@ both. This is the prerequisite that lets one producer supply what the document w
       (`kind.ts` already imports `palette.ts`), a second copy of the colour-and-dash rule, or
       `document.ts` reaching tldraw through the back door. Their call sites in `KindField.tsx` and
       `overlay.test.ts` move with them.
-- [ ] **A test asserts the fence rather than stating it**: neither `palette.ts` nor `document.ts`
-      reaches any tldraw package, transitively. `shared-imports.test.ts` gates `src/shared` against
-      an allowlist but says nothing about one shared module importing another, so this fence is
-      currently a comment — and FR-005 puts `document.ts` one careless import away from pulling
-      React and the DOM into the Worker bundle.
+- [ ] **The fence becomes a test, and the test is the achievable fence.** The wording an earlier
+      draft used — "neither `palette.ts` nor `document.ts` reaches any tldraw package,
+      transitively" — is **false of `document.ts` today**: it imports `./shapes/node`, which imports
+      `@tldraw/tlschema`. Written that way the test is red the day it lands and gets quietly
+      narrowed, which is the comment it was meant to replace. Two real properties instead:
+      - **`palette.ts`'s transitive closure is itself** — it resolves no import at all. That is what
+        makes `document.ts` reaching into `./kinds/palette` safe, and it is the whole of what
+        FR-005 needs.
+      - **No `src/shared` source resolves a relative import outside `SHARED_DIR`.**
+        `shared-imports.test.ts` already forbids `tldraw` in *every* shared source, so transitivity
+        within `src/shared` comes free from that universal quantification; the genuine hole is that
+        it `continue`s past every relative specifier, so `import '../client/foo'` walks straight
+        through.
+- [ ] **The fence owes a fixture corpus, like the gate beside it.** `shared-imports.test.ts`
+      extracts its walker as a pure function precisely so planted fixtures can prove it bites,
+      including a case that asserts silence. The new rule gets the same: a planted graph escaping
+      `src/shared` through a two-hop relative chain, and a clean one. A gate is not tested by
+      running it on the thing it guards.
 - [ ] **`pairCollision` still refuses two kinds identical in colour and dash.** It currently
       resolves its argument (`KIND_DASHES[dash]`) and compares against `entry.dash`; once entries
       hold keys, every comparison becomes key-versus-SVG-value and the function returns `null` for
@@ -217,8 +235,14 @@ Older documents import unchanged; each key is refused at a version that predates
       green in its OWN COMMIT before the commit that bumps the version.** After the bump the two are
       indistinguishable files; nothing automated can check it, so the diff reviewer is told to check
       the history. Said plainly because a criterion with no observable cannot fail.
-- [ ] The v3 corpus covers a document with no `kinds` key anywhere, one with actors, and one with
-      scenes.
+- [ ] The v3 corpus covers a minimal document, one with actors, and one with scenes — each earning
+      its place on **content**, as the v2 corpus's files do. There is deliberately **no
+      "no-kinds-key" fixture**: a `kinds` key is illegal at v3, so every v3 document lacks one and
+      such a fixture has no contrast class that can exist — it would be `minimal.json` twice.
+- [ ] **The absent-versus-`[]` distinction is asserted in the format tests, not in any corpus.** A
+      corpus asserts with `toEqual`, which ignores an `undefined`-valued key — the very mechanism
+      FR-001 relies on — so it is structurally incapable of telling absent from empty. The
+      assertion is `'kinds' in result.document`, where the two differ.
 - [ ] **The v1 and v2 `EXPECTED` blobs do not change, and any edit to either is a defect** — which
       holds only because of FR-001's optional return key. SPEC-012 carried this claim with that
       precondition stated; borrowing the sentence without it is what made it false in the last draft.
@@ -413,7 +437,9 @@ export interface DiagramDocument {
 the identity (`kinds/kind.ts`) and is what makes a document readable and model-authorable; the id
 exists only so an entry can claim a built-in. They are different jobs.
 
-`document.ts` imports no tldraw package directly and that must not change: everything it needs —
+`document.ts` imports no tldraw package **directly** and that must not change — it does reach one
+*transitively*, through `./shapes/node`, which is why FR-003's fence is phrased as the two
+properties that are actually true rather than as a transitive ban. Everything it needs here —
 `KIND_PALETTE`, `KIND_DASHES`, `SEED_KINDS`, `VocabularyEntry` and `freePair` — comes from
 `src/shared/kinds/palette.ts`, which imports nothing. It is imported from `./kinds/palette` and
 **never** the `./kinds` barrel, which reaches `@tldraw/tlschema`.
@@ -429,7 +455,10 @@ export interface VocabularyEntry {
   dash: string     // a KIND_DASHES key — see FR-003
 }
 /** Moved here from KindField, so there is ONE of it. FR-005. */
-export function freePair(entries, taken?): { colour: string; dash: string } | null
+export function freePair(entries): { colour: string; dash: string } | null
+// ONE argument. Folding each synthesised entry into `entries` before the next
+// choice is the mechanism; a `taken` set would be a second one. (An earlier
+// draft wrote both here and in FR-005, and FR-005 is the one with reasoning.)
 
 // src/shared/kinds/kind.ts — FR-003
 export interface KindEntry extends VocabularyEntry {}
@@ -497,8 +526,9 @@ e2e/
 
 ### Phase 3: The format (FR-001, FR-002, FR-004)
 
-- Both optional keys, v4, the validator rule set, the three version guards **including the
-  `actorId` guard the bump breaks**, the upgrade path, the pinned error text.
+- Both optional keys, v4, the validator rule set, the **four** version guards including the
+  `actorId` guard the bump breaks, `upgradeV3` so the composition chain reaches 4, the pinned error
+  text.
 - `toDocument`/`fromDocument` with the optional return key and the optional vocabulary parameter.
 
 ### Phase 4: Export and import (FR-002's invariant, FR-005, FR-006)
