@@ -3,6 +3,14 @@
 **Date:** 2026-09-08 · **Written for:** a fresh agent picking this up · **Repo state:** `main` at
 `9b90856` (SPEC-015 merged, CI green)
 
+> **Where these findings stand, as of 2026-10-20** — added later, because this document is dated
+> and everything below it is frozen at 2026-09-08. **Closed:** F1 (SPEC-017, though multi-stroke
+> shapes remain — see the *Recognition* arc), F2 (SPEC-016), F5 (PR #31), F8 (diagnosed; the policy
+> it produced is the unwritten version-guard spec). **Still open:** F3 one drawing path, F4 node as
+> header + body, F6 custom shapes ignore the dark theme, F7 chrome consolidation. §3's proposed
+> order below has been partly executed and partly superseded; `docs/specs/INDEX.md` → Arcs is the
+> live build order.
+
 The tool was used on its target device for the first time: an iPad with an Apple Pencil, in portrait,
 drawing a real diagram. Almost nothing about that session was predicted by the test suite. This
 document is the findings and a proposed order of work. Read it with `CLAUDE.md` and `docs/process.md`;

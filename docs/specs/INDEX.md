@@ -100,6 +100,16 @@ Group related specs and record the order to build them in. Keep this section: a 
   SPEC-018 also ANSWERS the deferred edge-sets question rather than inheriting it -- by declining
   the feature. See `decisions.md` -> *An edge carries a set of kinds*.
 
+- **Browser floor:** (a version guard for an iPad too old to run the app)
+
+  Not a defect and not deferred -- an unwritten spec with its decision already made. The
+  "blank page on iPad" was a Safari 16.2 PARSE failure in a vendored tldraw dependency
+  (`architecture.md` -> Known Constraints). The owner's call on 2026-09-08 was a **version guard,
+  not a `build.target` pin**: the two-line pin was written, verified and deliberately backed out,
+  and what gets built instead is a readable "this browser is too old" message in place of the white
+  page. Recorded here because it otherwise lives only inside a dated handoff document, which is
+  where a fact goes to be lost.
+
 - **Recognition:** SPEC-010 -> SPEC-017 -> (a shape drawn in several strokes)
 
   The placeholder is the finding that closes the recognition loop for a real hand: the owner does
@@ -110,3 +120,10 @@ Group related specs and record the order to build them in. Keep this section: a 
   readiness arc rather than inside it, because SPEC-017's scoring was built on a labelled
   population of single strokes (`decisions.md` -> *A classifier is scored against a labelled
   population*) and a multi-stroke corpus has to be labelled before the work can be sized.
+
+  **Standing caveat, unconfirmed since 2026-09-08:** the twelve indices in
+  `src/shared/sketch/__corpus__/labels.ts` -> `RECTANGLES` were labelled BY EYE off a rendered
+  contact sheet and the project owner has never confirmed them. Every score SPEC-017 reports is
+  computed against them, nothing derives them and no test can check them, so a mislabelled stroke
+  tunes the recogniser against the wrong target silently. The labels file states its own provenance;
+  this states that the confirmation is still outstanding, which the file cannot.
