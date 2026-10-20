@@ -133,22 +133,21 @@ first time they bite.
   **This is recorded because it was specified wrongly twice**, from reasoning rather than from the
   SDK's actual state machine; the values above were measured against a live `TLSocketRoom`. A UI that
   treats disconnection as failure is the failure.
-- **OPEN DEFECT, HIGH PRIORITY (2026-09-04): the app renders a fully blank page on iPad.** Desktop
-  Chromium is fine; the e2e suite passes at an emulated iPad viewport. A real iPad over the LAN dev
-  URL shows white — not the loading spinner, not the error box, so this is a **crash before first
-  paint**, not a failed connection. Nothing has been ruled out yet; no time was spent debugging.
-  This blocks the product's entire premise, so no feature spec should be treated as validated on the
-  target device until it is fixed.
-  Where to start tomorrow, most-likely first:
-  1. **Insecure context.** The dev URL is `http://<LAN-IP>`, so `window.isSecureContext` is false and
-     `crypto.randomUUID()` throws. If tldraw or a dependency calls it at import time, the module
-     never evaluates and the page is blank with no visible error. Cheapest check: serve over HTTPS
-     (a tunnel, or Vite's `server.https`) and see if it survives.
-  2. **Build/syntax target.** An older iPadOS Safari failing to parse shipped syntax fails silently
-     and blank. Check the iPadOS version against Vite's default target.
-  3. Only then, an in-page console — Safari on the iPad plus Mac Safari's Web Inspector attaches for
-     free and needs no dependency. iOS Chrome cannot be inspected at all; every iOS browser is
-     WKWebView and none expose devtools.
+- **RESOLVED 2026-09-08: the "blank page on iPad" defect was a PARSE error, not a crash.** Recorded
+  rather than deleted, because the diagnosis is the useful part and the policy it produced is still
+  unbuilt. A class static initialization block in a vendored tldraw dependency (`OrderedDict`)
+  parses only in Safari 16.4+; on a 16.2 iPad the module threw `SyntaxError: Unexpected token '{'`
+  before evaluating, so nothing mounted and the page was white — not the spinner, not the error box.
+  The owner has since updated the device, so it blocks nobody today.
+  Two things follow, and both are still true:
+  1. **The two-line `build.target`/dep-optimizer pin to `safari16` was written, verified, and
+     deliberately BACKED OUT.** The owner's call (2026-09-08) was a **version guard, not a build
+     target**: an iPad too old to run the app should say so instead of showing white. That guard is
+     an unwritten spec, not a defect.
+  2. **A real iPad is still not covered by any gate.** The e2e suite runs Chromium at an emulated
+     iPad viewport, which parses everything the shipped bundle contains — so it passed throughout
+     the whole period this defect existed. Emulated-viewport green is not device green.
+  Full account, including what was ruled out: `docs/handoff/2026-09-08-ipad-findings.md` → F8.
 - **The target device is an iPad with a pencil.** Pointer-event handling, hit targets and panel layout
   are judged on touch first, not on a desktop mouse.
 
