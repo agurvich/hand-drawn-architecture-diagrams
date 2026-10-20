@@ -2,7 +2,7 @@ import { createCustomRecordMigrationSequence, idValidator } from '@tldraw/tlsche
 import type { BaseRecord, RecordId } from '@tldraw/store'
 import { T } from '@tldraw/validate'
 import { KIND_RECORD_TYPE } from './kindType'
-import { KIND_DASHES, KIND_PALETTE, SEED_KINDS } from './palette'
+import { KIND_DASHES, KIND_PALETTE, SEED_KINDS, type VocabularyEntry } from './palette'
 
 export { KIND_RECORD_TYPE, KIND_ID_PREFIX } from './kindType'
 
@@ -46,17 +46,14 @@ export interface DiagramKind extends BaseRecord<typeof KIND_RECORD_TYPE, RecordI
 }
 
 /**
- * The read model: what a renderer, the panel and the pen all consume.
+ * The read model, structurally identical to `VocabularyEntry` and re-exported
+ * under the name the client already uses.
  *
- * A seed and a record collapse to this, so nothing downstream has to know which
- * it is looking at -- which is the whole point of the overlay.
+ * The declaration lives in `palette.ts`, which imports nothing, so `document.ts`
+ * can name it without reaching a tldraw package. One type, two names, no second
+ * definition to drift.
  */
-export interface KindEntry {
-  id: string
-  label: string
-  colour: string
-  dash: string | undefined
-}
+export type KindEntry = VocabularyEntry
 
 /**
  * REQUIRED, and easy to miss -- the trap `scenes/scene.ts` and `shapes/node.ts`
@@ -117,7 +114,7 @@ export const kindRecordMigrations = createCustomRecordMigrationSequence({ sequen
 export function overlayVocabulary(records: readonly DiagramKind[]): KindEntry[] {
   const byId = new Map<string, KindEntry>()
   for (const seed of SEED_KINDS) {
-    byId.set(seed.id, { ...seed, dash: KIND_DASHES[seed.dash] })
+    byId.set(seed.id, { ...seed })
   }
   for (const record of records) {
     // The id carries the record-type prefix; a seed's does not. Stripping it is
@@ -128,48 +125,8 @@ export function overlayVocabulary(records: readonly DiagramKind[]): KindEntry[] 
       id,
       label: record.label,
       colour: record.colour,
-      dash: KIND_DASHES[record.dash],
+      dash: record.dash,
     })
   }
   return [...byId.values()].sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0))
-}
-
-/**
- * The entry a label would collide with, or null.
- *
- * CASE-INSENSITIVE after trimming, because two kinds called `data` and `Data`
- * are one kind to a reader and two strands on a line.
- *
- * `exceptId` excludes the entry being edited, and excluding it BY ID is the
- * whole point: without that, renaming `data` to `Data` -- capitalising a label
- * for display, which is exactly what SPEC-018's `KIND_LABELS` map did in code --
- * collides with itself and is refused with a message naming itself.
- */
-export function labelCollision(
-  label: string,
-  entries: readonly KindEntry[],
-  exceptId?: string,
-): KindEntry | null {
-  const wanted = label.trim().toLowerCase()
-  return entries.find((e) => e.id !== exceptId && e.label.toLowerCase() === wanted) ?? null
-}
-
-/**
- * The entry a colour-and-dash pair would collide with, or null.
- *
- * Two kinds identical in both channels are indistinguishable on the canvas, and
- * the person who caused it cannot see that they did -- which is why this is
- * refused rather than warned about. Sharing a colour is fine if the dashes
- * differ, and sharing a dash is fine if the colours do.
- */
-export function pairCollision(
-  colour: string,
-  dash: string,
-  entries: readonly KindEntry[],
-  exceptId?: string,
-): KindEntry | null {
-  const resolved = KIND_DASHES[dash]
-  return (
-    entries.find((e) => e.id !== exceptId && e.colour === colour && e.dash === resolved) ?? null
-  )
 }

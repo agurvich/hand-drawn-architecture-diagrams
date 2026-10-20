@@ -364,18 +364,40 @@ describe('renaming a kind', () => {
      * test passed, because none of them ever opened the edit form on a kind
      * the user had made. The tests were not vacuous; they were unpopulated.
      */
-    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: '12 5' }]
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: 'long' }]
     render(<KindField editor={editor} id={'shape:c' as never} />)
     fireEvent.click(screen.getByTestId('kind-edit-enriches'))
     fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'derives' } })
     fireEvent.click(screen.getByTestId('kind-form-save'))
-    const record = put.mock.calls[0]![0]![0] as { id: string; label: string }
+    const record = put.mock.calls[0]![0]![0] as { id: string; label: string; dash: string }
     expect(record.id).toBe(`${KIND_RECORD_TYPE}:kabc`)
     expect(record.label).toBe('derives')
+    /*
+     * AND IT KEEPS ITS LINE STYLE. This is the assertion that makes the
+     * `dashKeyOf` criterion fail-able: `dashKeyOf` existed to populate this
+     * control, and the replacement -- reading `initial.dash`, which is now the
+     * key itself -- is right, but nothing proved it. Opening a kind for edit,
+     * changing only its NAME and saving it back as `solid` is a silent data
+     * change, and it passed 714 tests.
+     *
+     * Every other edit test in this file and in the e2e spec edits `data`,
+     * whose dash IS `solid`, so none of them can see it.
+     */
+    expect(record.dash).toBe('long')
+  })
+
+  it('shows a non-solid kind’s OWN line style when the form opens', () => {
+    // The same defect from the control's side rather than the record's.
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: 'long' }]
+    render(<KindField editor={editor} id={'shape:c' as never} />)
+    fireEvent.click(screen.getByTestId('kind-edit-enriches'))
+    expect((screen.getByTestId('kind-form-dash') as unknown as HTMLSelectElement).value).toBe(
+      'long',
+    )
   })
 
   it('rewrites connections carrying a CREATED kind’s label', () => {
-    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: '12 5' }]
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: 'long' }]
     pageShapes = [{ id: 'shape:1', type: CONNECTION_SHAPE_TYPE, props: { kinds: ['enriches'] } }]
     render(<KindField editor={editor} id={'shape:c' as never} />)
     fireEvent.click(screen.getByTestId('kind-edit-enriches'))

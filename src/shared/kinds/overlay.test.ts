@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   overlayVocabulary,
-  labelCollision,
-  pairCollision,
   kindRecordId,
   newKindId,
   KIND_RECORD_TYPE,
@@ -26,10 +24,30 @@ describe('the vocabulary is seeds overlaid by records', () => {
     expect(overlayVocabulary([]).map((e) => e.label)).toEqual(['data', 'permission', 'sequence'])
   })
 
-  it('resolves a seed dash to its SVG value, not its key', () => {
+  it('carries the dash KEY, not its SVG value', () => {
+    /*
+     * THIS EXPECTATION INVERTED, it was not updated.
+     *
+     * The overlay used to pre-resolve the dash while leaving the colour a key,
+     * an asymmetry with no reason behind it. Both are keys now and `resolveKind`
+     * resolves both, which is what lets one producer supply what the JSON
+     * document has to write. A generic "update this file" sweep would have
+     * edited the values and left a title that lies.
+     */
     const data = overlayVocabulary([]).find((e) => e.id === 'data')!
-    expect(data.dash).toBeUndefined()
-    expect(overlayVocabulary([]).find((e) => e.id === 'permission')!.dash).toBe('7 4')
+    expect(data.dash).toBe('solid')
+    expect(overlayVocabulary([]).find((e) => e.id === 'permission')!.dash).toBe('dashed')
+  })
+
+  it('carries a RECORD’s dash key through too, not just a seed’s', () => {
+    /*
+     * The record branch, asserted on a NON-SOLID dash deliberately. Reverting
+     * it to `KIND_DASHES[record.dash]` killed exactly one unrelated test, and
+     * only because that fixture's dash was `solid` -- `undefined`, which the
+     * `hasOwn` check happens to reject. With any other dash nothing caught it.
+     */
+    const vocabulary = overlayVocabulary([record(newKindId('7'), { dash: 'dotted' })])
+    expect(vocabulary.find((e) => e.id === 'k7')!.dash).toBe('dotted')
   })
 
   it('lets a record at a seed id REPLACE that seed, not add a fourth', () => {
@@ -85,53 +103,5 @@ describe('the vocabulary is seeds overlaid by records', () => {
     const vocabulary = overlayVocabulary([record(newKindId('1'), { label: '__proto__' })])
     expect(vocabulary).toHaveLength(4)
     expect(vocabulary.find((e) => e.label === '__proto__')).toBeDefined()
-  })
-})
-
-describe('labelCollision', () => {
-  const vocabulary = overlayVocabulary([])
-
-  it('finds a duplicate ignoring case and surrounding space', () => {
-    expect(labelCollision('  DATA ', vocabulary)?.id).toBe('data')
-  })
-
-  it('allows a genuinely new label', () => {
-    expect(labelCollision('enriches', vocabulary)).toBeNull()
-  })
-
-  it('lets an entry be renamed to a different case OF ITSELF', () => {
-    /*
-     * `data` -> `Data`. Without an id exclusion, a case-insensitive comparison
-     * refuses this and names the colliding entry -- which is the entry being
-     * renamed. Capitalising a label for display is exactly what SPEC-018's
-     * `KIND_LABELS` map did in code, and this spec deletes it.
-     */
-    expect(labelCollision('Data', vocabulary, 'data')).toBeNull()
-  })
-
-  it('still refuses a rename onto ANOTHER entry', () => {
-    expect(labelCollision('sequence', vocabulary, 'data')?.id).toBe('sequence')
-  })
-})
-
-describe('pairCollision', () => {
-  const vocabulary = overlayVocabulary([])
-
-  it('refuses a kind identical in both channels', () => {
-    // Two kinds the same colour AND the same dash are one kind to a reader, and
-    // the person who caused it cannot see that they did.
-    expect(pairCollision('orange', 'solid', vocabulary)?.id).toBe('data')
-  })
-
-  it('allows a shared colour when the dash differs', () => {
-    expect(pairCollision('orange', 'dotted', vocabulary)).toBeNull()
-  })
-
-  it('allows a shared dash when the colour differs', () => {
-    expect(pairCollision('teal', 'solid', vocabulary)).toBeNull()
-  })
-
-  it('does not collide an entry with itself while it is being edited', () => {
-    expect(pairCollision('orange', 'solid', vocabulary, 'data')).toBeNull()
   })
 })

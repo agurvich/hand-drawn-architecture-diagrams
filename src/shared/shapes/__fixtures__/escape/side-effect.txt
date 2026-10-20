@@ -1,0 +1,6 @@
+// Planted: the two forms with no `from` clause. A side-effect import and a
+// dynamic one both escape src/shared, and a `from`-only pattern saw neither.
+import '../../../client/devOnly'
+export async function late() {
+  return import('../../../client/kindVocabulary')
+}

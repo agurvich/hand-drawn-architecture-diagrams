@@ -1,0 +1,4 @@
+// Planted: the escaping hop. `../../../client` is outside SHARED_DIR, so this is
+// a shared module depending on the client -- which the Worker cannot bundle.
+import { getVocabulary } from '../../../client/kindVocabulary'
+export const helper = getVocabulary

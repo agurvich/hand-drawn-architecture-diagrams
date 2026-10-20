@@ -1,5 +1,6 @@
 import { computed, type Computed, type Editor } from 'tldraw'
 import {
+  KIND_DASHES,
   KIND_RECORD_TYPE,
   KIND_UNRESOLVED,
   KIND_PALETTE,
@@ -101,24 +102,35 @@ export function resolveKind(
 ): ResolvedKind {
   const entry = vocabulary.get(label)
   /*
-   * UNRESOLVED covers two different absences, deliberately collapsed.
+   * UNRESOLVED covers three absences, deliberately collapsed: no entry for the
+   * label, an entry naming a palette colour this build does not have, and an
+   * entry naming a dash this build does not have. The last two are reachable
+   * from a MISMATCHED BUILD -- a record arriving over sync from a peer whose
+   * palette has an entry this one lacks.
    *
-   * No entry for the label, and an entry naming a palette colour THIS BUILD
-   * DOES NOT HAVE -- reachable from a mismatched client build, and from the
-   * `?unvalidated` dev schema, which by design skips the palette check the
-   * record validator applies. The second one used to be `KIND_PALETTE[...]!`,
-   * a non-null assertion that turns a stale colour key into a TypeError inside
-   * `ShapeUtil.component()`: the whole canvas fails, not one strand.
+   * NOT from `?unvalidated`, which an earlier version of this comment claimed:
+   * `devOnly.ts` loosens `diagramNode`'s props only and passes
+   * `customRecordSchemas` through untouched, so `kindRecordValidator` and its
+   * `keyOf` checks still reject an unknown colour or dash on that path. Tested,
+   * and corrected here because a reachability claim in a docstring has nothing
+   * downstream to catch it.
    *
-   * SPEC-018's version of this hazard was an INVISIBLE strand, guarded by a
-   * test binding the vocabulary to the stylesheet. That test retired with the
-   * custom properties on the grounds that a missing colour became a type error
-   * -- true for code-defined kinds, and not true for records, where the colour
-   * is runtime data. This is the fallback that replaces it.
+   * `Object.hasOwn` FOR THE DASH, not a truthiness or `=== undefined` test:
+   * `KIND_DASHES.solid` is legitimately `undefined`, so either of those makes
+   * EVERY SOLID KIND -- the built-in `data` among them -- render unresolved.
+   * `keyOf` in `kind.ts` guards the same trap the same way.
    */
-  const palette = entry ? KIND_PALETTE[entry.colour] : undefined
-  if (!entry || !palette) {
+  if (!entry) return { colour: KIND_UNRESOLVED.hex, dash: KIND_UNRESOLVED.dash, resolved: false }
+  /*
+   * `Object.hasOwn` FOR THE COLOUR TOO, not a truthy bracket read.
+   * `KIND_PALETTE['constructor']` is the `Object` function -- truthy, with
+   * `.hex` undefined -- so such an entry resolved as `resolved: true` with no
+   * colour, which paints black, which per SPEC-018 means "no kind". Silently
+   * invisible: the exact hazard this fallback exists to replace, one line above
+   * the dash check that guards it deliberately.
+   */
+  if (!Object.hasOwn(KIND_PALETTE, entry.colour) || !Object.hasOwn(KIND_DASHES, entry.dash)) {
     return { colour: KIND_UNRESOLVED.hex, dash: KIND_UNRESOLVED.dash, resolved: false }
   }
-  return { colour: palette.hex, dash: entry.dash, resolved: true }
+  return { colour: KIND_PALETTE[entry.colour]!.hex, dash: KIND_DASHES[entry.dash], resolved: true }
 }

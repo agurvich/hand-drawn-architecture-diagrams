@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { CANVAS_BACKGROUND, KIND_DASHES, KIND_PALETTE, KIND_UNRESOLVED, SEED_KINDS } from './index'
+import {
+  CANVAS_BACKGROUND,
+  freePair,
+  KIND_DASHES,
+  KIND_PALETTE,
+  KIND_UNRESOLVED,
+  labelCollision,
+  overlayVocabulary,
+  pairCollision,
+  SEED_KINDS,
+} from './index'
 
 /**
  * The palette's accessibility properties, asserted rather than commented.
@@ -141,5 +151,116 @@ describe('the seeds', () => {
     // identical in both channels are one kind to a reader.
     const pairs = SEED_KINDS.map((s) => `${s.colour}/${s.dash}`)
     expect(new Set(pairs).size).toBe(pairs.length)
+  })
+})
+
+/*
+ * `labelCollision` and `pairCollision` moved here from `kind.ts` with the
+ * functions themselves (SPEC-020 FR-003): both are pure over `VocabularyEntry`,
+ * neither needs tldraw, and `freePair` -- which document export calls -- is a
+ * loop over `pairCollision`, so leaving them behind would have meant a module
+ * cycle, a second copy of the rule, or tldraw reaching `document.ts`.
+ */
+describe('labelCollision', () => {
+  const vocabulary = overlayVocabulary([])
+
+  it('finds a duplicate ignoring case and surrounding space', () => {
+    expect(labelCollision('  DATA ', vocabulary)?.id).toBe('data')
+  })
+
+  it('allows a genuinely new label', () => {
+    expect(labelCollision('enriches', vocabulary)).toBeNull()
+  })
+
+  it('lets an entry be renamed to a different case OF ITSELF', () => {
+    /*
+     * `data` -> `Data`. Without an id exclusion, a case-insensitive comparison
+     * refuses this and names the colliding entry -- which is the entry being
+     * renamed. Capitalising a label for display is exactly what SPEC-018's
+     * `KIND_LABELS` map did in code, and this spec deletes it.
+     */
+    expect(labelCollision('Data', vocabulary, 'data')).toBeNull()
+  })
+
+  it('still refuses a rename onto ANOTHER entry', () => {
+    expect(labelCollision('sequence', vocabulary, 'data')?.id).toBe('sequence')
+  })
+})
+
+describe('pairCollision — the rule, and the way it retired silently', () => {
+  /*
+   * THE RULE THAT RETIRED SILENTLY.
+   *
+   * `pairCollision` used to resolve its `dash` argument through `KIND_DASHES`
+   * and compare the result against a pre-resolved `entry.dash`. Once entries
+   * hold keys that comparison is key-versus-SVG-value -- `'solid' === undefined`,
+   * `'dashed' === '7 4'` -- so it returned `null` for every real query. Nothing
+   * threw. What stopped working was the WCAG 1.4.1 refusal this function IS:
+   * `refuseKindWrite` would have let two kinds be identical in both channels,
+   * and `freePair` would have handed every new kind `data`'s own pair.
+   *
+   * Proved by execution during review rather than reasoned about, which is why
+   * it has its own describe block and its own named mutation: revert the
+   * comparison in `palette.ts` to `e.dash === KIND_DASHES[dash]` and these go
+   * red.
+   */
+  const seeds = overlayVocabulary([])
+
+  it('refuses a pair identical in BOTH channels', () => {
+    expect(pairCollision('orange', 'solid', seeds)?.id).toBe('data')
+  })
+
+  it('allows a shared colour when the dash differs, and the reverse', () => {
+    expect(pairCollision('orange', 'dotted', seeds)).toBeNull()
+    expect(pairCollision('teal', 'solid', seeds)).toBeNull()
+  })
+
+  it('does not collide an entry with itself while it is being edited', () => {
+    expect(pairCollision('orange', 'solid', seeds, 'data')).toBeNull()
+  })
+
+  it('refuses every seed pair, so the comparison is not accidentally one-sided', () => {
+    // The key-vs-value bug passed the first case above for `data` only by
+    // luck of `undefined`; asserting all three is what makes it unambiguous.
+    for (const seed of SEED_KINDS) {
+      expect(pairCollision(seed.colour, seed.dash, seeds)?.id, seed.label).toBe(seed.id)
+    }
+  })
+})
+
+describe('freePair', () => {
+  it('finds a pair nothing is using', () => {
+    const pair = freePair(overlayVocabulary([]))
+    expect(pair).not.toBeNull()
+    expect(pairCollision(pair!.colour, pair!.dash, overlayVocabulary([]))).toBeNull()
+  })
+
+  it('does not hand out a seed’s pair', () => {
+    // The symptom of the retired rule: every new kind opening on orange/solid,
+    // which IS `data`, so creating one was refused for a collision the user had
+    // not made.
+    const pair = freePair(overlayVocabulary([]))
+    expect(`${pair!.colour}/${pair!.dash}`).not.toBe('orange/solid')
+  })
+
+  it('returns NULL when all 40 pairs are taken, rather than a colliding fallback', () => {
+    /*
+     * `null` rather than a silent first-pair fallback, because the two callers
+     * want different things from exhaustion: the panel offers a colliding pair
+     * and lets the save refuse with a message, and document export drops the
+     * word. Picking one here would be wrong for the other.
+     */
+    const every: ReturnType<typeof overlayVocabulary> = []
+    let n = 0
+    for (const dash of Object.keys(KIND_DASHES)) {
+      for (const colour of Object.keys(KIND_PALETTE)) {
+        every.push({ id: `k${n}`, label: `k${n}`, colour, dash })
+        n++
+      }
+    }
+    expect(n).toBe(Object.keys(KIND_DASHES).length * Object.keys(KIND_PALETTE).length)
+    expect(freePair(every)).toBeNull()
+    // One short of full still finds the last one.
+    expect(freePair(every.slice(0, -1))).not.toBeNull()
   })
 })

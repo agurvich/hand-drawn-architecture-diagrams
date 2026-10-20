@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE, normaliseKinds } from '@shared/shapes'
 import {
+  freePair,
   KIND_DASHES,
   KIND_PALETTE,
   KIND_RECORD_TYPE,
@@ -47,25 +48,6 @@ export function refuseKindWrite(
     return `“${pair.label}” already uses that colour and dash — pick one or the other.`
   }
   return null
-}
-
-/**
- * The first colour-and-dash pair no entry is using, or the first pair at all if
- * every one is taken -- in which case the form refuses on save and says why,
- * which is the honest outcome rather than a silent write.
- */
-function freePair(entries: readonly KindEntry[]): { colour: string; dash: string } {
-  for (const dash of Object.keys(KIND_DASHES)) {
-    for (const colour of Object.keys(KIND_PALETTE)) {
-      if (!pairCollision(colour, dash, entries)) return { colour, dash }
-    }
-  }
-  return { colour: Object.keys(KIND_PALETTE)[0]!, dash: Object.keys(KIND_DASHES)[0]! }
-}
-
-/** The dash key an entry's resolved dash came from, for editing it back. */
-function dashKeyOf(entry: KindEntry): string {
-  return Object.keys(KIND_DASHES).find((key) => KIND_DASHES[key] === entry.dash) ?? 'solid'
 }
 
 /**
@@ -349,6 +331,20 @@ export function KindField({ editor, id }: KindFieldProps) {
   )
 }
 
+/**
+ * What the form offers when all 40 colour-and-dash pairs are taken.
+ *
+ * The panel's answer to exhaustion, and deliberately not `freePair`'s: it offers
+ * a colliding pair and lets the save refuse with a message, which is what it did
+ * before `freePair` moved. Document export's answer is to drop the word, so a
+ * `null` return rather than a built-in fallback is what lets one function serve
+ * both.
+ */
+const FIRST_PAIR = {
+  colour: Object.keys(KIND_PALETTE)[0]!,
+  dash: Object.keys(KIND_DASHES)[0]!,
+}
+
 interface KindFormProps {
   entries: readonly KindEntry[]
   initial?: KindEntry
@@ -385,13 +381,30 @@ function KindForm({ entries, initial, onCancel, onSubmit }: KindFormProps) {
   /*
    * A NEW kind opens on a colour-and-dash pair nothing else is using.
    *
-   * The first version defaulted to the first palette entry and a solid line --
-   * which is exactly `data`, so pressing Create on a fresh form was refused for
-   * a collision the user had not made and could not see. A default that is
-   * always invalid is a default that teaches people to distrust the form.
+   * ONE call, not two, and the first-pair fallback is HERE rather than inside
+   * `freePair`: the other caller -- document export -- drops the word when all
+   * 40 pairs are taken, and a function that picked one of those behaviours for
+   * both would be wrong for one of them. The panel's answer is to offer a
+   * colliding pair and let the save refuse with a message, which is what it did
+   * before `freePair` moved.
    */
-  const [colour, setColour] = useState(initial?.colour ?? freePair(entries).colour)
-  const [dash, setDash] = useState(initial ? dashKeyOf(initial) : freePair(entries).dash)
+  /*
+   * A NEW kind opens on a colour-and-dash pair nothing else is using. The first
+   * version defaulted to the first palette entry and a solid line -- which is
+   * exactly `data`, so pressing Create on a fresh form was refused for a
+   * collision the user had not made and could not see.
+   *
+   * LAZY initialisers. `useState(compute())` runs `compute()` on every render
+   * (`best-practices/react` ยง6), and `freePair` walks up to 40 pairs. One form
+   * is mounted at a time so the cost is small, but the pattern is the thing.
+   */
+  const [colour, setColour] = useState(
+    () => initial?.colour ?? (freePair(entries) ?? FIRST_PAIR).colour,
+  )
+  // `initial.dash` IS the key now, so there is nothing to reverse-map. The
+  // function that used to do it searched `KIND_DASHES` by value and, handed a
+  // key, found nothing and silently reset the kind to solid.
+  const [dash, setDash] = useState(() => initial?.dash ?? (freePair(entries) ?? FIRST_PAIR).dash)
   const [error, setError] = useState<string | null>(null)
 
   const submit = () => {

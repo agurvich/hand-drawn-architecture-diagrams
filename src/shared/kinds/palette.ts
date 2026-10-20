@@ -1,5 +1,12 @@
 /**
- * WHAT A KIND LOOKS LIKE: the closed sets a user picks from.
+ * WHAT A KIND LOOKS LIKE: the closed sets a user picks from, and the rules the
+ * write sites enforce over them.
+ *
+ * It also owns `labelCollision`, `pairCollision` and `freePair` (SPEC-020
+ * FR-003). They are here rather than beside the record because this module
+ * imports NOTHING, so `document.ts` can call them without reaching a tldraw
+ * package -- and because `freePair` is a loop over `pairCollision`, so splitting
+ * them meant a module cycle, a second copy of the rule, or that reach.
  *
  * Moved here from `index.css`'s `--edge-kind-*` custom properties when SPEC-019
  * made the vocabulary user-authored. A custom property cannot be read by a unit
@@ -122,3 +129,94 @@ export const SEED_KINDS: readonly { id: string; label: string; colour: string; d
   { id: 'permission', label: 'permission', colour: 'green', dash: 'dashed' },
   { id: 'sequence', label: 'sequence', colour: 'slate', dash: 'dotted' },
 ]
+
+/**
+ * A vocabulary entry, structurally — what a renderer, the panel, the pen and
+ * the JSON document all consume.
+ *
+ * Declared HERE rather than in `kind.ts` because this module imports nothing,
+ * and `document.ts` must be able to name the type without reaching a tldraw
+ * package. `kind.ts` imports three of them at runtime, which makes it a harder
+ * dependency than the barrel the fence already forbids.
+ *
+ * BOTH `colour` AND `dash` ARE KEYS. An earlier shape pre-resolved the dash and
+ * left the colour a key, an asymmetry with no reason behind it that meant the
+ * only producer of the effective vocabulary could not supply what the document
+ * has to write. `resolveKind` resolves both.
+ */
+export interface VocabularyEntry {
+  id: string
+  label: string
+  /** A key of `KIND_PALETTE`. */
+  colour: string
+  /** A key of `KIND_DASHES`. */
+  dash: string
+}
+
+/**
+ * The entry a label would collide with, or null.
+ *
+ * CASE-INSENSITIVE after trimming, because two kinds called `data` and `Data`
+ * are one kind to a reader and two strands on a line.
+ *
+ * `exceptId` excludes the entry being edited, and excluding it BY ID is the
+ * whole point: without that, renaming `data` to `Data` -- capitalising a label
+ * for display -- collides with itself and is refused with a message naming
+ * itself.
+ */
+export function labelCollision<T extends VocabularyEntry>(
+  label: string,
+  entries: readonly T[],
+  exceptId?: string,
+): T | null {
+  const wanted = label.trim().toLowerCase()
+  return entries.find((e) => e.id !== exceptId && e.label.toLowerCase() === wanted) ?? null
+}
+
+/**
+ * The entry a colour-and-dash pair would collide with, or null.
+ *
+ * Two kinds identical in both channels are indistinguishable on the canvas, and
+ * the person who caused it cannot see that they did -- which is why this is
+ * refused rather than warned about. Sharing a colour is fine if the dashes
+ * differ, and sharing a dash is fine if the colours do.
+ *
+ * COMPARES KEYS TO KEYS. It used to resolve its `dash` argument through
+ * `KIND_DASHES` and compare against a pre-resolved entry; once entries hold
+ * keys that comparison is key-versus-SVG-value, which is `null` for every real
+ * query -- silently retiring the WCAG 1.4.1 rule this function IS, and handing
+ * every newly created kind `data`'s own pair. Proved by execution during review,
+ * not reasoned about.
+ */
+export function pairCollision<T extends VocabularyEntry>(
+  colour: string,
+  dash: string,
+  entries: readonly T[],
+  exceptId?: string,
+): T | null {
+  return entries.find((e) => e.id !== exceptId && e.colour === colour && e.dash === dash) ?? null
+}
+
+/**
+ * The first colour-and-dash pair no entry is using, or `null` when all 40 are
+ * taken.
+ *
+ * `null` rather than a silent fallback, because the two callers want different
+ * things from exhaustion: the panel keeps its first-pair fallback and then
+ * refuses on save with a message, and document export drops the word. A
+ * function that picked one of those for them would be wrong for the other.
+ *
+ * Dash-major, which is the order it has always had: it prefers to vary the line
+ * style before the colour, so the first few kinds a diagram gains are
+ * distinguishable without colour vision.
+ */
+export function freePair(
+  entries: readonly VocabularyEntry[],
+): { colour: string; dash: string } | null {
+  for (const dash of Object.keys(KIND_DASHES)) {
+    for (const colour of Object.keys(KIND_PALETTE)) {
+      if (!pairCollision(colour, dash, entries)) return { colour, dash }
+    }
+  }
+  return null
+}
