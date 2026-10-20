@@ -32,7 +32,7 @@ const SEED_LABELS = SEED_KINDS.map((s) => s.label)
 /** A vocabulary with one user-created kind in it. */
 const withEnriches: ReadonlyMap<string, KindEntry> = new Map([
   ...seeds,
-  ['enriches', { id: 'k1', label: 'enriches', colour: 'violet', dash: '12 5' }],
+  ['enriches', { id: 'k1', label: 'enriches', colour: 'violet', dash: 'long' }],
 ])
 
 describe('strandsFor — no kinds is the OLD rendering, exactly', () => {
@@ -75,7 +75,7 @@ describe('strandsFor — one strand per kind, resolved through the vocabulary', 
     // FR-003/FR-004: recolouring writes no connection record, so the same
     // labels through a different vocabulary must paint differently.
     const recoloured = new Map(seeds)
-    recoloured.set('data', { id: 'data', label: 'data', colour: 'teal', dash: undefined })
+    recoloured.set('data', { id: 'data', label: 'data', colour: 'teal', dash: 'solid' })
     expect(strandsFor(['data'], recoloured, A, B).strands[0]!.colour).toBe(KIND_PALETTE.teal!.hex)
     expect(strandsFor(['data'], seeds, A, B).strands[0]!.colour).toBe(KIND_PALETTE.orange!.hex)
   })
@@ -203,8 +203,11 @@ describe('the marker key — an id that survives a user-written label', () => {
    */
   const messy = new Map([
     ...seeds,
-    ['flows to', { id: 'k1', label: 'flows to', colour: 'violet', dash: '12 5' }],
-    ['says "hi" (loudly)', { id: 'k2', label: 'says "hi" (loudly)', colour: 'teal', dash: '7 4' }],
+    ['flows to', { id: 'k1', label: 'flows to', colour: 'violet', dash: 'long' }],
+    [
+      'says "hi" (loudly)',
+      { id: 'k2', label: 'says "hi" (loudly)', colour: 'teal', dash: 'dashed' },
+    ],
   ])
 
   it('contains nothing that needs quoting in a url()', () => {

@@ -1,0 +1,5 @@
+// Planted: a src/shared module that reaches OUTSIDE src/shared by two hops.
+// `hop-two` is the file that actually escapes; this one only points at it, which
+// is the shape the gate has to see through.
+import { helper } from './hop-two'
+export const value = helper

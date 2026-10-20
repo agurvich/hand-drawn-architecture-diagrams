@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
 import { useValue, type Editor, type TLShapeId } from 'tldraw'
 import { CONNECTION_SHAPE_TYPE, normaliseKinds } from '@shared/shapes'
 import {
+  freePair,
   KIND_DASHES,
   KIND_PALETTE,
   KIND_RECORD_TYPE,
@@ -47,25 +48,6 @@ export function refuseKindWrite(
     return `“${pair.label}” already uses that colour and dash — pick one or the other.`
   }
   return null
-}
-
-/**
- * The first colour-and-dash pair no entry is using, or the first pair at all if
- * every one is taken -- in which case the form refuses on save and says why,
- * which is the honest outcome rather than a silent write.
- */
-function freePair(entries: readonly KindEntry[]): { colour: string; dash: string } {
-  for (const dash of Object.keys(KIND_DASHES)) {
-    for (const colour of Object.keys(KIND_PALETTE)) {
-      if (!pairCollision(colour, dash, entries)) return { colour, dash }
-    }
-  }
-  return { colour: Object.keys(KIND_PALETTE)[0]!, dash: Object.keys(KIND_DASHES)[0]! }
-}
-
-/** The dash key an entry's resolved dash came from, for editing it back. */
-function dashKeyOf(entry: KindEntry): string {
-  return Object.keys(KIND_DASHES).find((key) => KIND_DASHES[key] === entry.dash) ?? 'solid'
 }
 
 /**
@@ -390,8 +372,25 @@ function KindForm({ entries, initial, onCancel, onSubmit }: KindFormProps) {
    * a collision the user had not made and could not see. A default that is
    * always invalid is a default that teaches people to distrust the form.
    */
-  const [colour, setColour] = useState(initial?.colour ?? freePair(entries).colour)
-  const [dash, setDash] = useState(initial ? dashKeyOf(initial) : freePair(entries).dash)
+  /*
+   * A NEW kind opens on a colour-and-dash pair nothing else is using.
+   *
+   * ONE call, not two, and the first-pair fallback is HERE rather than inside
+   * `freePair`: the other caller -- document export -- drops the word when all
+   * 40 pairs are taken, and a function that picked one of those behaviours for
+   * both would be wrong for one of them. The panel's answer is to offer a
+   * colliding pair and let the save refuse with a message, which is what it did
+   * before `freePair` moved.
+   */
+  const fallback = freePair(entries) ?? {
+    colour: Object.keys(KIND_PALETTE)[0]!,
+    dash: Object.keys(KIND_DASHES)[0]!,
+  }
+  const [colour, setColour] = useState(initial?.colour ?? fallback.colour)
+  // `initial.dash` IS the key now, so there is nothing to reverse-map. The
+  // function that used to do it searched `KIND_DASHES` by value and, handed a
+  // key, found nothing and silently reset the kind to solid.
+  const [dash, setDash] = useState(initial?.dash ?? fallback.dash)
   const [error, setError] = useState<string | null>(null)
 
   const submit = () => {

@@ -82,7 +82,7 @@ describe('reading the vocabulary writes nothing', () => {
 })
 
 describe('sameVocabulary — every field the derivation produces is compared', () => {
-  const base: KindEntry = { id: 'data', label: 'data', colour: 'orange', dash: undefined }
+  const base: KindEntry = { id: 'data', label: 'data', colour: 'orange', dash: 'solid' }
   const map = (over: Partial<KindEntry> = {}) =>
     new Map([[over.label ?? base.label, { ...base, ...over }]])
 
@@ -107,7 +107,7 @@ describe('sameVocabulary — every field the derivation produces is compared', (
       id: 'other',
       label: 'other',
       colour: 'teal',
-      dash: '7 4',
+      dash: 'dashed',
     }
     for (const [key, value] of Object.entries(mutations)) {
       const changed = map({ [key]: value } as Partial<KindEntry>)
@@ -170,7 +170,7 @@ describe('resolveKind', () => {
      * honestly. What is under test is `resolveKind`, so it is called directly.
      */
     const vocabulary: ReadonlyMap<string, KindEntry> = new Map([
-      ['from-2027', { id: 'k9', label: 'from-2027', colour: 'chartreuse', dash: undefined }],
+      ['from-2027', { id: 'k9', label: 'from-2027', colour: 'chartreuse', dash: 'solid' }],
     ])
     expect(() => resolveKind(vocabulary, 'from-2027')).not.toThrow()
     expect(resolveKind(vocabulary, 'from-2027')).toEqual({

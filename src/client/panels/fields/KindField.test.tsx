@@ -364,7 +364,7 @@ describe('renaming a kind', () => {
      * test passed, because none of them ever opened the edit form on a kind
      * the user had made. The tests were not vacuous; they were unpopulated.
      */
-    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: '12 5' }]
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: 'long' }]
     render(<KindField editor={editor} id={'shape:c' as never} />)
     fireEvent.click(screen.getByTestId('kind-edit-enriches'))
     fireEvent.change(screen.getByTestId('kind-form-label'), { target: { value: 'derives' } })
@@ -375,7 +375,7 @@ describe('renaming a kind', () => {
   })
 
   it('rewrites connections carrying a CREATED kind’s label', () => {
-    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: '12 5' }]
+    vocabulary = [...vocabulary, { id: 'kabc', label: 'enriches', colour: 'violet', dash: 'long' }]
     pageShapes = [{ id: 'shape:1', type: CONNECTION_SHAPE_TYPE, props: { kinds: ['enriches'] } }]
     render(<KindField editor={editor} id={'shape:c' as never} />)
     fireEvent.click(screen.getByTestId('kind-edit-enriches'))

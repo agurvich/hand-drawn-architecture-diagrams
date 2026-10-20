@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, extname, resolve } from 'node:path'
+import { join, extname, resolve, dirname } from 'node:path'
 
 // Resolved from the repo root (vitest's cwd) rather than import.meta.url, which
 // is not a file: URL under the jsdom transform.
@@ -55,6 +55,36 @@ const TYPE_DEFINITION_MODULES = [
   resolve(SHARED_DIR, 'sketch/mode.ts'),
   resolve(SHARED_DIR, 'kinds/kindType.ts'),
 ]
+
+/**
+ * Relative imports that resolve OUTSIDE `root`, as a pure function over
+ * `{path, text}` pairs so planted fixtures can prove it bites.
+ *
+ * EXTRACTED, not reused: the `tldraw` fence below is written inline, and its
+ * loop `continue`s past every relative specifier -- which is the hole this
+ * closes. A shared module importing `'../client/foo'` walked straight through
+ * both checks, because the allowlist only ever saw bare specifiers.
+ *
+ * Resolution is textual and deliberately crude: `resolve(dirname(file), spec)`
+ * and a prefix test. It cannot follow a path alias, and `src/shared` has none;
+ * if one is ever added this gate goes quiet, which is why the clean fixture
+ * asserts silence rather than the production tree alone.
+ */
+export function filesEscaping(
+  root: string,
+  files: readonly { path: string; text: string }[],
+): string[] {
+  const out: string[] = []
+  for (const { path, text } of files) {
+    for (const m of text.matchAll(/from\s+'([^']+)'/g)) {
+      const spec = m[1]!
+      if (!spec.startsWith('.')) continue
+      const target = resolve(dirname(path), spec)
+      if (!target.startsWith(root + '/') && target !== root) out.push(`${path}: ${spec}`)
+    }
+  }
+  return out
+}
 
 /** Source files under `root`, excluding tests and fixtures. */
 function sourceFiles(root: string, opts: { includeTests?: boolean } = {}): string[] {
@@ -182,5 +212,61 @@ describe('FR-001 — one definition, two consumers', () => {
       }
     }
     expect(violations).toEqual([])
+  })
+
+  it('THE ESCAPE CHECK BITES on a two-hop relative import out of src/shared', () => {
+    // A gate is not tested by running it on the thing it guards. The fixture is
+    // a planted pair: one file points at another, and the SECOND one escapes.
+    const dir = resolve(FIXTURES, 'escape')
+    const planted = ['hop-one.txt', 'hop-two.txt'].map((name) => ({
+      path: resolve(SHARED_DIR, 'shapes', name),
+      text: readFileSync(resolve(dir, name), 'utf8'),
+    }))
+    const violations = filesEscaping(SHARED_DIR, planted)
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('../../../client/kindVocabulary')
+  })
+
+  it('and SAYS NOTHING about imports that stay inside, or allowlisted bare ones', () => {
+    const planted = [
+      {
+        path: resolve(SHARED_DIR, 'shapes', 'clean.txt'),
+        text: readFileSync(resolve(FIXTURES, 'escape', 'clean.txt'), 'utf8'),
+      },
+    ]
+    expect(filesEscaping(SHARED_DIR, planted)).toEqual([])
+  })
+
+  it('no src/shared source reaches outside src/shared', () => {
+    /*
+     * The fence FR-003 asks for, in the form that is actually true.
+     *
+     * An earlier wording asked that `document.ts` reach no tldraw package
+     * TRANSITIVELY -- false the day it was written, since it imports
+     * `./shapes/node`, which imports `@tldraw/tlschema`. What holds is this plus
+     * the bare-specifier check below it: `tldraw` is forbidden in EVERY shared
+     * source, so transitivity within `src/shared` comes free from the universal
+     * quantification, and this closes the relative-escape hole that made the
+     * quantification incomplete.
+     */
+    /*
+     * TESTS EXCLUDED, for the reason the `tldraw` fence beside this one states:
+     * `boundary.test.ts` imports the worker schema and the client registry BY
+     * DESIGN -- asserting on the built schema is the only way to see whether a
+     * record type survived, and a source scan would pass on an argument that was
+     * silently discarded. Excluding them here keeps the two fences agreeing
+     * about what they govern.
+     */
+    const files = sourceFiles(SHARED_DIR)
+      .filter((f) => !f.startsWith(CORPUS_DIR))
+      .map((path) => ({ path, text: readFileSync(path, 'utf8') }))
+    expect(filesEscaping(SHARED_DIR, files)).toEqual([])
+  })
+
+  it('palette.ts resolves no import at all, which is what lets document.ts reach it', () => {
+    // `document.ts` names `VocabularyEntry` and calls `freePair`. That is only
+    // safe because this module is a leaf: no bare specifier, no relative one.
+    const text = readFileSync(resolve(SHARED_DIR, 'kinds/palette.ts'), 'utf8')
+    expect([...text.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1])).toEqual([])
   })
 })

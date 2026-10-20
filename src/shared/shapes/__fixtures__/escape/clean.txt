@@ -1,0 +1,6 @@
+// Planted: the SILENCE case. Relative imports that stay inside src/shared, plus
+// an allowlisted bare specifier. The gate must say nothing about this file.
+// Planted AS `src/shared/shapes/clean.txt`, so `../kinds/palette` is inside.
+import { T } from '@tldraw/validate'
+import { KIND_PALETTE } from '../kinds/palette'
+export const ok = { T, KIND_PALETTE }
